@@ -1,0 +1,51 @@
+// Schema da Find4You Business Platform.
+// Fonte de verdade do modelo de dados: docs/business-platform/modelagem-dados.md
+// Fase 0 (fundação): só o necessário para autenticação e papéis — as demais
+// entidades (empresas, oportunidades, vagas, candidatos...) nascem nas Fases
+// 1 e 2, conforme docs/business-platform/plano-modulos.md.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Papéis de acesso — ver docs/business-platform/arquitetura.md (seção
+/// "Multi-tenancy e controle de acesso").
+enum Papel {
+  admin
+  diretoria
+  consultor_comercial
+  recrutador
+  consultor_executive_search
+  financeiro
+  cliente_portal
+  candidato_portal
+}
+
+/// Espelha auth.users do Supabase Auth (1:1, id compartilhado).
+/// Ver docs/business-platform/modelagem-dados.md, seção "usuarios".
+model Usuario {
+  id        String  @id @db.Uuid
+  nome      String
+  // Nullable de propósito: o trigger em prisma/rls.sql cria a linha
+  // automaticamente no signup, sem papel — só um admin atribui um papel
+  // depois (ver "Configurações > Usuários e papéis" no roadmap, Fase 1).
+  // Nunca conceder um papel por default.
+  papel     Papel?
+  avatarUrl String? @map("avatar_url")
+
+  // empresaId/candidatoId ganham relação formal (@relation) quando os models
+  // Empresa e Candidato nascerem nas Fases 1 e 2 — por ora só a coluna.
+  empresaId   String? @map("empresa_id") @db.Uuid
+  candidatoId String? @map("candidato_id") @db.Uuid
+
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  @@map("usuarios")
+}
