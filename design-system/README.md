@@ -6,9 +6,15 @@ carrossel do Instagram). Governança e regra de consulta obrigatória estão na
 skill `design-system` — este arquivo é o índice do conteúdo, não repete o
 procedimento.
 
-Nenhum token abaixo foi definido ainda. Onde uma escolha visual (cor, fonte,
-espaçamento) ainda não existe, o arquivo correspondente marca
-`[TODO] Definir com Thiago` em vez de propor um valor não confirmado.
+Tokens de cor, tipografia, espaçamento, grid, ícones, logo, animação e tom
+visual foram confirmados por Thiago em 2026-07-30 (brief de marca + logos) —
+ver cada arquivo abaixo. O que ainda falta em cada um está marcado
+`[TODO] Definir com Thiago` (ex.: área de proteção do logo) ou
+`[TODO] Thiago: adicionar <arquivo>` quando o valor exato existe em um
+arquivo fonte (`colors_and_type.css`, assets de logo, código de componente
+React) que ainda não foi versionado neste repositório — a estrutura e os
+valores de base já são reais, só a fidelidade pixel-a-pixel de alguns detalhes
+depende desses arquivos serem adicionados.
 
 ## Tokens (arquivos na raiz)
 

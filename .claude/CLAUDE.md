@@ -22,10 +22,11 @@ Este repositório é o workspace operacional da Find4You dentro do Claude Code. 
 |---|---|
 | **CLAUDE.md** (este arquivo) | Visão de negócio, mapa de pastas, índice de Skills, princípios não-negociáveis de código |
 | **`.claude/skills/`** | Procedimentos operacionais por área — workflow, checklists, quando/como agir. Ver índice abaixo |
-| **`docs/`** | Base de conhecimento factual e estável: marca, clientes, cases, metodologia, processos, serviços, spec do site (`docs/website/`) |
+| **`docs/`** | Base de conhecimento factual e estável: marca, clientes, cases, metodologia, processos, serviços, spec do site (`docs/website/`) e spec do Business Platform (`docs/business-platform/`) |
 | **`prompts/`** | Templates de prompt reutilizáveis por tipo de conteúdo |
 | **`design-system/`** | Fonte única de verdade de tokens/componentes de UI |
 | **`website/`** | Código-fonte do site institucional (ainda não iniciado) — spec/planejamento vive em `docs/website/`, não aqui |
+| **`platform/`** | Código-fonte do Find4You Business Platform, o sistema interno de gestão (Fase 0 em andamento — ver `platform/README.md`) — spec/planejamento vive em `docs/business-platform/`, não aqui |
 | **`automations/`** | Scripts e config específicos de cada integração — o procedimento (fluxo, checklist, troubleshooting) continua sendo da Skill correspondente, nunca duplicado aqui |
 
 **Regra de organização:** ao criar um novo artefato (documento, prompt, componente, script), coloque-o na pasta já existente correspondente ao seu tipo em vez de criar novas pastas de nível superior.
@@ -44,6 +45,7 @@ Cada skill em `.claude/skills/<nome>/SKILL.md` contém o procedimento completo d
 - **`seo`** — otimização on-page, técnica e de conteúdo.
 - **`lovable`** — prototipagem/construção do site via app builder Lovable.
 - **`website`** — desenvolvimento e manutenção do código-fonte do site institucional.
+- **`business-platform`** — planejamento e desenvolvimento do Find4You Business Platform (CRM + ATS + Financeiro + Dashboards, sistema interno de gestão).
 - **`design-system`** — criação, governança e aplicação de tokens/componentes de UI.
 
 ## Padrões para qualquer código produzido

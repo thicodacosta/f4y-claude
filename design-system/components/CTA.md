@@ -1,35 +1,49 @@
-# CTA
+# CTA (banner)
 
 ## Objetivo
 
-[TODO] Definir com Thiago
+Um único padrão de banner de chamada-para-ação, reutilizado em toda página de
+marketing — não um banner desenhado do zero por página.
 
 ## Quando usar
 
-[TODO] Definir com Thiago
+Fechamento de página de serviço, fim de artigo de blog, seção intermediária
+de landing page — sempre que a página precisa converter a atenção do leitor
+em uma ação (agendar reunião, falar com consultor).
 
 ## Quando não usar
 
-[TODO] Definir com Thiago
+Ação operacional dentro do Business Platform (ex. "Publicar vaga") → isso é
+um `Button` Primary comum dentro do fluxo de trabalho, não um CTA Banner —
+CTA Banner é um padrão de marketing/conversão, não de produto.
 
 ## Estados
 
-[TODO] Definir com Thiago
+Estático (não interativo em si — o botão dentro dele tem seus próprios
+estados, ver `Button.md`).
 
 ## Variações
 
-*Ex.: CTA inline, CTA de seção, CTA final de página.*
+CTA inline (dentro de um bloco de texto, mais discreto), CTA de seção (o
+padrão principal — título + subtítulo + botão sobre fundo em gradiente de
+marca), CTA final de página (mesma estrutura, maior destaque/tamanho).
 
-[TODO] Definir com Thiago
+Fundo: `--brand-gradient` (cyan → indigo) — um dos poucos lugares onde o
+gradiente ocupa uma superfície inteira (banner, não a página toda). Texto
+branco, botão em contraste (fundo branco, texto no tom do gradiente).
 
 ## Exemplos
 
-[TODO] Definir com Thiago
+"Pronto para montar sua equipe Tech? — Fale com um consultor Find4You hoje."
++ botão "Agendar uma reunião".
 
 ## Código
 
-[TODO] Definir com Thiago
+`[TODO] Thiago: adicionar o componente React exportado (`CTABanner.jsx` +
+`.d.ts`) ao repositório`.
 
 ## Acessibilidade
 
-[TODO] Definir com Thiago
+Texto branco sobre o gradiente mantém contraste AA em toda a extensão do
+banner (checar especialmente a ponta mais clara do gradiente cyan); botão
+interno segue `Button.md`.
