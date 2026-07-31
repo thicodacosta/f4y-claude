@@ -29,6 +29,7 @@ depende desses arquivos serem adicionados.
 | `animacoes.md` | Padrões de transição/animação |
 | `illustrations.md` | Estilo de ilustração, se aplicável |
 | `tom-visual.md` | Personalidade visual da marca (complementa `docs/marca/tom-de-voz.md`, que cobre tom textual) |
+| `assets/` | Arquivos reais de logo (ver `logos.md` para versões recebidas vs. pendentes) |
 
 ## Componentes
 

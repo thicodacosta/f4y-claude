@@ -1,10 +1,9 @@
 # Logos
 
 > Regras de uso da marca Find4You. Fonte: brief de marca confirmado por
-> Thiago (2026-07-30). Os arquivos de logo em si (PNG/JPG/PDF) ainda não
-> estão neste repositório — **`[TODO] Thiago: adicionar os arquivos de
-> `assets/` (logos) a este repositório`**; este documento descreve o que
-> existe e as regras de uso, mas não substitui os arquivos reais.
+> Thiago (2026-07-30). Arquivos reais recebidos em 2026-07-30 e versionados
+> em `assets/` — wordmark completo e monograma F4Y, ambos coloridos. Ainda
+> faltam as versões P&B e o monograma branco (ver tabela abaixo).
 
 ## O logo
 
@@ -23,13 +22,25 @@ monograma **F4Y** é a versão compacta do mesmo conceito.
 
 ## Versões do logo
 
-| Versão | Arquivo (a adicionar em `assets/`) | Uso |
-|---|---|---|
-| Wordmark completo, cor | `Find4You - Logo 1.png/.jpg/.pdf` | Headers, marketing |
-| Wordmark completo, P&B | `Find4You - Logo 1 - PB.png/.jpg` | Contextos sem cor |
-| Monograma F4Y, cor | `Find4You - Logo 2.png/.jpg/.pdf` | Ícone de app, avatar, favicon, espaços apertados |
-| Monograma F4Y, P&B | `Find4You - Logo 2 - PB.png` | Contextos sem cor |
-| Monograma F4Y, branco | `Logo F4Y - Branco.png` | Fundos escuros/de marca |
+| Versão | Arquivo | Uso | Status |
+|---|---|---|---|
+| Wordmark completo, cor | `assets/Find4You - Logo 1.png` | Headers, marketing, login | ✅ Recebido — PNG 4647×1839, fundo transparente |
+| Wordmark completo, P&B | `Find4You - Logo 1 - PB.png/.jpg` | Contextos sem cor | `[TODO] Thiago: adicionar` |
+| Monograma F4Y, cor | `assets/Find4You - Logo 2.jpg` | Ícone de app, avatar, favicon, espaços apertados | ✅ Recebido — JPG 624×584, **fundo branco sólido** (não é transparente) |
+| Monograma F4Y, P&B | `Find4You - Logo 2 - PB.png` | Contextos sem cor | `[TODO] Thiago: adicionar` |
+| Monograma F4Y, branco | `Logo F4Y - Branco.png` | Fundos escuros/de marca | `[TODO] Thiago: adicionar` |
+
+### Nota técnica — fundo do monograma
+
+O monograma recebido é `.jpg` (sem canal alfa), com fundo branco embutido na
+própria imagem — não um arquivo com transparência. Isso funciona bem em
+qualquer contexto (o branco embutido já resolve contraste do "4" escuro), mas
+significa que ele **não pode ser usado diretamente sobre um fundo colorido**
+esperando transparência. Para uso no app, ver `docs/business-platform/
+design-system.md` — a versão em `platform/public/logo-monogram.png` é o
+mesmo arquivo, só recortado em quadrado perfeito (624×624, mesmo fundo
+branco). Quando a versão branca/transparente do monograma existir, ela
+substitui essa dependência do fundo branco embutido.
 
 ## Área de proteção e tamanho mínimo
 

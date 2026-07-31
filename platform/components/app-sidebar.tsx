@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { getVisibleNavGroups, ROLE_LABEL, type Papel } from "@/lib/nav";
 import { cn } from "@/lib/utils";
@@ -22,12 +23,13 @@ export function AppSidebar({ papel, nome }: { papel: Papel | null; nome: string 
   return (
     <div className="flex h-full flex-col gap-5 p-3.5">
       <div className="flex items-center gap-2.5 px-1.5 pb-1">
-        <div
-          className="flex size-8 shrink-0 items-center justify-center rounded-md font-heading text-[13px] font-extrabold text-white"
-          style={{ background: "linear-gradient(135deg, var(--primary), var(--brand-indigo))" }}
-        >
-          F4
-        </div>
+        <Image
+          src="/logo-monogram.png"
+          alt="Find4You"
+          width={32}
+          height={32}
+          className="shrink-0 rounded-md"
+        />
         <div className="min-w-0">
           <div className="truncate font-heading text-[15px] font-bold leading-tight">
             Find4You
