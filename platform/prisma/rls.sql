@@ -10,6 +10,12 @@
 -- 1) Habilita RLS na tabela.
 alter table public.usuarios enable row level security;
 
+-- 1.1) `atualizado_em` usa `@updatedAt` no Prisma, que só é aplicado pelo
+--      Prisma Client em escrita via Prisma — não vira DEFAULT no banco. A
+--      trigger do item 4 insere direto via SQL (fora do Prisma), então
+--      precisa de um DEFAULT no banco para não violar NOT NULL.
+alter table public.usuarios alter column atualizado_em set default now();
+
 -- 2) Helper SECURITY DEFINER para ler o papel do usuário autenticado sem
 --    recursão de RLS (uma policy que consulta `usuarios` dentro da própria
 --    policy de `usuarios` entraria em loop se não fosse por uma função

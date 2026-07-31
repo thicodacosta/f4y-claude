@@ -18,70 +18,109 @@ Next.js (App Router) + TypeScript + Tailwind v4 + shadcn/ui + Supabase
 [`arquitetura.md`](../docs/business-platform/arquitetura.md) para o porquê de
 cada escolha.
 
-## Setup — do zero até rodar localmente
+## Setup — Opção A: Supabase local (Docker, recomendado para começar)
 
-### 1. Instalar dependências
+Roda a stack inteira (Postgres + Auth + Storage + Realtime + Studio) na sua
+máquina via Docker, sem conta na nuvem e sem custo. É o mesmo código —
+só troca a URL de destino. Requer **Docker Desktop** instalado e rodando, e o
+[Supabase CLI](https://supabase.com/docs/guides/cli) (`brew install
+supabase/tap/supabase`).
+
+### 1. Instalar dependências e subir a stack local
 
 ```bash
 npm install
+supabase init      # só na primeira vez — cria supabase/config.toml
+supabase start      # sobe os containers; primeira vez baixa ~2GB de imagens
 ```
 
-### 2. Criar o projeto Supabase
+`supabase start` imprime `API_URL`, `ANON_KEY`, `DB_URL` e `STUDIO_URL` no
+final — Studio local fica em `http://127.0.0.1:54323`.
 
-Você precisa da sua própria conta em [supabase.com](https://supabase.com) —
-isso não pode ser feito por mim. Crie um novo projeto e anote:
-
-- **Project URL** e **anon public key** (Project Settings → API)
-- **Connection string** do Postgres (Project Settings → Database →
-  Connection string). Use a conexão **direta** (porta 5432, não o pooler
-  6543) como `DATABASE_URL` — evita limitações do pgbouncer em modo
-  transação durante `prisma migrate`.
-
-### 3. Configurar variáveis de ambiente
+### 2. Configurar `.env.local`
 
 ```bash
 cp .env.example .env.local
 ```
 
-Preencha `.env.local` com os valores do passo 2. Nunca commite esse arquivo
-(já está no `.gitignore`) nem a `service_role key` em lugar nenhum do
-código.
+Preencha com os valores impressos por `supabase start`:
 
-### 4. Criar a tabela `usuarios` e aplicar RLS
-
-```bash
-npm run db:migrate   # cria a tabela `usuarios` a partir de prisma/schema.prisma
+```
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<ANON_KEY do supabase start>
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+DIRECT_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 ```
 
-Depois, abra o **SQL Editor** do Supabase e rode o conteúdo de
-[`prisma/rls.sql`](prisma/rls.sql) — habilita RLS, cria o helper de papel, a
-trigger que sincroniza `auth.users` → `usuarios` no signup (sem papel, de
-propósito) e a trigger que impede auto-promoção de papel. Prisma Migrate não
-versiona RLS/triggers, por isso esse passo é manual.
+### 3. Migrar e aplicar RLS
 
-### 5. Criar seu usuário e virar admin
+```bash
+npm run db:migrate   # cria a tabela `usuarios`
+```
 
-1. Rode `npm run dev` e acesse `/login` — como ainda não existe usuário,
-   crie um em **Authentication → Users → Add user** no painel do Supabase
-   (e-mail + senha).
-2. A trigger do passo 4 já criou sua linha em `usuarios` com `papel = null`.
-   No SQL Editor, rode (trocando o e-mail):
+Depois aplique `prisma/rls.sql` no Postgres local (não há SQL Editor local
+por padrão — use `docker exec`):
 
-   ```sql
-   update public.usuarios set papel = 'admin'
-   where id = (select id from auth.users where email = 'voce@find4you.com.br');
-   ```
+```bash
+docker exec -i supabase_db_$(basename "$PWD") psql -U postgres -d postgres < prisma/rls.sql
+```
 
-3. Faça login em `/login` com esse e-mail/senha.
+(troque `$(basename "$PWD")` pelo nome do container se ele não bater — `docker
+ps | grep supabase_db` mostra o nome exato).
 
-### 6. Rodar
+### 4. Criar seu usuário e virar admin
+
+Sem projeto cloud não há painel "Add user" — crie via API do GoTrue local
+(troque e-mail/senha):
+
+```bash
+curl -s -X POST 'http://127.0.0.1:54321/auth/v1/admin/users' \
+  -H "apikey: <SERVICE_ROLE_KEY do supabase start>" \
+  -H "Authorization: Bearer <SERVICE_ROLE_KEY do supabase start>" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"voce@find4you.local","password":"escolha-uma-senha","email_confirm":true,"user_metadata":{"name":"Seu Nome"}}'
+```
+
+A trigger do passo 3 já criou a linha em `usuarios` com `papel = null`.
+Torne-se admin:
+
+```bash
+docker exec -i supabase_db_$(basename "$PWD") psql -U postgres -d postgres -c \
+  "update public.usuarios set papel = 'admin' where id = (select id from auth.users where email = 'voce@find4you.local');"
+```
+
+### 5. Rodar
 
 ```bash
 npm run dev
 ```
 
-Abra `http://localhost:3000` — deve redirecionar para `/login`, e depois do
-login, para `/dashboard` com o menu já filtrado pelo seu papel.
+Abra `http://localhost:3000` — redireciona para `/login`; depois do login,
+para `/dashboard` com o menu filtrado pelo seu papel.
+
+### Parar/retomar
+
+```bash
+supabase stop    # para os containers (mantém os dados)
+supabase start   # retoma de onde parou
+```
+
+## Setup — Opção B: Supabase cloud (para produção)
+
+Quando for hospedar de verdade, troque para um projeto real:
+
+1. Crie uma conta em [supabase.com](https://supabase.com) (isso não pode ser
+   feito por mim) e um novo projeto. Anote **Project URL**, **anon public
+   key** (Project Settings → API) e a **connection string** do Postgres
+   (Project Settings → Database) — use a conexão **direta** (porta 5432, não
+   o pooler 6543) como `DATABASE_URL`, evita limitações do pgbouncer em modo
+   transação durante `prisma migrate`.
+2. Repita os passos 2-5 da Opção A trocando os valores locais pelos do
+   projeto cloud, e o passo de RLS/usuário pelo **SQL Editor** do painel
+   Supabase em vez de `docker exec`.
+
+Nunca commite `.env.local` (já está no `.gitignore`) nem a `service_role
+key` em lugar nenhum do código.
 
 ## Scripts
 
