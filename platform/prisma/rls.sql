@@ -109,3 +109,86 @@ create trigger before_usuarios_update
 --    Esse é o único momento em que um papel é atribuído sem passar pelas
 --    policies acima (rodando como owner no SQL Editor) — depois disso, todo
 --    novo papel é atribuído por um admin já existente.
+
+-- ---------------------------------------------------------------------------
+-- Fase 1 — CRM / Pipeline Comercial
+-- ---------------------------------------------------------------------------
+-- Visibilidade por papel conforme docs/business-platform/arquitetura.md —
+-- simplificada aqui: "papel de CRM" (admin/diretoria/consultor_comercial) lê
+-- e escreve; os demais papéis internos só leem (precisam ver empresas/
+-- pipeline para outras telas); portais de cliente/candidato não têm acesso
+-- nenhum a estas tabelas na Fase 1 (portais chegam na Fase 7).
+
+create or replace function public.is_papel_crm()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select public.current_papel() in ('admin', 'diretoria', 'consultor_comercial');
+$$;
+
+create or replace function public.is_papel_interno()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select public.current_papel() in (
+    'admin', 'diretoria', 'consultor_comercial', 'recrutador',
+    'consultor_executive_search', 'financeiro'
+  );
+$$;
+
+-- empresas / contatos: leitura para qualquer papel interno, escrita só para
+-- quem trabalha o pipeline comercial.
+alter table public.empresas enable row level security;
+alter table public.contatos enable row level security;
+
+create policy empresas_select on public.empresas for select using (public.is_papel_interno());
+create policy empresas_write on public.empresas for all
+  using (public.is_papel_crm()) with check (public.is_papel_crm());
+
+create policy contatos_select on public.contatos for select using (public.is_papel_interno());
+create policy contatos_write on public.contatos for all
+  using (public.is_papel_crm()) with check (public.is_papel_crm());
+
+-- pipelines / etapas: leitura para qualquer papel interno (precisam ver o
+-- Kanban); só admin configura etapas.
+alter table public.pipelines enable row level security;
+alter table public.pipeline_etapas enable row level security;
+
+create policy pipelines_select on public.pipelines for select using (public.is_papel_interno());
+create policy pipelines_admin on public.pipelines for all
+  using (public.current_papel() = 'admin') with check (public.current_papel() = 'admin');
+
+create policy pipeline_etapas_select on public.pipeline_etapas for select using (public.is_papel_interno());
+create policy pipeline_etapas_admin on public.pipeline_etapas for all
+  using (public.current_papel() = 'admin') with check (public.current_papel() = 'admin');
+
+-- oportunidades: papel de CRM lê/cria todas (pipeline compartilhado pelo
+-- time); edição fica com o papel de CRM inteiro por ora (Fase 1 não modela
+-- "time" — restringir a update só ao responsável fica para quando essa
+-- necessidade aparecer de verdade).
+alter table public.oportunidades enable row level security;
+
+create policy oportunidades_select on public.oportunidades for select using (public.is_papel_crm());
+create policy oportunidades_write on public.oportunidades for all
+  using (public.is_papel_crm()) with check (public.is_papel_crm());
+
+-- atividades / arquivos: mesma visibilidade do CRM por ora — timeline é
+-- colaborativa dentro do time comercial. Quando vaga/candidato (Fase 2)
+-- passarem a gerar atividades, a policy precisa então distinguir por
+-- entidade_tipo (join implícito para checar papel de recrutador etc.).
+alter table public.atividades enable row level security;
+alter table public.arquivos enable row level security;
+
+create policy atividades_select on public.atividades for select using (public.is_papel_crm());
+create policy atividades_write on public.atividades for all
+  using (public.is_papel_crm()) with check (public.is_papel_crm());
+
+create policy arquivos_select on public.arquivos for select using (public.is_papel_crm());
+create policy arquivos_write on public.arquivos for all
+  using (public.is_papel_crm()) with check (public.is_papel_crm());

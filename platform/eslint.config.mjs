@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Gerado pelo Supabase CLI (supabase start/stop) — não é código do projeto.
+    "supabase/.temp/**",
+    // Gerado pelo Prisma — client tipado, não código do projeto.
+    "lib/generated/**",
   ]),
 ]);
 

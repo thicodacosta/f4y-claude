@@ -1,8 +1,8 @@
 // Schema da Find4You Business Platform.
 // Fonte de verdade do modelo de dados: docs/business-platform/modelagem-dados.md
-// Fase 0 (fundação): só o necessário para autenticação e papéis — as demais
-// entidades (empresas, oportunidades, vagas, candidatos...) nascem nas Fases
-// 1 e 2, conforme docs/business-platform/plano-modulos.md.
+// Fase 0: usuarios/papéis. Fase 1 (abaixo): empresas, contatos, pipeline
+// comercial, oportunidades, atividades, arquivos — ver
+// docs/business-platform/plano-modulos.md. Vagas/candidatos chegam na Fase 2.
 
 generator client {
   provider = "prisma-client"
@@ -47,5 +47,191 @@ model Usuario {
   criadoEm     DateTime @default(now()) @map("criado_em")
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
+  oportunidades    Oportunidade[]
+  atividades       Atividade[]    @relation("AtividadesAutor")
+  arquivosEnviados Arquivo[]      @relation("ArquivosEnviadoPor")
+
   @@map("usuarios")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 1 — CRM / Pipeline Comercial
+// ---------------------------------------------------------------------------
+
+/// Vertical de negócio — espelha as quatro verticais de docs/servicos/ e das
+/// skills recrutamento/executive-search/alocacao-tech.
+enum VerticalNegocio {
+  tecnologia
+  corporativo
+  executive_search
+  alocacao_tech
+}
+
+enum StatusEmpresa {
+  prospect
+  ativo
+  inativo
+}
+
+enum PorteEmpresa {
+  pequena
+  media
+  grande
+  enterprise
+}
+
+/// Cliente/prospect — ver docs/business-platform/modelagem-dados.md, seção
+/// "empresas". Uma linha por empresa; vira "cliente" quando tem oportunidade
+/// Ganha (fluxo em fluxos-usuario.md #1).
+model Empresa {
+  id               String        @id @default(uuid()) @db.Uuid
+  nome             String
+  segmento         String?
+  porte            PorteEmpresa?
+  cidade           String?
+  estado           String?
+  status           StatusEmpresa @default(prospect)
+  origem           String?
+  stackTecnologica String[]      @default([]) @map("stack_tecnologica")
+  observacoes      String?
+  criadoEm         DateTime      @default(now()) @map("criado_em")
+  atualizadoEm     DateTime      @updatedAt @map("atualizado_em")
+
+  contatos      Contato[]
+  oportunidades Oportunidade[]
+
+  @@map("empresas")
+}
+
+model Contato {
+  id        String   @id @default(uuid()) @db.Uuid
+  empresaId String   @map("empresa_id") @db.Uuid
+  nome      String
+  cargo     String?
+  telefone  String?
+  email     String?
+  linkedin  String?
+  principal Boolean  @default(false)
+  criadoEm  DateTime @default(now()) @map("criado_em")
+
+  empresa       Empresa        @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  oportunidades Oportunidade[]
+
+  @@map("contatos")
+}
+
+enum TipoPipeline {
+  comercial
+  vagas
+}
+
+/// Genérico para os dois pipelines (Comercial e Vagas) — evita duas tabelas
+/// de etapa quase idênticas. Só "comercial" é populado na Fase 1.
+model Pipeline {
+  id   String       @id @default(uuid()) @db.Uuid
+  tipo TipoPipeline @unique
+  nome String
+
+  etapas PipelineEtapa[]
+
+  @@map("pipelines")
+}
+
+model PipelineEtapa {
+  id                  String   @id @default(uuid()) @db.Uuid
+  pipelineId          String   @map("pipeline_id") @db.Uuid
+  nome                String
+  cor                 String
+  ordem               Int
+  slaDias             Int?     @map("sla_dias")
+  probabilidadePadrao Decimal? @map("probabilidade_padrao") @db.Decimal(5, 2)
+  camposObrigatorios  Json     @default("[]") @map("campos_obrigatorios")
+  isGanho             Boolean  @default(false) @map("is_ganho")
+  isPerdido           Boolean  @default(false) @map("is_perdido")
+
+  pipeline      Pipeline       @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  oportunidades Oportunidade[]
+
+  @@map("pipeline_etapas")
+}
+
+model Oportunidade {
+  id                 String    @id @default(uuid()) @db.Uuid
+  empresaId          String    @map("empresa_id") @db.Uuid
+  contatoId          String?   @map("contato_id") @db.Uuid
+  etapaId            String    @map("etapa_id") @db.Uuid
+  responsavelId      String?   @map("responsavel_id") @db.Uuid
+  vertical           VerticalNegocio
+  origem             String?
+  valorEstimado      Decimal   @default(0) @map("valor_estimado") @db.Decimal(14, 2)
+  probabilidade      Decimal?  @db.Decimal(5, 2)
+  previsaoFechamento DateTime? @map("previsao_fechamento") @db.Date
+  produtos           String[]  @default([])
+  motivoPerda        String?   @map("motivo_perda")
+  observacoes        String?
+  criadoEm           DateTime  @default(now()) @map("criado_em")
+  atualizadoEm       DateTime  @updatedAt @map("atualizado_em")
+  fechadoEm          DateTime? @map("fechado_em")
+
+  empresa     Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  contato     Contato?      @relation(fields: [contatoId], references: [id], onDelete: SetNull)
+  etapa       PipelineEtapa @relation(fields: [etapaId], references: [id], onDelete: Restrict)
+  responsavel Usuario?      @relation(fields: [responsavelId], references: [id], onDelete: SetNull)
+
+  @@map("oportunidades")
+}
+
+/// Entidade que pode receber atividade/arquivo — timeline unificada. Vaga e
+/// candidato entram como valor de enum desde já (estabilidade do tipo), mas
+/// só ganham tabela própria na Fase 2.
+enum EntidadeTipo {
+  oportunidade
+  vaga
+  candidato
+  empresa
+}
+
+enum TipoAtividade {
+  nota
+  email
+  whatsapp
+  ligacao
+  reuniao
+  tarefa
+  mudanca_etapa
+  automacao
+}
+
+/// Timeline unificada — polimórfica por (entidadeTipo, entidadeId) em vez de
+/// uma tabela de log por entidade. Ver modelagem-dados.md, seção
+/// "atividades".
+model Atividade {
+  id           String        @id @default(uuid()) @db.Uuid
+  entidadeTipo EntidadeTipo  @map("entidade_tipo")
+  entidadeId   String        @map("entidade_id") @db.Uuid
+  tipo         TipoAtividade
+  autorId      String?       @map("autor_id") @db.Uuid
+  conteudo     String
+  criadoEm     DateTime      @default(now()) @map("criado_em")
+
+  autor Usuario? @relation(fields: [autorId], references: [id], onDelete: SetNull, name: "AtividadesAutor")
+
+  @@index([entidadeTipo, entidadeId])
+  @@map("atividades")
+}
+
+model Arquivo {
+  id           String       @id @default(uuid()) @db.Uuid
+  entidadeTipo EntidadeTipo @map("entidade_tipo")
+  entidadeId   String       @map("entidade_id") @db.Uuid
+  nome         String
+  url          String
+  tamanho      Int?
+  enviadoPorId String?      @map("enviado_por_id") @db.Uuid
+  criadoEm     DateTime     @default(now()) @map("criado_em")
+
+  enviadoPor Usuario? @relation(fields: [enviadoPorId], references: [id], onDelete: SetNull, name: "ArquivosEnviadoPor")
+
+  @@index([entidadeTipo, entidadeId])
+  @@map("arquivos")
 }
