@@ -8,7 +8,7 @@ export default async function PipelineVagasPage() {
     getPipelineVagas(),
     getVagas(),
     getEmpresasParaVaga(),
-    getVagasFechadasPorPeriodo(12),
+    getVagasFechadasPorPeriodo(24),
   ]);
 
   return (
