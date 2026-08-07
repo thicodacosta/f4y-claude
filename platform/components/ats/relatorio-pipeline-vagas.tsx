@@ -6,7 +6,16 @@ import { KpiCard } from "@/components/dashboard/kpi-card";
 import { BarList } from "@/components/dashboard/bar-list";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatMesAno } from "@/lib/format";
 import { verticalNegocioLabel } from "@/modules/crm/schemas";
 import { cn } from "@/lib/utils";
@@ -14,6 +23,7 @@ import { cn } from "@/lib/utils";
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
 const JANELAS = { "3": "Últimos 3 meses", "6": "Últimos 6 meses", "12": "Últimos 12 meses", "24": "Últimos 24 meses" };
+const MES_REGEX = /^\d{4}-\d{2}$/;
 
 export function RelatorioPipelineVagas({
   funil,
@@ -25,7 +35,7 @@ export function RelatorioPipelineVagas({
   fechadasPorPeriodo: { mes: string; quantidade: number; valorTotal: number }[];
 }) {
   const [expandido, setExpandido] = useState(false);
-  const [janela, setJanela] = useState("6");
+  const [selecao, setSelecao] = useState<string>("6");
   const [ocultarVazios, setOcultarVazios] = useState(true);
 
   // fechadasPorPeriodo já vem ordenado do mais recente pro mais antigo.
@@ -34,10 +44,19 @@ export function RelatorioPipelineVagas({
   // "Pipeline" = etapas em aberto — não conta Fechada nem Perdida.
   const totalPipeline = funil.reduce((acc, e) => acc + (e.isGanho || e.isPerdido ? 0 : e.valorTotal), 0);
 
-  const dentroDaJanela = useMemo(() => fechadasPorPeriodo.slice(0, Number(janela)), [fechadasPorPeriodo, janela]);
+  const ehMesEspecifico = MES_REGEX.test(selecao);
+  const dentroDaJanela = useMemo(() => {
+    if (ehMesEspecifico) return fechadasPorPeriodo.filter((d) => d.mes === selecao);
+    return fechadasPorPeriodo.slice(0, Number(selecao));
+  }, [fechadasPorPeriodo, selecao, ehMesEspecifico]);
   const linhas = ocultarVazios ? dentroDaJanela.filter((d) => d.quantidade > 0) : dentroDaJanela;
   const totalQuantidadeJanela = dentroDaJanela.reduce((acc, d) => acc + d.quantidade, 0);
   const totalValorJanela = dentroDaJanela.reduce((acc, d) => acc + d.valorTotal, 0);
+  const rotuloSelecao = ehMesEspecifico ? formatMesAno(selecao) : JANELAS[selecao as keyof typeof JANELAS];
+  const itemsSelecao = {
+    ...JANELAS,
+    ...Object.fromEntries(fechadasPorPeriodo.map((d) => [d.mes, formatMesAno(d.mes)])),
+  };
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
@@ -113,27 +132,35 @@ export function RelatorioPipelineVagas({
                   />
                   Ocultar meses sem fechamento
                 </label>
-                <Select items={JANELAS} value={janela} onValueChange={(v) => v && setJanela(v)}>
-                  <SelectTrigger className="w-40">
+                <Select items={itemsSelecao} value={selecao} onValueChange={(v) => v && setSelecao(v)}>
+                  <SelectTrigger className="w-44">
                     <SelectValue placeholder="Período" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(JANELAS).map(([valor, label]) => (
-                      <SelectItem key={valor} value={valor}>
-                        {label}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel>Janela</SelectLabel>
+                      {Object.entries(JANELAS).map(([valor, label]) => (
+                        <SelectItem key={valor} value={valor}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                    <SelectSeparator />
+                    <SelectGroup>
+                      <SelectLabel>Mês específico</SelectLabel>
+                      {fechadasPorPeriodo.map((d) => (
+                        <SelectItem key={d.mes} value={d.mes}>
+                          {formatMesAno(d.mes)}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <KpiCard
-                label={JANELAS[janela as keyof typeof JANELAS]}
-                value={String(totalQuantidadeJanela)}
-                icon={Briefcase}
-              />
+              <KpiCard label={rotuloSelecao} value={String(totalQuantidadeJanela)} icon={Briefcase} />
               <KpiCard label="Valor de fechamento" value={currency.format(totalValorJanela)} icon={Wallet} />
             </div>
 
