@@ -103,7 +103,13 @@ export async function moverVaga(input: { vagaId: string; novaEtapaId: string }) 
       where: { id: data.vagaId },
       data: {
         etapaId: novaEtapa.id,
-        status: novaEtapa.isGanho ? "fechada" : novaEtapa.isPerdido ? "perdida" : "aberta",
+        status: novaEtapa.isGanho
+          ? "fechada"
+          : novaEtapa.isPerdido
+            ? "perdida"
+            : novaEtapa.isPausada
+              ? "pausada"
+              : "aberta",
         fechadoEm: novaEtapa.isGanho || novaEtapa.isPerdido ? new Date() : null,
       },
     });

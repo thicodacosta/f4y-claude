@@ -53,6 +53,46 @@ export async function getVagas() {
   });
 }
 
+/** Relatório informativo acima do Kanban de Vagas — vagas fechadas por mês,
+ * com a soma do valor de fechamento (Vaga.valor). Mesma exclusão de
+ * confidenciais que getVagas() — o agregado não pode vazar valor de vaga
+ * confidencial pra quem não tem papel de Executive Search. */
+export async function getVagasFechadasPorPeriodo(meses = 12) {
+  const usuario = await requirePapel(PAPEIS_ATS);
+
+  const desde = new Date();
+  desde.setMonth(desde.getMonth() - (meses - 1));
+  desde.setDate(1);
+  desde.setHours(0, 0, 0, 0);
+
+  const vagas = await prisma.vaga.findMany({
+    where: {
+      status: "fechada",
+      fechadoEm: { gte: desde },
+      ...(podeVerConfidencial(usuario.papel) ? {} : { confidencial: false }),
+    },
+    select: { valor: true, fechadoEm: true },
+  });
+
+  const buckets = new Map<string, { quantidade: number; valorTotal: number }>();
+  for (let i = 0; i < meses; i++) {
+    const d = new Date(desde.getFullYear(), desde.getMonth() + i, 1);
+    buckets.set(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, { quantidade: 0, valorTotal: 0 });
+  }
+  for (const v of vagas) {
+    if (!v.fechadoEm) continue;
+    const key = `${v.fechadoEm.getFullYear()}-${String(v.fechadoEm.getMonth() + 1).padStart(2, "0")}`;
+    const bucket = buckets.get(key);
+    if (!bucket) continue;
+    bucket.quantidade += 1;
+    bucket.valorTotal += v.valor ? Number(v.valor) : 0;
+  }
+
+  return [...buckets.entries()]
+    .map(([mes, dados]) => ({ mes, ...dados }))
+    .reverse();
+}
+
 export async function getVaga(id: string) {
   const usuario = await requirePapel(PAPEIS_ATS);
 

@@ -45,17 +45,18 @@ where not exists (select 1 from public.pipelines where tipo = 'vagas');
 with p as (
   select id from public.pipelines where tipo = 'vagas'
 )
-insert into public.pipeline_etapas (id, pipeline_id, nome, cor, ordem, sla_dias, probabilidade_padrao, is_ganho, is_perdido)
-select gen_random_uuid(), p.id, etapa.nome, etapa.cor, etapa.ordem, etapa.sla_dias, etapa.probabilidade, etapa.is_ganho, etapa.is_perdido
+insert into public.pipeline_etapas (id, pipeline_id, nome, cor, ordem, sla_dias, probabilidade_padrao, is_ganho, is_perdido, is_pausada)
+select gen_random_uuid(), p.id, etapa.nome, etapa.cor, etapa.ordem, etapa.sla_dias, etapa.probabilidade, etapa.is_ganho, etapa.is_perdido, etapa.is_pausada
 from p, (values
-  ('Abertas',            '#9297A0', 1, 3,  10,  false, false),
-  ('Análise RH',         '#28AAF0', 2, 5,  25,  false, false),
-  ('CV Enviado',         '#28AAF0', 3, 7,  45,  false, false),
-  ('Entrevista Cliente', '#5860A9', 4, 10, 65,  false, false),
-  ('Forecast',           '#F5A623', 5, 10, 85,  false, false),
-  ('Fechada',            '#15A66B', 6, null, 100, true,  false),
-  ('Perdida',            '#E5484D', 7, null, 0,   false, true)
-) as etapa(nome, cor, ordem, sla_dias, probabilidade, is_ganho, is_perdido)
+  ('Abertas',            '#9297A0', 1, 3,  10,  false, false, false),
+  ('Análise RH',         '#28AAF0', 2, 5,  25,  false, false, false),
+  ('CV Enviado',         '#28AAF0', 3, 7,  45,  false, false, false),
+  ('Entrevista Cliente', '#5860A9', 4, 10, 65,  false, false, false),
+  ('Forecast',           '#F5A623', 5, 10, 85,  false, false, false),
+  ('Fechada',            '#15A66B', 6, null, 100, true,  false, false),
+  ('Perdida',            '#E5484D', 7, null, 0,   false, true,  false),
+  ('Stand By',           '#EAB308', 8, null, 30,  false, false, true)
+) as etapa(nome, cor, ordem, sla_dias, probabilidade, is_ganho, is_perdido, is_pausada)
 where not exists (
   select 1 from public.pipeline_etapas pe where pe.pipeline_id = p.id and pe.nome = etapa.nome
 );

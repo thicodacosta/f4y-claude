@@ -166,6 +166,10 @@ model PipelineEtapa {
   camposObrigatorios  Json     @default("[]") @map("campos_obrigatorios")
   isGanho             Boolean  @default(false) @map("is_ganho")
   isPerdido           Boolean  @default(false) @map("is_perdido")
+  /// Fase 2+ — "Stand By" no Pipeline de Vagas: vaga pausada por decisão do
+  /// cliente, sem estar ganha nem perdida. Só relevante pra Vaga (não
+  /// Oportunidade) — ver moverVaga em modules/ats/actions.ts.
+  isPausada           Boolean  @default(false) @map("is_pausada")
 
   pipeline      Pipeline       @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
   oportunidades Oportunidade[]
