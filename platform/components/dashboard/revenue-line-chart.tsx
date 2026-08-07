@@ -1,6 +1,7 @@
 "use client";
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { MES_LABEL } from "@/lib/format";
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 const currencyCompact = new Intl.NumberFormat("pt-BR", {
@@ -9,21 +10,6 @@ const currencyCompact = new Intl.NumberFormat("pt-BR", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
-
-const MES_LABEL: Record<string, string> = {
-  "01": "Jan",
-  "02": "Fev",
-  "03": "Mar",
-  "04": "Abr",
-  "05": "Mai",
-  "06": "Jun",
-  "07": "Jul",
-  "08": "Ago",
-  "09": "Set",
-  "10": "Out",
-  "11": "Nov",
-  "12": "Dez",
-};
 
 function formatMes(mes: string) {
   const [, m] = mes.split("-");

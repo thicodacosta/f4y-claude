@@ -1,14 +1,23 @@
-import { getPipelineVagas, getVagas, getEmpresasParaVaga, getVagasFechadasPorPeriodo } from "@/modules/ats/queries";
+import {
+  getPipelineVagas,
+  getVagas,
+  getEmpresasParaVaga,
+  getVagasFechadasPorPeriodo,
+  getVagasAtivasPorVertical,
+} from "@/modules/ats/queries";
+import { getFunilVagas } from "@/modules/dashboard/queries";
 import { serializeVaga, serializeVagaEtapa } from "@/modules/ats/serialize";
 import { PipelineVagasView } from "@/components/ats/pipeline-vagas-view";
-import { RelatorioVagasFechadas } from "@/components/ats/relatorio-vagas-fechadas";
+import { RelatorioPipelineVagas } from "@/components/ats/relatorio-pipeline-vagas";
 
 export default async function PipelineVagasPage() {
-  const [pipeline, vagas, empresas, vagasFechadasPorPeriodo] = await Promise.all([
+  const [pipeline, vagas, empresas, vagasFechadasPorPeriodo, funil, porVertical] = await Promise.all([
     getPipelineVagas(),
     getVagas(),
     getEmpresasParaVaga(),
     getVagasFechadasPorPeriodo(24),
+    getFunilVagas(),
+    getVagasAtivasPorVertical(),
   ]);
 
   return (
@@ -19,7 +28,7 @@ export default async function PipelineVagasPage() {
           Arraste os cards entre as etapas — cada mudança é salva na hora.
         </p>
       </div>
-      <RelatorioVagasFechadas dados={vagasFechadasPorPeriodo} />
+      <RelatorioPipelineVagas funil={funil} porVertical={porVertical} fechadasPorPeriodo={vagasFechadasPorPeriodo} />
       <PipelineVagasView
         etapas={pipeline.etapas.map(serializeVagaEtapa)}
         vagas={vagas.map(serializeVaga)}

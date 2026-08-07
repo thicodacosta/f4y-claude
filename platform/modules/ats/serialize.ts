@@ -48,6 +48,7 @@ export type VagaClient = {
   checklist: unknown;
   criadoEm: string;
   atualizadoEm: string;
+  fechadoEm: string | null;
 };
 
 type VagaComRelacoes = Vaga & {
@@ -96,6 +97,7 @@ export function serializeVaga(v: VagaComRelacoes): VagaClient {
     checklist: v.checklist,
     criadoEm: v.criadoEm.toISOString(),
     atualizadoEm: v.atualizadoEm.toISOString(),
+    fechadoEm: v.fechadoEm ? v.fechadoEm.toISOString() : null,
   };
 }
 

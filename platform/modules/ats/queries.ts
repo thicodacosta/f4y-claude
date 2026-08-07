@@ -93,6 +93,23 @@ export async function getVagasFechadasPorPeriodo(meses = 12) {
     .reverse();
 }
 
+/** Vagas ativas (nem fechada, nem perdida) agrupadas por vertical — mesmo
+ * gate de confidencialidade de getVagas(). */
+export async function getVagasAtivasPorVertical() {
+  const usuario = await requirePapel(PAPEIS_ATS);
+
+  const grupos = await prisma.vaga.groupBy({
+    by: ["vertical"],
+    where: {
+      status: { notIn: ["fechada", "perdida"] },
+      ...(podeVerConfidencial(usuario.papel) ? {} : { confidencial: false }),
+    },
+    _count: true,
+  });
+
+  return grupos.map((g) => ({ vertical: g.vertical, total: g._count }));
+}
+
 export async function getVaga(id: string) {
   const usuario = await requirePapel(PAPEIS_ATS);
 
