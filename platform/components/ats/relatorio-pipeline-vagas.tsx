@@ -20,7 +20,7 @@ export function RelatorioPipelineVagas({
   porVertical,
   fechadasPorPeriodo,
 }: {
-  funil: { id: string; nome: string; cor: string; total: number }[];
+  funil: { id: string; nome: string; cor: string; total: number; valorTotal: number; isGanho: boolean; isPerdido: boolean }[];
   porVertical: { vertical: string; total: number }[];
   fechadasPorPeriodo: { mes: string; quantidade: number; valorTotal: number }[];
 }) {
@@ -31,6 +31,8 @@ export function RelatorioPipelineVagas({
   // fechadasPorPeriodo já vem ordenado do mais recente pro mais antigo.
   const mesAtual = fechadasPorPeriodo[0];
   const vagasAtivas = porVertical.reduce((acc, v) => acc + v.total, 0);
+  // "Pipeline" = etapas em aberto — não conta Fechada nem Perdida.
+  const totalPipeline = funil.reduce((acc, e) => acc + (e.isGanho || e.isPerdido ? 0 : e.valorTotal), 0);
 
   const dentroDaJanela = useMemo(() => fechadasPorPeriodo.slice(0, Number(janela)), [fechadasPorPeriodo, janela]);
   const linhas = ocultarVazios ? dentroDaJanela.filter((d) => d.quantidade > 0) : dentroDaJanela;
@@ -47,8 +49,9 @@ export function RelatorioPipelineVagas({
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <KpiCard label="Vagas ativas agora" value={String(vagasAtivas)} icon={Briefcase} />
+        <KpiCard label="Total do pipeline" value={currency.format(totalPipeline)} icon={Wallet} />
         <KpiCard
           label={`Fechadas em ${mesAtual ? formatMesAno(mesAtual.mes) : "—"}`}
           value={mesAtual ? String(mesAtual.quantidade) : "0"}
@@ -61,7 +64,9 @@ export function RelatorioPipelineVagas({
         <div className="flex flex-col gap-5 border-t border-border pt-4">
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Funil atual</h3>
+              <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Funil atual — quantidade por status
+              </h3>
               <BarList
                 items={funil.map((e) => ({ id: e.id, label: e.nome, value: e.total, color: e.cor }))}
                 emptyLabel="Nenhuma vaga cadastrada ainda."
@@ -69,17 +74,28 @@ export function RelatorioPipelineVagas({
             </div>
             <div className="flex flex-col gap-2">
               <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Vagas ativas por vertical
+                Funil atual — valor por status
               </h3>
               <BarList
-                items={porVertical.map((v) => ({
-                  id: v.vertical,
-                  label: verticalNegocioLabel[v.vertical as keyof typeof verticalNegocioLabel] ?? v.vertical,
-                  value: v.total,
-                }))}
-                emptyLabel="Nenhuma vaga ativa no momento."
+                items={funil.map((e) => ({ id: e.id, label: e.nome, value: e.valorTotal, color: e.cor }))}
+                formatValue={(v) => currency.format(v)}
+                emptyLabel="Nenhuma vaga com valor cadastrado."
               />
             </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Vagas ativas por vertical
+            </h3>
+            <BarList
+              items={porVertical.map((v) => ({
+                id: v.vertical,
+                label: verticalNegocioLabel[v.vertical as keyof typeof verticalNegocioLabel] ?? v.vertical,
+                value: v.total,
+              }))}
+              emptyLabel="Nenhuma vaga ativa no momento."
+            />
           </div>
 
           <div className="flex flex-col gap-3">

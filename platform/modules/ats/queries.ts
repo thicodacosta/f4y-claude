@@ -110,6 +110,43 @@ export async function getVagasAtivasPorVertical() {
   return grupos.map((g) => ({ vertical: g.vertical, total: g._count }));
 }
 
+/** Funil do Pipeline de Vagas com valor por etapa — mesma contagem de
+ * getFunilVagas() (modules/dashboard/queries.ts), mas com o gate de
+ * confidencialidade que aquela versão (usada só no Dashboard geral) não
+ * tem, e somando Vaga.valor por etapa pro relatório acima do Kanban. */
+export async function getFunilVagasComValor() {
+  const usuario = await requirePapel(PAPEIS_ATS);
+
+  const pipeline = await prisma.pipeline.findUnique({
+    where: { tipo: "vagas" },
+    include: { etapas: { orderBy: { ordem: "asc" } } },
+  });
+  if (!pipeline) return [];
+
+  const vagas = await prisma.vaga.findMany({
+    where: podeVerConfidencial(usuario.papel) ? undefined : { confidencial: false },
+    select: { etapaId: true, valor: true },
+  });
+
+  const porEtapa = new Map<string, { total: number; valorTotal: number }>();
+  for (const v of vagas) {
+    const atual = porEtapa.get(v.etapaId) ?? { total: 0, valorTotal: 0 };
+    atual.total += 1;
+    atual.valorTotal += v.valor ? Number(v.valor) : 0;
+    porEtapa.set(v.etapaId, atual);
+  }
+
+  return pipeline.etapas.map((etapa) => ({
+    id: etapa.id,
+    nome: etapa.nome,
+    cor: etapa.cor,
+    isGanho: etapa.isGanho,
+    isPerdido: etapa.isPerdido,
+    total: porEtapa.get(etapa.id)?.total ?? 0,
+    valorTotal: porEtapa.get(etapa.id)?.valorTotal ?? 0,
+  }));
+}
+
 export async function getVaga(id: string) {
   const usuario = await requirePapel(PAPEIS_ATS);
 

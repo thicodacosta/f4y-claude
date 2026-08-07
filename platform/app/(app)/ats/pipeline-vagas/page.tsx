@@ -4,8 +4,8 @@ import {
   getEmpresasParaVaga,
   getVagasFechadasPorPeriodo,
   getVagasAtivasPorVertical,
+  getFunilVagasComValor,
 } from "@/modules/ats/queries";
-import { getFunilVagas } from "@/modules/dashboard/queries";
 import { serializeVaga, serializeVagaEtapa } from "@/modules/ats/serialize";
 import { PipelineVagasView } from "@/components/ats/pipeline-vagas-view";
 import { RelatorioPipelineVagas } from "@/components/ats/relatorio-pipeline-vagas";
@@ -16,7 +16,7 @@ export default async function PipelineVagasPage() {
     getVagas(),
     getEmpresasParaVaga(),
     getVagasFechadasPorPeriodo(24),
-    getFunilVagas(),
+    getFunilVagasComValor(),
     getVagasAtivasPorVertical(),
   ]);
 
