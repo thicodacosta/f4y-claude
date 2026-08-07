@@ -61,11 +61,6 @@ export function AppSidebar({ papel, nome }: { papel: Papel | null; nome: string 
                   >
                     <Icon className="size-4 shrink-0" />
                     <span className="truncate">{item.label}</span>
-                    {item.fase && (
-                      <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/70">
-                        {item.fase}
-                      </span>
-                    )}
                   </Link>
                 );
               })}
