@@ -202,6 +202,7 @@ export type PipelineEtapaClient = {
   ordem: number;
   isGanho: boolean;
   isPerdido: boolean;
+  isPausada: boolean;
 };
 
 export function serializeVagaEtapa(e: PipelineEtapa): PipelineEtapaClient {
@@ -212,5 +213,6 @@ export function serializeVagaEtapa(e: PipelineEtapa): PipelineEtapaClient {
     ordem: e.ordem,
     isGanho: e.isGanho,
     isPerdido: e.isPerdido,
+    isPausada: e.isPausada,
   };
 }

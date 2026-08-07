@@ -8,17 +8,43 @@ import { VagaKanbanCard } from "@/components/ats/vaga-kanban-card";
 import { formatMesAno } from "@/lib/format";
 import type { VagaClient, PipelineEtapaClient } from "@/modules/ats/serialize";
 
-/** Agrupa por mês de fechadoEm, mais recente primeiro — usado só na coluna
- * Fechada (etapa.isGanho), que acumula cards indefinidamente e vira uma
- * lista longa demais pra rolar sem essa quebra. */
-function agruparPorMesFechamento(vagas: VagaClient[]) {
+function agruparPor(vagas: VagaClient[], chave: (v: VagaClient) => string) {
   const grupos = new Map<string, VagaClient[]>();
   for (const v of vagas) {
-    const chave = v.fechadoEm ? v.fechadoEm.slice(0, 7) : "sem-data";
-    if (!grupos.has(chave)) grupos.set(chave, []);
-    grupos.get(chave)!.push(v);
+    const k = chave(v);
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k)!.push(v);
   }
-  return [...grupos.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  return [...grupos.entries()];
+}
+
+/** Bloco colapsável reaproveitado pelos dois agrupamentos da coluna (por mês
+ * de fechamento na etapa Fechada, por cliente nas demais) — coluna que
+ * acumula muitos cards vira uma lista rolável longa demais sem isso. */
+function GrupoColapsavel({
+  titulo,
+  vagas,
+  aberto,
+  onCardClick,
+}: {
+  titulo: string;
+  vagas: VagaClient[];
+  aberto: boolean;
+  onCardClick: (v: VagaClient) => void;
+}) {
+  return (
+    <details open={aberto} className="group/grupo">
+      <summary className="flex cursor-pointer select-none items-center gap-1 py-1 text-xs font-medium text-muted-foreground">
+        <ChevronRight className="size-3 shrink-0 transition-transform group-open/grupo:rotate-90" />
+        {titulo} ({vagas.length})
+      </summary>
+      <div className="flex flex-col gap-2 pt-1.5">
+        {vagas.map((v) => (
+          <VagaKanbanCard key={v.id} vaga={v} onClick={() => onCardClick(v)} />
+        ))}
+      </div>
+    </details>
+  );
 }
 
 export function VagaKanbanView({
@@ -58,23 +84,35 @@ export function VagaKanbanView({
       <div className="flex flex-1 gap-3 overflow-x-auto pb-4">
         {etapas.map((etapa) => {
           const daEtapa = items.filter((v) => v.etapaId === etapa.id);
+          // Fluxo normal (Abertas, Análise RH, CV Enviado, Entrevista
+          // Cliente, Forecast) agrupa por cliente; Fechada agrupa por mês;
+          // Perdida e Stand By ficam como lista plana mesmo (não pedido).
+          let conteudo: React.ReactNode;
+          if (etapa.isGanho) {
+            const grupos = agruparPor(daEtapa, (v) => (v.fechadoEm ? v.fechadoEm.slice(0, 7) : "sem-data")).sort(
+              (a, b) => b[0].localeCompare(a[0]),
+            );
+            conteudo = grupos.map(([chave, vagasDoGrupo], i) => (
+              <GrupoColapsavel
+                key={chave}
+                titulo={chave === "sem-data" ? "Sem data" : formatMesAno(chave)}
+                vagas={vagasDoGrupo}
+                aberto={i === 0}
+                onCardClick={onCardClick}
+              />
+            ));
+          } else if (!etapa.isPerdido && !etapa.isPausada) {
+            const grupos = agruparPor(daEtapa, (v) => v.empresaNome).sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
+            conteudo = grupos.map(([empresa, vagasDoGrupo]) => (
+              <GrupoColapsavel key={empresa} titulo={empresa} vagas={vagasDoGrupo} aberto={false} onCardClick={onCardClick} />
+            ));
+          } else {
+            conteudo = daEtapa.map((v) => <VagaKanbanCard key={v.id} vaga={v} onClick={() => onCardClick(v)} />);
+          }
+
           return (
             <VagaKanbanColumn key={etapa.id} etapa={etapa} total={daEtapa.length}>
-              {etapa.isGanho
-                ? agruparPorMesFechamento(daEtapa).map(([mes, vagasDoMes], i) => (
-                    <details key={mes} open={i === 0} className="group/mes">
-                      <summary className="flex cursor-pointer select-none items-center gap-1 py-1 text-xs font-medium text-muted-foreground">
-                        <ChevronRight className="size-3 shrink-0 transition-transform group-open/mes:rotate-90" />
-                        {mes === "sem-data" ? "Sem data" : formatMesAno(mes)} ({vagasDoMes.length})
-                      </summary>
-                      <div className="flex flex-col gap-2 pt-1.5">
-                        {vagasDoMes.map((v) => (
-                          <VagaKanbanCard key={v.id} vaga={v} onClick={() => onCardClick(v)} />
-                        ))}
-                      </div>
-                    </details>
-                  ))
-                : daEtapa.map((v) => <VagaKanbanCard key={v.id} vaga={v} onClick={() => onCardClick(v)} />)}
+              {conteudo}
             </VagaKanbanColumn>
           );
         })}
