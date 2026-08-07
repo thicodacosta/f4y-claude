@@ -253,7 +253,7 @@ export function NovaVagaDialog({
 
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" className="size-4 rounded border-input" {...register("confidencial")} />
-            Vaga confidencial (Executive Search)
+            Vaga confidencial
           </label>
 
           <DialogFooter>

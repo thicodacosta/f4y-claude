@@ -88,17 +88,6 @@ export async function getEmpresa(id: string) {
   });
 }
 
-/** "Cliente" = empresa com status ativo — ver modelagem-dados.md, seção "empresas". */
-export async function getClientesAtivos() {
-  await requirePapel(PAPEIS_CRM);
-
-  return prisma.empresa.findMany({
-    where: { status: "ativo" },
-    include: { contatos: true, _count: { select: { oportunidades: true } } },
-    orderBy: { nome: "asc" },
-  });
-}
-
 export async function getConsultoresComerciais() {
   await requirePapel(PAPEIS_CRM);
 

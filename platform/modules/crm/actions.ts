@@ -22,7 +22,6 @@ import { dispararEntrouEtapa } from "@/modules/automacoes/engine";
 
 function revalidateCrm() {
   revalidatePath("/crm/pipeline-comercial");
-  revalidatePath("/clientes");
   revalidatePath("/empresas");
 }
 

@@ -4,7 +4,6 @@ import {
   Users,
   GitPullRequest,
   Kanban,
-  Building2,
   Briefcase,
   UserRound,
   UsersRound,
@@ -91,20 +90,12 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Registros",
     items: [
       {
-        label: "Clientes",
-        href: "/clientes",
-        icon: Building2,
-        roles: ["admin", "diretoria", "consultor_comercial", "financeiro"],
-        fase: "Fase 1",
-        descricao: "Cadastro de empresas clientes e prospects.",
-      },
-      {
         label: "Empresas",
         href: "/empresas",
         icon: Briefcase,
-        roles: ["admin", "diretoria", "consultor_comercial", "recrutador"],
+        roles: ["admin", "diretoria", "consultor_comercial", "recrutador", "financeiro"],
         fase: "Fase 1",
-        descricao: "Base de empresas — contatos, segmento, histórico.",
+        descricao: "Base de empresas — clientes, prospects, contatos, segmento, histórico.",
       },
       {
         label: "Vagas",
