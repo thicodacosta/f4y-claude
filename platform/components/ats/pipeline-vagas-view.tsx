@@ -15,10 +15,12 @@ export function PipelineVagasView({
   etapas,
   vagas,
   empresas,
+  mostrarValor,
 }: {
   etapas: PipelineEtapaClient[];
   vagas: VagaClient[];
   empresas: { id: string; nome: string }[];
+  mostrarValor: boolean;
 }) {
   const router = useRouter();
   const [items, setItems] = useState(vagas);
@@ -59,6 +61,7 @@ export function PipelineVagasView({
         items={items}
         onCardClick={(v) => router.push(`/vagas/${v.id}`)}
         onMove={handleMove}
+        mostrarValor={mostrarValor}
       />
 
       <NovaVagaDialog

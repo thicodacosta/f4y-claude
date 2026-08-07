@@ -18,7 +18,17 @@ const prioridadeCor: Record<string, string> = {
   urgente: "bg-destructive/10 text-destructive",
 };
 
-export function VagaKanbanCard({ vaga, onClick }: { vaga: VagaClient; onClick: () => void }) {
+const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
+export function VagaKanbanCard({
+  vaga,
+  onClick,
+  mostrarValor,
+}: {
+  vaga: VagaClient;
+  onClick: () => void;
+  mostrarValor: boolean;
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: vaga.id });
 
   const style = transform
@@ -43,7 +53,14 @@ export function VagaKanbanCard({ vaga, onClick }: { vaga: VagaClient; onClick: (
           {verticalNegocioLabel[vaga.vertical as keyof typeof verticalNegocioLabel]}
         </Badge>
       </div>
-      <span className="text-xs text-muted-foreground">{vaga.empresaNome}</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">{vaga.empresaNome}</span>
+        {mostrarValor && vaga.valor != null && (
+          <span className="font-mono text-xs font-medium tabular-nums text-muted-foreground">
+            {currency.format(vaga.valor)}
+          </span>
+        )}
+      </div>
       <div className="flex items-center justify-between">
         <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-medium", prioridadeCor[vaga.prioridade])}>
           {prioridadeVagaLabel[vaga.prioridade as keyof typeof prioridadeVagaLabel]}

@@ -26,11 +26,13 @@ function GrupoColapsavel({
   vagas,
   aberto,
   onCardClick,
+  mostrarValor,
 }: {
   titulo: string;
   vagas: VagaClient[];
   aberto: boolean;
   onCardClick: (v: VagaClient) => void;
+  mostrarValor: boolean;
 }) {
   return (
     <details open={aberto} className="group/grupo">
@@ -40,7 +42,7 @@ function GrupoColapsavel({
       </summary>
       <div className="flex flex-col gap-2 pt-1.5">
         {vagas.map((v) => (
-          <VagaKanbanCard key={v.id} vaga={v} onClick={() => onCardClick(v)} />
+          <VagaKanbanCard key={v.id} vaga={v} onClick={() => onCardClick(v)} mostrarValor={mostrarValor} />
         ))}
       </div>
     </details>
@@ -52,11 +54,13 @@ export function VagaKanbanView({
   items,
   onCardClick,
   onMove,
+  mostrarValor,
 }: {
   etapas: PipelineEtapaClient[];
   items: VagaClient[];
   onCardClick: (v: VagaClient) => void;
   onMove: (vagaId: string, novaEtapaId: string) => void;
+  mostrarValor: boolean;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -99,15 +103,25 @@ export function VagaKanbanView({
                 vagas={vagasDoGrupo}
                 aberto={i === 0}
                 onCardClick={onCardClick}
+                mostrarValor={mostrarValor}
               />
             ));
           } else if (!etapa.isPerdido && !etapa.isPausada) {
             const grupos = agruparPor(daEtapa, (v) => v.empresaNome).sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
             conteudo = grupos.map(([empresa, vagasDoGrupo]) => (
-              <GrupoColapsavel key={empresa} titulo={empresa} vagas={vagasDoGrupo} aberto={false} onCardClick={onCardClick} />
+              <GrupoColapsavel
+                key={empresa}
+                titulo={empresa}
+                vagas={vagasDoGrupo}
+                aberto={false}
+                onCardClick={onCardClick}
+                mostrarValor={mostrarValor}
+              />
             ));
           } else {
-            conteudo = daEtapa.map((v) => <VagaKanbanCard key={v.id} vaga={v} onClick={() => onCardClick(v)} />);
+            conteudo = daEtapa.map((v) => (
+              <VagaKanbanCard key={v.id} vaga={v} onClick={() => onCardClick(v)} mostrarValor={mostrarValor} />
+            ));
           }
 
           return (
@@ -117,7 +131,9 @@ export function VagaKanbanView({
           );
         })}
       </div>
-      <DragOverlay>{activeCard ? <VagaKanbanCard vaga={activeCard} onClick={() => {}} /> : null}</DragOverlay>
+      <DragOverlay>
+        {activeCard ? <VagaKanbanCard vaga={activeCard} onClick={() => {}} mostrarValor={mostrarValor} /> : null}
+      </DragOverlay>
     </DndContext>
   );
 }
