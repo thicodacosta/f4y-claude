@@ -24,13 +24,21 @@ function initials(nome: string) {
     .toUpperCase();
 }
 
-export function UserMenu({ nome, email }: { nome: string; email: string }) {
+export function UserMenu({
+  nome,
+  email,
+  logoutRedirectTo = "/login",
+}: {
+  nome: string;
+  email: string;
+  logoutRedirectTo?: string;
+}) {
   const router = useRouter();
 
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/login");
+    router.push(logoutRedirectTo);
     router.refresh();
   }
 

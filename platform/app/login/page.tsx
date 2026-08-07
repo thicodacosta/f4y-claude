@@ -30,7 +30,11 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          Acesso restrito à equipe e clientes/candidatos convidados da Find4You.
+          É cliente ou candidato?{" "}
+          <a href="/portal-login" className="underline underline-offset-2">
+            Acesse seu portal aqui
+          </a>
+          .
         </p>
       </div>
     </div>

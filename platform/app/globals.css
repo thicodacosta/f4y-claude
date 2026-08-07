@@ -146,7 +146,11 @@
   --input: #2A2F38;
   --ring: #4CC2FF;
 
-  --chart-1: #4CC2FF;
+  /* chart-1 é mais escuro que --primary de propósito: validado pelo script
+     da skill dataviz (scripts/validate_palette.js) para a faixa de
+     luminosidade exigida em traços/preenchimentos de gráfico sobre fundo
+     escuro — #4CC2FF (mesmo tom do --primary) falha essa faixa. */
+  --chart-1: #1C8FD1;
   --chart-2: #8A90D6;
   --chart-3: #3FCB8E;
   --chart-4: #FFC163;

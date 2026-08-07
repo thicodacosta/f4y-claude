@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Paperclip } from "lucide-react";
+import { Briefcase, Loader2, Paperclip } from "lucide-react";
 
 import {
   Sheet,
@@ -17,7 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { criarAtividade, listarAtividades, listarArquivos } from "@/modules/crm/actions";
 import { verticalNegocioLabel } from "@/modules/crm/schemas";
-import type { OportunidadeClient } from "@/modules/crm/serialize";
+import type { OportunidadeClient, PipelineEtapaClient } from "@/modules/crm/serialize";
+import { criarVagaAPartirDeOportunidade } from "@/modules/ats/actions";
 
 type Atividade = {
   id: string;
@@ -38,13 +40,17 @@ export function OportunidadeDrawer({
   oportunidade,
   onOpenChange,
   consultores,
+  etapas,
 }: {
   oportunidade: OportunidadeClient | null;
   onOpenChange: (open: boolean) => void;
   consultores: { id: string; nome: string }[];
+  etapas: PipelineEtapaClient[];
 }) {
+  const router = useRouter();
   const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [arquivos, setArquivos] = useState<Arquivo[]>([]);
+  const [criandoVaga, startCriarVaga] = useTransition();
   // "Carregando" é derivado (não um setState síncrono no efeito): compara a
   // oportunidade aberta com a última que teve dados carregados.
   const [carregadoParaId, setCarregadoParaId] = useState<string | null>(null);
@@ -89,6 +95,21 @@ export function OportunidadeDrawer({
   }
 
   const manuais = atividades.filter((a) => TIPOS_MANUAIS.has(a.tipo));
+  const etapaAtual = oportunidade ? etapas.find((e) => e.id === oportunidade.etapaId) : undefined;
+
+  function handleCriarVaga() {
+    if (!oportunidade) return;
+    startCriarVaga(async () => {
+      try {
+        const vaga = await criarVagaAPartirDeOportunidade(oportunidade.id);
+        toast.success("Vaga criada — complete os detalhes na tela da vaga.");
+        onOpenChange(false);
+        router.push(`/vagas/${vaga.id}`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Não foi possível criar a vaga.");
+      }
+    });
+  }
 
   return (
     <Sheet open={!!oportunidade} onOpenChange={onOpenChange}>
@@ -112,6 +133,12 @@ export function OportunidadeDrawer({
               </TabsList>
 
               <TabsContent value="detalhes" className="flex flex-col gap-3 overflow-y-auto py-4 text-sm">
+                {etapaAtual?.isGanho && (
+                  <Button variant="outline" size="sm" className="self-start" disabled={criandoVaga} onClick={handleCriarVaga}>
+                    {criandoVaga ? <Loader2 className="animate-spin" /> : <Briefcase />}
+                    Criar vaga a partir desta oportunidade
+                  </Button>
+                )}
                 <Campo label="Contato">{oportunidade.contatoNome ?? "—"}</Campo>
                 <Campo label="Responsável">
                   {consultores.find((c) => c.id === oportunidade.responsavelId)?.nome ??

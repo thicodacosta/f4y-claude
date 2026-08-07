@@ -117,6 +117,7 @@ export function PipelineComercialView({
         oportunidade={selecionada}
         onOpenChange={(open) => !open && setSelecionada(null)}
         consultores={consultores}
+        etapas={etapas}
       />
     </div>
   );

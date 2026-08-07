@@ -38,8 +38,11 @@ model Usuario {
   papel     Papel?
   avatarUrl String? @map("avatar_url")
 
-  // empresaId/candidatoId ganham relação formal (@relation) quando os models
-  // Empresa e Candidato nascerem nas Fases 1 e 2 — por ora só a coluna.
+  // Fase 7 — só preenchidos quando papel = cliente_portal (empresaId) ou
+  // candidato_portal (candidatoId). @@unique([candidatoId]) garante no máximo
+  // um login de portal por candidato (múltiplos NULLs são permitidos pelo
+  // Postgres, então não afeta usuários internos); empresaId não é único pois
+  // uma empresa pode ter vários contatos com portal próprio.
   empresaId   String? @map("empresa_id") @db.Uuid
   candidatoId String? @map("candidato_id") @db.Uuid
 
@@ -47,10 +50,22 @@ model Usuario {
   criadoEm     DateTime @default(now()) @map("criado_em")
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
-  oportunidades    Oportunidade[]
-  atividades       Atividade[]    @relation("AtividadesAutor")
-  arquivosEnviados Arquivo[]      @relation("ArquivosEnviadoPor")
+  empresa   Empresa?   @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  candidato Candidato? @relation(fields: [candidatoId], references: [id], onDelete: SetNull)
 
+  oportunidades        Oportunidade[]
+  atividades           Atividade[]            @relation("AtividadesAutor")
+  arquivosEnviados     Arquivo[]              @relation("ArquivosEnviadoPor")
+  vagasComoConsultor   Vaga[]                 @relation("VagaConsultor")
+  vagasComoRecrutador  Vaga[]                 @relation("VagaRecrutador")
+  comissoes            Comissao[]
+  tarefas              Tarefa[]
+  notificacoes         Notificacao[]
+  edicoesPerfilRevistas EdicaoPerfilPendente[] @relation("EdicoesPerfilRevisadas")
+  metas                Meta[]
+  integracoes          IntegracaoUsuario[]
+
+  @@unique([candidatoId])
   @@map("usuarios")
 }
 
@@ -97,8 +112,11 @@ model Empresa {
   criadoEm         DateTime      @default(now()) @map("criado_em")
   atualizadoEm     DateTime      @updatedAt @map("atualizado_em")
 
-  contatos      Contato[]
-  oportunidades Oportunidade[]
+  contatos       Contato[]
+  oportunidades  Oportunidade[]
+  vagas          Vaga[]
+  faturamentos   Faturamento[]
+  usuariosPortal Usuario[]
 
   @@map("empresas")
 }
@@ -151,44 +169,47 @@ model PipelineEtapa {
 
   pipeline      Pipeline       @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
   oportunidades Oportunidade[]
+  vagas         Vaga[]
+  automacoes    Automacao[]
 
   @@map("pipeline_etapas")
 }
 
 model Oportunidade {
-  id                 String    @id @default(uuid()) @db.Uuid
-  empresaId          String    @map("empresa_id") @db.Uuid
-  contatoId          String?   @map("contato_id") @db.Uuid
-  etapaId            String    @map("etapa_id") @db.Uuid
-  responsavelId      String?   @map("responsavel_id") @db.Uuid
+  id                 String          @id @default(uuid()) @db.Uuid
+  empresaId          String          @map("empresa_id") @db.Uuid
+  contatoId          String?         @map("contato_id") @db.Uuid
+  etapaId            String          @map("etapa_id") @db.Uuid
+  responsavelId      String?         @map("responsavel_id") @db.Uuid
   vertical           VerticalNegocio
   origem             String?
-  valorEstimado      Decimal   @default(0) @map("valor_estimado") @db.Decimal(14, 2)
-  probabilidade      Decimal?  @db.Decimal(5, 2)
-  previsaoFechamento DateTime? @map("previsao_fechamento") @db.Date
-  produtos           String[]  @default([])
-  motivoPerda        String?   @map("motivo_perda")
+  valorEstimado      Decimal         @default(0) @map("valor_estimado") @db.Decimal(14, 2)
+  probabilidade      Decimal?        @db.Decimal(5, 2)
+  previsaoFechamento DateTime?       @map("previsao_fechamento") @db.Date
+  produtos           String[]        @default([])
+  motivoPerda        String?         @map("motivo_perda")
   observacoes        String?
-  criadoEm           DateTime  @default(now()) @map("criado_em")
-  atualizadoEm       DateTime  @updatedAt @map("atualizado_em")
-  fechadoEm          DateTime? @map("fechado_em")
+  criadoEm           DateTime        @default(now()) @map("criado_em")
+  atualizadoEm       DateTime        @updatedAt @map("atualizado_em")
+  fechadoEm          DateTime?       @map("fechado_em")
 
   empresa     Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   contato     Contato?      @relation(fields: [contatoId], references: [id], onDelete: SetNull)
   etapa       PipelineEtapa @relation(fields: [etapaId], references: [id], onDelete: Restrict)
   responsavel Usuario?      @relation(fields: [responsavelId], references: [id], onDelete: SetNull)
+  vagasOrigem Vaga[]
 
   @@map("oportunidades")
 }
 
-/// Entidade que pode receber atividade/arquivo — timeline unificada. Vaga e
-/// candidato entram como valor de enum desde já (estabilidade do tipo), mas
-/// só ganham tabela própria na Fase 2.
+/// Entidade que pode receber atividade/arquivo — timeline unificada.
 enum EntidadeTipo {
   oportunidade
   vaga
   candidato
   empresa
+  /// Fase 6 — contrato de Alocação Tech (lembrete de renovação).
+  contrato
 }
 
 enum TipoAtividade {
@@ -200,6 +221,8 @@ enum TipoAtividade {
   tarefa
   mudanca_etapa
   automacao
+  /// Fase 7 — aprovação/reprovação de candidato pelo cliente no portal.
+  feedback_cliente
 }
 
 /// Timeline unificada — polimórfica por (entidadeTipo, entidadeId) em vez de
@@ -234,4 +257,506 @@ model Arquivo {
 
   @@index([entidadeTipo, entidadeId])
   @@map("arquivos")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 2 — ATS / Pipeline de Vagas + Candidatos
+// ---------------------------------------------------------------------------
+
+enum PrioridadeVaga {
+  baixa
+  media
+  alta
+  urgente
+}
+
+enum ModeloTrabalho {
+  remoto
+  hibrido
+  presencial
+}
+
+enum Senioridade {
+  junior
+  pleno
+  senior
+  especialista
+}
+
+enum StatusVaga {
+  aberta
+  pausada
+  fechada
+  perdida
+}
+
+/// Vaga — o card do Kanban "Pipeline de Vagas" (etapa = admin-configurável,
+/// mesmo mecanismo do Pipeline Comercial). O Kanban *interno* por candidato
+/// (dentro da tela da vaga) usa EtapaVagaCandidato, fixo — ver VagaCandidato.
+model Vaga {
+  id                   String          @id @default(uuid()) @db.Uuid
+  empresaId            String          @map("empresa_id") @db.Uuid
+  oportunidadeOrigemId String?         @map("oportunidade_origem_id") @db.Uuid
+  etapaId              String          @map("etapa_id") @db.Uuid
+  cargo                String
+  vertical             VerticalNegocio
+  consultorId          String?         @map("consultor_id") @db.Uuid
+  recrutadorId         String?         @map("recrutador_id") @db.Uuid
+  quantidadePosicoes   Int             @default(1) @map("quantidade_posicoes")
+  posicoesPreenchidas  Int             @default(0) @map("posicoes_preenchidas")
+  dataAbertura         DateTime?       @map("data_abertura") @db.Date
+  dataLimite           DateTime?       @map("data_limite") @db.Date
+  slaDias              Int?            @map("sla_dias")
+  valor                Decimal?        @db.Decimal(14, 2)
+  prioridade           PrioridadeVaga  @default(media)
+  tags                 String[]        @default([])
+  stackTecnologica     String[]        @default([]) @map("stack_tecnologica")
+  confidencial         Boolean         @default(false)
+  /// Nomes de empresas-alvo do mapeamento de mercado (Executive Search,
+  /// Fase 6) — livre, não FK em Empresa: um alvo de prospecção pode nem
+  /// estar cadastrado ainda. Ver fluxos-usuario.md #3, passo 2.
+  empresasAlvo         String[]        @default([]) @map("empresas_alvo")
+  jobDescription       String?         @map("job_description")
+  skillsRequeridas     String[]        @default([]) @map("skills_requeridas")
+  gestorNome           String?         @map("gestor_nome")
+  gestorContato        String?         @map("gestor_contato")
+  salarioMin           Decimal?        @map("salario_min") @db.Decimal(12, 2)
+  salarioMax           Decimal?        @map("salario_max") @db.Decimal(12, 2)
+  beneficios           String?
+  modeloTrabalho       ModeloTrabalho? @map("modelo_trabalho")
+  cidade               String?
+  estado               String?
+  senioridade          Senioridade?
+  status               StatusVaga      @default(aberta)
+  checklist            Json            @default("[]")
+  criadoEm             DateTime        @default(now()) @map("criado_em")
+  atualizadoEm         DateTime        @updatedAt @map("atualizado_em")
+  fechadoEm            DateTime?       @map("fechado_em")
+
+  empresa            Empresa            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  oportunidadeOrigem Oportunidade?      @relation(fields: [oportunidadeOrigemId], references: [id], onDelete: SetNull)
+  etapa              PipelineEtapa      @relation(fields: [etapaId], references: [id], onDelete: Restrict)
+  consultor          Usuario?           @relation("VagaConsultor", fields: [consultorId], references: [id], onDelete: SetNull)
+  recrutador         Usuario?           @relation("VagaRecrutador", fields: [recrutadorId], references: [id], onDelete: SetNull)
+  candidatos         VagaCandidato[]
+  contratosAlocacao  ContratoAlocacao[]
+
+  @@map("vagas")
+}
+
+enum Disponibilidade {
+  imediata
+  quinze_dias
+  trinta_dias
+  indisponivel
+}
+
+enum StatusCandidato {
+  ativo
+  em_processo
+  alocado
+  inativo
+}
+
+/// Base única de candidatos — reaproveitada entre verticais (Recrutamento,
+/// Alocação Tech, Executive Search), conforme diferenciais.md #7.
+model Candidato {
+  id                String           @id @default(uuid()) @db.Uuid
+  nome              String
+  fotoUrl           String?          @map("foto_url")
+  cargoAtual        String?          @map("cargo_atual")
+  empresaAtual      String?          @map("empresa_atual")
+  cidade            String?
+  estado            String?
+  telefone          String?
+  whatsapp          String?
+  email             String?
+  linkedin          String?
+  github            String?
+  portfolioUrl      String?          @map("portfolio_url")
+  curriculoUrl      String?          @map("curriculo_url")
+  skills            String[]         @default([])
+  tecnologias       String[]         @default([])
+  idiomas           String[]         @default([])
+  certificacoes     String[]         @default([])
+  pretensaoSalarial Decimal?         @map("pretensao_salarial") @db.Decimal(12, 2)
+  disponibilidade   Disponibilidade?
+  status            StatusCandidato  @default(ativo)
+  scoreIa           Decimal?         @map("score_ia") @db.Decimal(5, 2)
+  scoreIaGeradoEm   DateTime?        @map("score_ia_gerado_em")
+  scoreIaModelo     String?          @map("score_ia_modelo")
+  resumoIa          String?          @map("resumo_ia")
+  observacoes       String?
+  experiencias      Json             @default("[]")
+  formacao          Json             @default("[]")
+  criadoEm          DateTime         @default(now()) @map("criado_em")
+  atualizadoEm      DateTime         @updatedAt @map("atualizado_em")
+
+  vagas             VagaCandidato[]
+  contratosAlocacao ContratoAlocacao[]
+  usuarioPortal     Usuario?
+  edicoesPendentes  EdicaoPerfilPendente[]
+
+  @@map("candidatos")
+}
+
+enum EtapaVagaCandidato {
+  abertas
+  analise_rh
+  cv_enviado
+  entrevista_cliente
+  forecast
+  fechada
+  perdida
+}
+
+/// Kanban interno da vaga (por candidato) — etapas fixas de propósito
+/// (diferente de PipelineEtapa, que é admin-configurável): são o processo
+/// operacional do ATS, não uma etapa comercial. Ver wireframes.md #3.
+model VagaCandidato {
+  id           String             @id @default(uuid()) @db.Uuid
+  vagaId       String             @map("vaga_id") @db.Uuid
+  candidatoId  String             @map("candidato_id") @db.Uuid
+  etapa        EtapaVagaCandidato @default(abertas)
+  fitScore     Decimal?           @map("fit_score") @db.Decimal(5, 2)
+  motivoPerda  String?            @map("motivo_perda")
+  criadoEm     DateTime           @default(now()) @map("criado_em")
+  atualizadoEm DateTime           @updatedAt @map("atualizado_em")
+
+  // Fase 8 — trilha de auditoria do fitScore quando calculado por IA (matching
+  // ou score-candidato com vagaId): valor + modelo + timestamp, nunca
+  // sobrescritos sem rastro — mesma exigência de modelagem-dados.md aplicada
+  // aos campos score_ia*/resumo_ia do Candidato desde a Fase 2.
+  fitScoreJustificativa String?   @map("fit_score_justificativa")
+  fitScoreModelo        String?   @map("fit_score_modelo")
+  fitScoreGeradoEm      DateTime? @map("fit_score_gerado_em")
+
+  // Fase 7 — feedback do cliente no Portal do Cliente sobre um candidato em
+  // shortlist (etapas entrevista_cliente/forecast/fechada). Vive aqui (não em
+  // Atividade) porque é um estado consultável (ex.: badge na UI interna), não
+  // só um evento de timeline — a Atividade correspondente é criada em
+  // paralelo para o histórico.
+  feedbackCliente   FeedbackCliente? @map("feedback_cliente")
+  comentarioCliente String?          @map("comentario_cliente")
+  feedbackEm        DateTime?        @map("feedback_em")
+
+  vaga      Vaga      @relation(fields: [vagaId], references: [id], onDelete: Cascade)
+  candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+
+  @@unique([vagaId, candidatoId])
+  @@map("vaga_candidatos")
+}
+
+enum FeedbackCliente {
+  aprovado
+  reprovado
+}
+
+// ---------------------------------------------------------------------------
+// Fase 4 — Financeiro (comissões, faturamento, regra de comissão por vertical)
+// ---------------------------------------------------------------------------
+
+enum StatusFaturamento {
+  pendente
+  faturado
+  pago
+}
+
+enum StatusComissao {
+  pendente
+  aprovada
+  paga
+}
+
+/// Lançamento gerado automaticamente ao fechar uma oportunidade (Ganho) ou
+/// vaga (Fechada) — ver fluxos-usuario.md #5. Reconciliação contra nota
+/// fiscal fica fora do sistema por ora (mesmo doc, passo 2, [TODO] em aberto).
+model Faturamento {
+  id           String            @id @default(uuid()) @db.Uuid
+  empresaId    String            @map("empresa_id") @db.Uuid
+  origemTipo   EntidadeTipo      @map("origem_tipo")
+  origemId     String            @map("origem_id") @db.Uuid
+  valor        Decimal           @db.Decimal(14, 2)
+  status       StatusFaturamento @default(pendente)
+  dataPrevista DateTime?         @map("data_prevista") @db.Date
+  dataEfetiva  DateTime?         @map("data_efetiva") @db.Date
+  criadoEm     DateTime          @default(now()) @map("criado_em")
+  atualizadoEm DateTime          @updatedAt @map("atualizado_em")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@index([origemTipo, origemId])
+  @@map("faturamentos")
+}
+
+/// Comissão do responsável (consultor comercial na oportunidade, recrutador
+/// na vaga) — percentual vem de RegraComissao na vertical do fechamento no
+/// momento do cálculo (não recalcula se a regra mudar depois).
+model Comissao {
+  id           String         @id @default(uuid()) @db.Uuid
+  usuarioId    String         @map("usuario_id") @db.Uuid
+  origemTipo   EntidadeTipo   @map("origem_tipo")
+  origemId     String         @map("origem_id") @db.Uuid
+  valor        Decimal        @db.Decimal(14, 2)
+  percentual   Decimal        @db.Decimal(5, 2)
+  status       StatusComissao @default(pendente)
+  competencia  String
+  criadoEm     DateTime       @default(now()) @map("criado_em")
+  atualizadoEm DateTime       @updatedAt @map("atualizado_em")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([origemTipo, origemId])
+  @@map("comissoes")
+}
+
+/// Uma regra por vertical — editável só por admin em /financeiro (aba
+/// Regras). Percentuais separados para o lado comercial (consultor, na
+/// oportunidade) e o lado ATS (recrutador, na vaga), já que fecham em pontos
+/// diferentes do processo. Ver fluxos-usuario.md #5, passo 3.
+model RegraComissao {
+  id                   String          @id @default(uuid()) @db.Uuid
+  vertical             VerticalNegocio @unique
+  percentualConsultor  Decimal         @map("percentual_consultor") @db.Decimal(5, 2)
+  percentualRecrutador Decimal         @map("percentual_recrutador") @db.Decimal(5, 2)
+  atualizadoEm         DateTime        @updatedAt @map("atualizado_em")
+
+  @@map("regras_comissao")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 5 — Automações (engine de regras, tarefas, notificações)
+// ---------------------------------------------------------------------------
+
+enum StatusTarefa {
+  pendente
+  concluida
+}
+
+enum OrigemTarefa {
+  manual
+  automacao
+}
+
+/// Só os dois eventos realmente implementados pelo motor (ver
+/// modules/automacoes/engine.ts) — modelagem-dados.md lista mais eventos
+/// possíveis (saiu_etapa, criado, ...) como vocabulário futuro do jsonb
+/// `condicao`, não como enum fechado; aqui fechamos o enum no que dispara de
+/// verdade nesta fase.
+enum EventoAutomacao {
+  entrou_etapa
+  vencimento_sla
+  /// Fase 6 — contrato de Alocação Tech perto do fim (ver
+  /// modules/alocacao/renovacao.ts, mesmo padrão oportunista da checagem
+  /// de SLA da Fase 5).
+  renovacao_contrato
+}
+
+enum ResultadoExecucao {
+  sucesso
+  erro
+}
+
+model Tarefa {
+  id            String        @id @default(uuid()) @db.Uuid
+  titulo        String
+  descricao     String?
+  entidadeTipo  EntidadeTipo? @map("entidade_tipo")
+  entidadeId    String?       @map("entidade_id") @db.Uuid
+  responsavelId String        @map("responsavel_id") @db.Uuid
+  prazo         DateTime?     @db.Date
+  status        StatusTarefa  @default(pendente)
+  origem        OrigemTarefa  @default(manual)
+  criadoEm      DateTime      @default(now()) @map("criado_em")
+  atualizadoEm  DateTime      @updatedAt @map("atualizado_em")
+
+  responsavel Usuario @relation(fields: [responsavelId], references: [id], onDelete: Cascade)
+
+  @@index([entidadeTipo, entidadeId])
+  @@map("tarefas")
+}
+
+model Notificacao {
+  id        String   @id @default(uuid()) @db.Uuid
+  usuarioId String   @map("usuario_id") @db.Uuid
+  titulo    String
+  corpo     String?
+  link      String?
+  lida      Boolean  @default(false)
+  criadoEm  DateTime @default(now()) @map("criado_em")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("notificacoes")
+}
+
+/// Regra de automação. `condicao` e `acao` ficam em jsonb de propósito (ver
+/// modelagem-dados.md) — o motor só sabe interpretar `acao.tipo` in
+/// ("criar_tarefa", "notificar") nesta fase; os demais tipos documentados
+/// (mover_card, enviar_email, enviar_whatsapp) gravam uma AutomacaoExecucao
+/// com resultado "erro" explicando que ainda não têm handler, em vez de
+/// falhar silenciosamente.
+model Automacao {
+  id              String          @id @default(uuid()) @db.Uuid
+  nome            String
+  pipelineEtapaId String?         @map("pipeline_etapa_id") @db.Uuid
+  evento          EventoAutomacao
+  condicao        Json            @default("{}")
+  acao            Json
+  ativo           Boolean         @default(true)
+  criadoEm        DateTime        @default(now()) @map("criado_em")
+  atualizadoEm    DateTime        @updatedAt @map("atualizado_em")
+
+  pipelineEtapa PipelineEtapa?      @relation(fields: [pipelineEtapaId], references: [id], onDelete: Cascade)
+  execucoes     AutomacaoExecucao[]
+
+  @@map("automacoes")
+}
+
+model AutomacaoExecucao {
+  id           String            @id @default(uuid()) @db.Uuid
+  automacaoId  String            @map("automacao_id") @db.Uuid
+  entidadeTipo EntidadeTipo      @map("entidade_tipo")
+  entidadeId   String            @map("entidade_id") @db.Uuid
+  resultado    ResultadoExecucao
+  erro         String?
+  executadoEm  DateTime          @default(now()) @map("executado_em")
+
+  automacao Automacao @relation(fields: [automacaoId], references: [id], onDelete: Cascade)
+
+  @@index([automacaoId, entidadeId])
+  @@map("automacao_execucoes")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 6 — Verticais especializadas (Alocação Tech, Executive Search)
+// ---------------------------------------------------------------------------
+
+enum StatusContrato {
+  ativo
+  renovado
+  encerrado
+}
+
+/// Contrato de staffing — nasce quando uma vaga de Alocação Tech fecha com um
+/// candidato. Campos de rate/prazo vivem só aqui, não em Vaga (ver
+/// modelagem-dados.md, seção "contratos_alocacao").
+model ContratoAlocacao {
+  id                  String         @id @default(uuid()) @db.Uuid
+  vagaId              String         @map("vaga_id") @db.Uuid
+  candidatoId         String         @map("candidato_id") @db.Uuid
+  rate                Decimal        @db.Decimal(12, 2)
+  prazoMeses          Int            @map("prazo_meses")
+  dataInicio          DateTime       @map("data_inicio") @db.Date
+  dataFim             DateTime       @map("data_fim") @db.Date
+  status              StatusContrato @default(ativo)
+  /// Calculado na criação/renovação (dataFim − 30 dias) — não é editável
+  /// direto, só reflexo de dataFim. Ver modules/alocacao/actions.ts.
+  renovacaoLembreteEm DateTime       @map("renovacao_lembrete_em")
+  criadoEm            DateTime       @default(now()) @map("criado_em")
+  atualizadoEm        DateTime       @updatedAt @map("atualizado_em")
+
+  vaga      Vaga      @relation(fields: [vagaId], references: [id], onDelete: Restrict)
+  candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Restrict)
+
+  @@map("contratos_alocacao")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 7 — Portais externos (Portal do Cliente, Portal do Candidato)
+// ---------------------------------------------------------------------------
+
+enum StatusEdicaoPerfil {
+  pendente
+  aprovada
+  rejeitada
+}
+
+/// Edição de perfil proposta pelo próprio candidato via Portal do Candidato.
+/// Nunca escreve direto em Candidato — fica pendente até um recrutador
+/// aprovar/rejeitar (ver fluxos-usuario.md, fluxo do Portal do Candidato:
+/// "edição de perfil com revisão"). `campos` é jsonb {campo: novoValor} com
+/// só o subconjunto de campos editáveis pelo candidato.
+model EdicaoPerfilPendente {
+  id            String             @id @default(uuid()) @db.Uuid
+  candidatoId   String             @map("candidato_id") @db.Uuid
+  campos        Json
+  status        StatusEdicaoPerfil @default(pendente)
+  criadoEm      DateTime           @default(now()) @map("criado_em")
+  revisadoPorId String?            @map("revisado_por_id") @db.Uuid
+  revisadoEm    DateTime?          @map("revisado_em")
+
+  candidato   Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+  revisadoPor Usuario?  @relation(fields: [revisadoPorId], references: [id], onDelete: SetNull, name: "EdicoesPerfilRevisadas")
+
+  @@index([candidatoId])
+  @@map("edicoes_perfil_pendentes")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 10 — Polimento e diferenciais avançados (metas/gamificação, timeline
+// unificada, painel de produtividade)
+// ---------------------------------------------------------------------------
+
+enum MetaTipo {
+  comercial
+  recrutamento
+}
+
+/// Meta mensal de um usuário — comercial (valor de oportunidades ganhas) ou
+/// recrutamento (vagas fechadas). Progresso é calculado on-the-fly contra o
+/// desempenho real do mês (modules/metas/queries.ts), não armazenado aqui.
+model Meta {
+  id           String   @id @default(uuid()) @db.Uuid
+  usuarioId    String   @map("usuario_id") @db.Uuid
+  tipo         MetaTipo
+  ano          Int
+  mes          Int
+  valorAlvo    Decimal  @map("valor_alvo") @db.Decimal(14, 2)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, tipo, ano, mes])
+  @@map("metas")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 9 — Integrações (por pessoa, não por conta da empresa)
+// ---------------------------------------------------------------------------
+// Cada usuário interno conecta suas PRÓPRIAS contas (Gmail, LinkedIn,
+// WhatsApp Business) em /configuracoes/integracoes — não é uma integração
+// única "da Find4You", é uma conexão por usuário (ver docs/business-platform/
+// plano-modulos.md, Fase 9, e a decisão de produto que motivou isso: cada
+// e-mail/mensagem sai da conta pessoal de quem está atendendo, não de uma
+// caixa compartilhada). Tokens nunca são expostos a Client Components —
+// só lidos/usados dentro de Server Actions e route handlers.
+
+enum ProvedorIntegracao {
+  google
+  linkedin
+  whatsapp
+}
+
+model IntegracaoUsuario {
+  id           String             @id @default(uuid()) @db.Uuid
+  usuarioId    String             @map("usuario_id") @db.Uuid
+  provedor     ProvedorIntegracao
+  /// E-mail (Google), nome do perfil (LinkedIn) ou número exibido (WhatsApp)
+  /// — só pra exibir "conectado como X" na UI, nunca usado pra autenticar.
+  contaExterna String?            @map("conta_externa")
+  accessToken  String             @map("access_token")
+  refreshToken String?            @map("refresh_token")
+  expiraEm     DateTime?          @map("expira_em")
+  /// Campos específicos do provedor que não cabem no formato genérico acima
+  /// — hoje só usado pelo WhatsApp (phoneNumberId do Meta Business Manager).
+  metadados    Json?
+  conectadoEm  DateTime           @default(now()) @map("conectado_em")
+  atualizadoEm DateTime           @updatedAt @map("atualizado_em")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, provedor])
+  @@map("integracoes_usuario")
 }

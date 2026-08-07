@@ -73,6 +73,21 @@ export async function getEmpresas() {
   });
 }
 
+/** Fase 7 — base pra /empresas/[id], que hoje existe sobretudo pra gerenciar
+ * contatos e convite ao Portal do Cliente (não havia detalhe de empresa
+ * antes disso). */
+export async function getEmpresa(id: string) {
+  await requirePapel(PAPEIS_CRM);
+
+  return prisma.empresa.findUnique({
+    where: { id },
+    include: {
+      contatos: { orderBy: { principal: "desc" } },
+      _count: { select: { oportunidades: true, vagas: true } },
+    },
+  });
+}
+
 /** "Cliente" = empresa com status ativo — ver modelagem-dados.md, seção "empresas". */
 export async function getClientesAtivos() {
   await requirePapel(PAPEIS_CRM);

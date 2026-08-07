@@ -17,6 +17,8 @@ import {
   type CriarAtividadeInput,
 } from "@/modules/crm/schemas";
 import { serializeEtapa } from "@/modules/crm/serialize";
+import { gerarFaturamentoEComissao } from "@/modules/financeiro/comissoes";
+import { dispararEntrouEtapa } from "@/modules/automacoes/engine";
 
 function revalidateCrm() {
   revalidatePath("/crm/pipeline-comercial");
@@ -74,6 +76,15 @@ export async function criarOportunidade(input: CriarOportunidadeFormInput) {
         conteudo: `Oportunidade criada em "${primeiraEtapa.nome}".`,
       },
     });
+
+    // Engine de automações (Fase 5) — a oportunidade já nasce na primeira
+    // etapa (Lead), então "entrou_etapa" dispara aqui, não só no
+    // moverOportunidade.
+    await dispararEntrouEtapa(tx, primeiraEtapa.id, {
+      entidadeTipo: "oportunidade",
+      entidadeId: oportunidade.id,
+      responsavelId: usuario.id,
+    });
   });
 
   revalidateCrm();
@@ -129,7 +140,26 @@ export async function moverOportunidade(input: {
     // Ganha vira cliente ativo automaticamente, não só um prospect.
     if (novaEtapa.isGanho) {
       await tx.empresa.update({ where: { id: atual.empresaId }, data: { status: "ativo" } });
+
+      // Fluxo financeiro (fluxos-usuario.md #5, passo 1): fechamento gera
+      // lançamento pendente de faturamento + comissão automaticamente.
+      await gerarFaturamentoEComissao(tx, {
+        empresaId: atual.empresaId,
+        origemTipo: "oportunidade",
+        origemId: atual.id,
+        valor: Number(atual.valorEstimado),
+        vertical: atual.vertical,
+        usuarioId: atual.responsavelId,
+      });
     }
+
+    // Engine de automações (Fase 5) — dispara qualquer regra configurada
+    // para "entrou_etapa" nesta etapa específica (ver /configuracoes/automacoes).
+    await dispararEntrouEtapa(tx, novaEtapa.id, {
+      entidadeTipo: "oportunidade",
+      entidadeId: atual.id,
+      responsavelId: atual.responsavelId,
+    });
   });
 
   revalidateCrm();

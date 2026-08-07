@@ -7,6 +7,8 @@ import { Menu } from "lucide-react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
+import { NotificationBell, type NotificacaoClient } from "@/components/notificacoes/notification-bell";
+import { CommandPalette } from "@/components/command-palette";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { findNavItem, type Papel } from "@/lib/nav";
@@ -15,11 +17,13 @@ export function AppShell({
   papel,
   nome,
   email,
+  notificacoes,
   children,
 }: {
   papel: Papel | null;
   nome: string;
   email: string;
+  notificacoes: NotificacaoClient[];
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -28,7 +32,7 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden w-64 shrink-0 border-r border-border bg-sidebar lg:block">
+      <aside className="hidden w-64 shrink-0 border-r border-border bg-sidebar lg:block print:hidden">
         <AppSidebar papel={papel} nome={nome} />
       </aside>
 
@@ -42,7 +46,7 @@ export function AppShell({
       </Sheet>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-background px-4 py-3 sm:px-6">
+        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-background px-4 py-3 sm:px-6 print:hidden">
           <div className="flex min-w-0 items-center gap-3">
             <Button
               type="button"
@@ -63,6 +67,8 @@ export function AppShell({
           </div>
 
           <div className="flex items-center gap-2">
+            <CommandPalette papel={papel} />
+            <NotificationBell notificacoes={notificacoes} />
             <ThemeToggle />
             <UserMenu nome={nome} email={email} />
           </div>

@@ -1,3 +1,6 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -19,6 +22,8 @@ const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
 };
 
 export function EmpresasTable({ empresas }: { empresas: EmpresaRow[] }) {
+  const router = useRouter();
+
   if (empresas.length === 0) {
     return <p className="text-sm text-muted-foreground">Nenhuma empresa ainda.</p>;
   }
@@ -38,7 +43,7 @@ export function EmpresasTable({ empresas }: { empresas: EmpresaRow[] }) {
         </TableHeader>
         <TableBody>
           {empresas.map((e) => (
-            <TableRow key={e.id}>
+            <TableRow key={e.id} className="cursor-pointer" onClick={() => router.push(`/empresas/${e.id}`)}>
               <TableCell className="font-medium">{e.nome}</TableCell>
               <TableCell className="text-muted-foreground">{e.segmento ?? "—"}</TableCell>
               <TableCell>
