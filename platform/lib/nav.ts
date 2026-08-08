@@ -13,6 +13,8 @@ import {
   BarChart3,
   Wallet,
   Settings,
+  Sparkles,
+  Crown,
 } from "lucide-react";
 
 /**
@@ -62,6 +64,25 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: ["admin", "diretoria", "consultor_comercial"],
         fase: "Fase 1",
         descricao: "Visão consolidada do CRM (pipeline comercial + clientes).",
+      },
+    ],
+  },
+  {
+    label: "Intelligence",
+    items: [
+      {
+        label: "Executive Intelligence",
+        href: "/intelligence",
+        icon: Sparkles,
+        roles: ["admin", "diretoria"],
+        descricao: "Receita, pipeline ponderado, capacidade e alertas consolidados das três verticais.",
+      },
+      {
+        label: "Modo CEO",
+        href: "/intelligence/ceo",
+        icon: Crown,
+        roles: ["admin", "diretoria"],
+        descricao: "O essencial do negócio em uma tela — sem ruído.",
       },
     ],
   },
