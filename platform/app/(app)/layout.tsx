@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { AppShell } from "@/components/app-shell";
 import { getMinhasNotificacoes } from "@/modules/notificacoes/queries";
+import { verificarNfsPendentes, verificarVencimentosAlocacao } from "@/modules/financeiro/alertas";
 import type { Papel } from "@/lib/nav";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -26,6 +27,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // redirecionado de volta pro portal correto.
   if (papel === "cliente_portal") redirect("/portal-cliente/vagas");
   if (papel === "candidato_portal") redirect("/portal-candidato/processo");
+
+  // Verificações oportunistas (sem cron real, mesmo padrão de
+  // modules/alocacao/renovacao.ts) — rodam aqui, e não só no Dashboard, pra
+  // o pop-up de alerta ter a melhor chance de aparecer em qualquer página.
+  await Promise.all([verificarNfsPendentes(), verificarVencimentosAlocacao()]);
 
   const notificacoes = await getMinhasNotificacoes();
 

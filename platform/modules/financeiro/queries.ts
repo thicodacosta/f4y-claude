@@ -62,6 +62,12 @@ export async function getFaturamentos() {
   });
   const descricoes = await descreverOrigens(faturamentos);
 
+  const idsContatoNf = [...new Set(faturamentos.flatMap((f) => f.contatosNfIds))];
+  const contatos = idsContatoNf.length
+    ? await prisma.contato.findMany({ where: { id: { in: idsContatoNf } }, select: { id: true, nome: true } })
+    : [];
+  const nomeDoContato = new Map(contatos.map((c) => [c.id, c.nome]));
+
   return faturamentos.map((f) => ({
     id: f.id,
     empresaNome: f.empresa.nome,
@@ -70,6 +76,13 @@ export async function getFaturamentos() {
     status: f.status,
     dataPrevista: f.dataPrevista ? f.dataPrevista.toISOString() : null,
     dataEfetiva: f.dataEfetiva ? f.dataEfetiva.toISOString() : null,
+    dataInicio: f.dataInicio ? f.dataInicio.toISOString() : null,
+    contatosNf: f.contatosNfIds.map((id) => nomeDoContato.get(id) ?? "—"),
+    dataEmissaoNf: f.dataEmissaoNf ? f.dataEmissaoNf.toISOString() : null,
+    nfEmitida: f.nfEmitida,
+    dataInicioProfissional: f.dataInicioProfissional ? f.dataInicioProfissional.toISOString() : null,
+    dataTerminoAlocacao: f.dataTerminoAlocacao ? f.dataTerminoAlocacao.toISOString() : null,
+    alocacaoEncerrada: f.alocacaoEncerrada,
     criadoEm: f.criadoEm.toISOString(),
   }));
 }

@@ -29,6 +29,13 @@ type Faturamento = {
   status: string;
   dataPrevista: string | null;
   dataEfetiva: string | null;
+  dataInicio: string | null;
+  contatosNf: string[];
+  dataEmissaoNf: string | null;
+  nfEmitida: boolean;
+  dataInicioProfissional: string | null;
+  dataTerminoAlocacao: string | null;
+  alocacaoEncerrada: boolean;
 };
 
 type Comissao = {

@@ -126,3 +126,22 @@ select gen_random_uuid(),
   '{"tipo": "notificar", "params": {"titulo": "Contrato de alocação vencendo em breve"}}'::jsonb,
   now()
 where not exists (select 1 from public.automacoes where nome = 'Lembrete de renovação de contrato');
+
+-- Fase 11 — alertas do pop-up de fechamento de vaga (ver modules/financeiro/alertas.ts).
+insert into public.automacoes (id, nome, pipeline_etapa_id, evento, acao, atualizado_em)
+select gen_random_uuid(),
+  'NF pendente de emissão',
+  null,
+  'nf_pendente'::"EventoAutomacao",
+  '{"tipo": "notificar", "params": {"titulo": "NF pendente de emissão"}}'::jsonb,
+  now()
+where not exists (select 1 from public.automacoes where nome = 'NF pendente de emissão');
+
+insert into public.automacoes (id, nome, pipeline_etapa_id, evento, acao, atualizado_em)
+select gen_random_uuid(),
+  'Alocação chegando ao fim',
+  null,
+  'vencimento_alocacao'::"EventoAutomacao",
+  '{"tipo": "notificar", "params": {"titulo": "Alocação chegando ao fim"}}'::jsonb,
+  now()
+where not exists (select 1 from public.automacoes where nome = 'Alocação chegando ao fim');

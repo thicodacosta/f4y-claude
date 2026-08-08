@@ -8,6 +8,7 @@ import {
   atualizarStatusFaturamentoSchema,
   atualizarStatusComissaoSchema,
   atualizarRegraComissaoSchema,
+  marcarFaturamentoFlagSchema,
   type AtualizarRegraComissaoFormInput,
 } from "@/modules/financeiro/schemas";
 
@@ -27,6 +28,26 @@ export async function atualizarStatusFaturamento(input: { faturamentoId: string;
     },
   });
 
+  revalidateFinanceiro();
+}
+
+/** Fase 11 — some o alerta oportunista de NF pendente (ver
+ * modules/financeiro/alertas.ts#verificarNfsPendentes). */
+export async function marcarNfEmitida(input: { faturamentoId: string }) {
+  await requirePapel(PAPEIS_FINANCEIRO);
+  const data = marcarFaturamentoFlagSchema.parse(input);
+
+  await prisma.faturamento.update({ where: { id: data.faturamentoId }, data: { nfEmitida: true } });
+  revalidateFinanceiro();
+}
+
+/** Some o alerta oportunista de fim de alocação (ver
+ * modules/financeiro/alertas.ts#verificarVencimentosAlocacao). */
+export async function marcarAlocacaoEncerrada(input: { faturamentoId: string }) {
+  await requirePapel(PAPEIS_FINANCEIRO);
+  const data = marcarFaturamentoFlagSchema.parse(input);
+
+  await prisma.faturamento.update({ where: { id: data.faturamentoId }, data: { alocacaoEncerrada: true } });
   revalidateFinanceiro();
 }
 

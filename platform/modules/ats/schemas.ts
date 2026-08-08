@@ -116,6 +116,35 @@ export const moverVagaSchema = z.object({
   novaEtapaId: z.string().uuid(),
 });
 
+/** Fase 11 — pop-up de fechamento (ver components/ats/fechar-vaga-dialog.tsx),
+ * dispara em vez de moverVagaSchema quando a etapa de destino é Ganho.
+ * `categoria` não é persistida — só decide, aqui, se as datas de alocação
+ * são obrigatórias (Vaga.vertical continua sendo a fonte de verdade). */
+export const fecharVagaSchema = z
+  .object({
+    vagaId: z.string().uuid(),
+    novaEtapaId: z.string().uuid(),
+    categoria: z.enum(["alocacao", "recrutamento"]),
+    valorVenda: z.coerce.number().min(0.01, "Informe o valor de venda"),
+    dataInicio: z.string().min(1, "Informe a data de início"),
+    contatosNfIds: z.array(z.string().uuid()).min(1, "Selecione ao menos um contato"),
+    dataEmissaoNf: z.string().min(1, "Informe a data de emissão da NF"),
+    dataInicioProfissional: z.string().optional(),
+    dataTerminoAlocacao: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.categoria !== "alocacao") return;
+    if (!data.dataInicioProfissional) {
+      ctx.addIssue({ code: "custom", path: ["dataInicioProfissional"], message: "Informe a data de início do profissional" });
+    }
+    if (!data.dataTerminoAlocacao) {
+      ctx.addIssue({ code: "custom", path: ["dataTerminoAlocacao"], message: "Informe a data de término da alocação" });
+    }
+  });
+
+export type FecharVagaInput = z.infer<typeof fecharVagaSchema>;
+export type FecharVagaFormInput = z.input<typeof fecharVagaSchema>;
+
 export const atualizarVagaSchema = z.object({
   vagaId: z.string().uuid(),
   cargo: z.string().trim().min(1).optional(),

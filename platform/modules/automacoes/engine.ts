@@ -66,7 +66,12 @@ export async function executarAutomacao(
             usuarioId: ctx.responsavelId,
             titulo: params.titulo,
             corpo: params.corpo,
-            link: ctx.entidadeTipo === "vaga" ? `/vagas/${ctx.entidadeId}` : undefined,
+            link:
+              ctx.entidadeTipo === "vaga"
+                ? `/vagas/${ctx.entidadeId}`
+                : ctx.entidadeTipo === "faturamento"
+                  ? "/financeiro"
+                  : undefined,
           },
         });
         break;

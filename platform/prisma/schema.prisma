@@ -216,6 +216,8 @@ enum EntidadeTipo {
   empresa
   /// Fase 6 — contrato de Alocação Tech (lembrete de renovação).
   contrato
+  /// Fase 11 — lançamento de faturamento (alertas de NF/fim de alocação).
+  faturamento
 }
 
 enum TipoAtividade {
@@ -491,6 +493,27 @@ model Faturamento {
   status       StatusFaturamento @default(pendente)
   dataPrevista DateTime?         @map("data_prevista") @db.Date
   dataEfetiva  DateTime?         @map("data_efetiva") @db.Date
+  /// Fase 11 — preenchidos no pop-up de fechamento de vaga (ver
+  /// components/ats/fechar-vaga-dialog.tsx e modules/ats/actions.ts#fecharVaga).
+  /// Só populado quando origemTipo="vaga" — Oportunidade (CRM) continua sem
+  /// esses campos, gerarFaturamentoEComissao trata como opcional.
+  dataInicio    DateTime? @map("data_inicio") @db.Date
+  /// Ids de Contato (não é FK de verdade — mesmo padrão de Vaga.empresasAlvo)
+  /// que devem receber/emitir a nota fiscal.
+  contatosNfIds String[]  @default([]) @map("contatos_nf_ids") @db.Uuid
+  dataEmissaoNf DateTime? @map("data_emissao_nf") @db.Date
+  /// Marcado manualmente em /financeiro quando a NF sai — some o alerta
+  /// oportunista (modules/financeiro/alertas.ts#verificarNfsPendentes).
+  nfEmitida     Boolean   @default(false) @map("nf_emitida")
+  /// Só quando a vaga é Categoria Alocação (Vaga.vertical=alocacao_tech) —
+  /// datas do profissional alocado. Independente de ContratoAlocacao (que
+  /// segue sendo o contrato formal com rate/prazo, criado à parte na aba
+  /// Contratos) — aqui é só o alerta pedido no fechamento.
+  dataInicioProfissional DateTime? @map("data_inicio_profissional") @db.Date
+  dataTerminoAlocacao    DateTime? @map("data_termino_alocacao") @db.Date
+  /// Marcado manualmente em /financeiro — some o alerta oportunista
+  /// (modules/financeiro/alertas.ts#verificarVencimentosAlocacao).
+  alocacaoEncerrada      Boolean   @default(false) @map("alocacao_encerrada")
   criadoEm     DateTime          @default(now()) @map("criado_em")
   atualizadoEm DateTime          @updatedAt @map("atualizado_em")
 
@@ -561,6 +584,12 @@ enum EventoAutomacao {
   /// modules/alocacao/renovacao.ts, mesmo padrão oportunista da checagem
   /// de SLA da Fase 5).
   renovacao_contrato
+  /// Fase 11 — NF do fechamento de vaga não emitida até a data prevista (ver
+  /// modules/financeiro/alertas.ts, mesmo padrão oportunista).
+  nf_pendente
+  /// Fase 11 — data de término da alocação do profissional se aproximando
+  /// (ver modules/financeiro/alertas.ts).
+  vencimento_alocacao
 }
 
 enum ResultadoExecucao {

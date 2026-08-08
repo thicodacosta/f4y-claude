@@ -154,6 +154,19 @@ export async function getFunilVagasComValor() {
   }));
 }
 
+/** Fase 11 — todos os contatos de todas as empresas, pro pop-up de
+ * fechamento (components/ats/fechar-vaga-dialog.tsx) filtrar por empresaId
+ * no client sem precisar de uma chamada por vaga. Lista curta e barata
+ * (nome/email/cargo), sem dado sensível. */
+export async function getContatosParaFechamento() {
+  await requirePapel(PAPEIS_ATS);
+
+  return prisma.contato.findMany({
+    select: { id: true, nome: true, email: true, cargo: true, empresaId: true },
+    orderBy: { nome: "asc" },
+  });
+}
+
 export async function getVaga(id: string) {
   const usuario = await requirePapel(PAPEIS_ATS);
 

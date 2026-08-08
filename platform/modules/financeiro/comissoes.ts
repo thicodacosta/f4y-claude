@@ -22,6 +22,16 @@ export async function gerarFaturamentoEComissao(
     valor: number;
     vertical: VerticalNegocio;
     usuarioId: string | null;
+    /** Fase 11 — só preenchido quando origemTipo="vaga" (pop-up de
+     * fechamento em fechar-vaga-dialog.tsx). Oportunidade (CRM) continua sem
+     * esses campos — todos opcionais, não quebra o caminho existente. */
+    dadosFechamento?: {
+      dataInicio?: Date;
+      contatosNfIds?: string[];
+      dataEmissaoNf?: Date;
+      dataInicioProfissional?: Date;
+      dataTerminoAlocacao?: Date;
+    };
   },
 ) {
   if (params.valor <= 0) return;
@@ -37,6 +47,11 @@ export async function gerarFaturamentoEComissao(
       origemId: params.origemId,
       valor: params.valor,
       dataPrevista: new Date(),
+      dataInicio: params.dadosFechamento?.dataInicio,
+      contatosNfIds: params.dadosFechamento?.contatosNfIds ?? [],
+      dataEmissaoNf: params.dadosFechamento?.dataEmissaoNf,
+      dataInicioProfissional: params.dadosFechamento?.dataInicioProfissional,
+      dataTerminoAlocacao: params.dadosFechamento?.dataTerminoAlocacao,
     },
   });
 

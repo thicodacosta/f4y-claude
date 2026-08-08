@@ -8,6 +8,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VagaKanbanView } from "@/components/ats/vaga-kanban-view";
 import { NovaVagaDialog } from "@/components/ats/nova-vaga-dialog";
+import { FecharVagaDialog, type ContatoClient } from "@/components/ats/fechar-vaga-dialog";
 import { moverVaga } from "@/modules/ats/actions";
 import type { VagaClient, PipelineEtapaClient } from "@/modules/ats/serialize";
 
@@ -15,11 +16,13 @@ export function PipelineVagasView({
   etapas,
   vagas,
   empresas,
+  contatos,
   mostrarValor,
 }: {
   etapas: PipelineEtapaClient[];
   vagas: VagaClient[];
   empresas: { id: string; nome: string }[];
+  contatos: ContatoClient[];
   mostrarValor: boolean;
 }) {
   const router = useRouter();
@@ -31,6 +34,7 @@ export function PipelineVagasView({
   }
 
   const [novaAberta, setNovaAberta] = useState(false);
+  const [fecharAlvo, setFecharAlvo] = useState<{ vaga: VagaClient; novaEtapaId: string } | null>(null);
   const [, startTransition] = useTransition();
 
   function handleMove(vagaId: string, novaEtapaId: string) {
@@ -47,6 +51,11 @@ export function PipelineVagasView({
     });
   }
 
+  function handleFechada(vagaId: string, novaEtapaId: string, valorVenda: number) {
+    setItems((prev) => prev.map((v) => (v.id === vagaId ? { ...v, etapaId: novaEtapaId, status: "fechada", valor: valorVenda } : v)));
+    setFecharAlvo(null);
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-hidden">
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -61,6 +70,7 @@ export function PipelineVagasView({
         items={items}
         onCardClick={(v) => router.push(`/vagas/${v.id}`)}
         onMove={handleMove}
+        onFechar={(vaga, novaEtapaId) => setFecharAlvo({ vaga, novaEtapaId })}
         mostrarValor={mostrarValor}
       />
 
@@ -69,6 +79,15 @@ export function PipelineVagasView({
         onOpenChange={setNovaAberta}
         empresas={empresas}
         onCriada={(vagaId) => router.push(`/vagas/${vagaId}`)}
+      />
+
+      <FecharVagaDialog
+        open={!!fecharAlvo}
+        onOpenChange={(open) => !open && setFecharAlvo(null)}
+        vaga={fecharAlvo?.vaga ?? null}
+        novaEtapaId={fecharAlvo?.novaEtapaId ?? ""}
+        contatos={contatos}
+        onFechada={handleFechada}
       />
     </div>
   );

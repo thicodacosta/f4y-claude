@@ -7,12 +7,14 @@ import { PAPEIS_ATS, PAPEIS_CRM } from "@/lib/roles";
 import {
   criarVagaSchema,
   moverVagaSchema,
+  fecharVagaSchema,
   atualizarVagaSchema,
   criarCandidatoSchema,
   adicionarCandidatoVagaSchema,
   moverCandidatoVagaSchema,
   csvToArray,
   type CriarVagaFormInput,
+  type FecharVagaFormInput,
   type CriarCandidatoFormInput,
   type AtualizarVagaFormInput,
 } from "@/modules/ats/schemas";
@@ -152,6 +154,75 @@ export async function moverVaga(input: { vagaId: string; novaEtapaId: string }) 
 
   revalidateAts();
   revalidatePath(`/vagas/${data.vagaId}`);
+}
+
+/** Fase 11 — versão de moverVaga usada quando a etapa de destino é Ganho
+ * (ver components/ats/fechar-vaga-dialog.tsx, que intercepta o drag-and-drop
+ * do Kanban antes de chegar aqui). Separada de moverVaga em vez de receber
+ * um parâmetro opcional porque os dois fluxos têm formulário e validação bem
+ * diferentes — só compartilham gerarFaturamentoEComissao/dispararEntrouEtapa. */
+export async function fecharVaga(input: FecharVagaFormInput) {
+  const usuario = await requirePapel(PAPEIS_ATS);
+  const data = fecharVagaSchema.parse(input);
+  await assertPodeAcessarVaga(usuario.papel, data.vagaId);
+
+  const novaEtapa = await prisma.pipelineEtapa.findUnique({ where: { id: data.novaEtapaId } });
+  if (!novaEtapa || !novaEtapa.isGanho) {
+    throw new Error("Etapa de destino precisa ser uma etapa de Ganho.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const etapaAnterior = await tx.vaga.findUniqueOrThrow({
+      where: { id: data.vagaId },
+      include: { etapa: true },
+    });
+
+    const vaga = await tx.vaga.update({
+      where: { id: data.vagaId },
+      data: {
+        etapaId: novaEtapa.id,
+        status: "fechada",
+        fechadoEm: new Date(),
+        valor: data.valorVenda,
+      },
+    });
+
+    await tx.atividade.create({
+      data: {
+        entidadeTipo: "vaga",
+        entidadeId: data.vagaId,
+        tipo: "mudanca_etapa",
+        autorId: usuario.id,
+        conteudo: `Movida de "${etapaAnterior.etapa.nome}" para "${novaEtapa.nome}".`,
+      },
+    });
+
+    await gerarFaturamentoEComissao(tx, {
+      empresaId: vaga.empresaId,
+      origemTipo: "vaga",
+      origemId: vaga.id,
+      valor: Number(vaga.valor),
+      vertical: vaga.vertical,
+      usuarioId: vaga.recrutadorId,
+      dadosFechamento: {
+        dataInicio: new Date(data.dataInicio),
+        contatosNfIds: data.contatosNfIds,
+        dataEmissaoNf: new Date(data.dataEmissaoNf),
+        dataInicioProfissional: data.dataInicioProfissional ? new Date(data.dataInicioProfissional) : undefined,
+        dataTerminoAlocacao: data.dataTerminoAlocacao ? new Date(data.dataTerminoAlocacao) : undefined,
+      },
+    });
+
+    await dispararEntrouEtapa(tx, novaEtapa.id, {
+      entidadeTipo: "vaga",
+      entidadeId: vaga.id,
+      responsavelId: vaga.recrutadorId,
+    });
+  });
+
+  revalidateAts();
+  revalidatePath(`/vagas/${data.vagaId}`);
+  revalidatePath("/financeiro");
 }
 
 export async function atualizarVaga(input: AtualizarVagaFormInput) {

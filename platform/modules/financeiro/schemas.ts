@@ -39,6 +39,10 @@ export const atualizarStatusComissaoSchema = z.object({
   novoStatus: z.enum(statusComissaoValues),
 });
 
+export const marcarFaturamentoFlagSchema = z.object({
+  faturamentoId: z.string().uuid(),
+});
+
 export const atualizarRegraComissaoSchema = z.object({
   vertical: z.enum(["tecnologia", "corporativo", "executive_search", "alocacao_tech"]),
   percentualConsultor: z.coerce.number().min(0).max(100),

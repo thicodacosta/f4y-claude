@@ -54,12 +54,16 @@ export function VagaKanbanView({
   items,
   onCardClick,
   onMove,
+  onFechar,
   mostrarValor,
 }: {
   etapas: PipelineEtapaClient[];
   items: VagaClient[];
   onCardClick: (v: VagaClient) => void;
   onMove: (vagaId: string, novaEtapaId: string) => void;
+  /** Etapa de destino é Ganho — abre o pop-up de fechamento em vez de mover
+   * direto (ver components/ats/fechar-vaga-dialog.tsx). */
+  onFechar: (vaga: VagaClient, novaEtapaId: string) => void;
   mostrarValor: boolean;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -73,6 +77,11 @@ export function VagaKanbanView({
     const novaEtapaId = String(over.id);
     const atual = items.find((v) => v.id === vagaId);
     if (!atual || atual.etapaId === novaEtapaId) return;
+    const novaEtapa = etapas.find((e) => e.id === novaEtapaId);
+    if (novaEtapa?.isGanho) {
+      onFechar(atual, novaEtapaId);
+      return;
+    }
     onMove(vagaId, novaEtapaId);
   }
 

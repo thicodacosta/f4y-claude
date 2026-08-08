@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { NotificationBell, type NotificacaoClient } from "@/components/notificacoes/notification-bell";
+import { AlertaFinanceiroDialog } from "@/components/notificacoes/alerta-financeiro-dialog";
 import { CommandPalette } from "@/components/command-palette";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -76,6 +77,8 @@ export function AppShell({
 
         <main className="flex flex-1 flex-col">{children}</main>
       </div>
+
+      <AlertaFinanceiroDialog notificacoes={notificacoes} />
     </div>
   );
 }
