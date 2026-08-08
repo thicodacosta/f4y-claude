@@ -6,14 +6,26 @@ import { z } from "zod";
  * docs/business-platform/arquitetura.md.
  */
 
-export const verticalNegocioValues = [
-  "tecnologia",
-  "corporativo",
-  "executive_search",
-  "alocacao_tech",
-] as const;
+/** Valores selecionáveis nos formulários — "executive_search" saiu daqui:
+ * agora é a flag independente `executiveSearch` (checkbox ao lado de
+ * Confidencial), não mais um valor de Vertical. O enum do Prisma continua
+ * com 4 valores (nunca removemos valor de enum já usado), mas nenhum
+ * formulário oferece "executive_search" para vaga/oportunidade nova. */
+export const verticalNegocioValues = ["tecnologia", "corporativo", "alocacao_tech"] as const;
 
-export const verticalNegocioLabel: Record<(typeof verticalNegocioValues)[number], string> = {
+/** Categoria — dimensão nova e independente da Vertical: Alocação (sempre
+ * vertical=alocacao_tech por baixo) vs. Recrutamento & Seleção (aí sim pede
+ * Tecnologia ou Corporativo). Ver nova-vaga-dialog.tsx/nova-oportunidade-dialog.tsx. */
+export const categoriaVagaValues = ["alocacao", "recrutamento"] as const;
+export const categoriaVagaLabel: Record<(typeof categoriaVagaValues)[number], string> = {
+  alocacao: "Alocação",
+  recrutamento: "Recrutamento & Seleção",
+};
+
+/** Label inclui "executive_search" mesmo fora de verticalNegocioValues —
+ * precisa continuar exibindo corretamente qualquer registro histórico que
+ * ainda tenha esse valor (a exibição não filtra por verticalNegocioValues). */
+export const verticalNegocioLabel: Record<string, string> = {
   tecnologia: "Tecnologia",
   corporativo: "Corporativo",
   executive_search: "Executive Search",
@@ -25,6 +37,7 @@ export const criarOportunidadeSchema = z.object({
   empresaNovaNome: z.string().trim().min(1).optional(),
   contatoId: z.string().uuid().optional(),
   vertical: z.enum(verticalNegocioValues),
+  executiveSearch: z.boolean().optional().default(false),
   origem: z.string().trim().optional(),
   valorEstimado: z.coerce.number().min(0).default(0),
   previsaoFechamento: z.string().optional(),

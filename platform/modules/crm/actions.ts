@@ -59,6 +59,7 @@ export async function criarOportunidade(input: CriarOportunidadeFormInput) {
         etapaId: primeiraEtapa.id,
         responsavelId: usuario.id,
         vertical: data.vertical,
+        executiveSearch: data.executiveSearch,
         origem: data.origem,
         valorEstimado: data.valorEstimado,
         previsaoFechamento: data.previsaoFechamento ? new Date(data.previsaoFechamento) : null,

@@ -99,9 +99,12 @@ export function TabelaView({
                 >
                   <TableCell className="font-medium">{o.empresaNome}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">
-                      {verticalNegocioLabel[o.vertical as keyof typeof verticalNegocioLabel]}
-                    </Badge>
+                    <div className="flex flex-wrap gap-1">
+                      <Badge variant="secondary">
+                        {verticalNegocioLabel[o.vertical as keyof typeof verticalNegocioLabel]}
+                      </Badge>
+                      {o.executiveSearch && <Badge>Executive Search</Badge>}
+                    </div>
                   </TableCell>
                   <TableCell>
                     {etapa && (

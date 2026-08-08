@@ -122,8 +122,9 @@ export function VagaDetailView({
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="secondary">{verticalNegocioLabel[vaga.vertical as keyof typeof verticalNegocioLabel]}</Badge>
+          {vaga.executiveSearch && <Badge>Executive Search</Badge>}
           <Badge variant={statusVariant[vaga.status] ?? "outline"}>{vaga.status}</Badge>
-          {vaga.confidencial && (
+          {vaga.executiveSearch && (
             <Button variant="outline" onClick={() => router.push(`/vagas/${vaga.id}/relatorio`)}>
               Relatório de posição
             </Button>
@@ -141,7 +142,7 @@ export function VagaDetailView({
               <TabsTrigger value="descricao">Descrição</TabsTrigger>
               <TabsTrigger value="atividades">Atividades</TabsTrigger>
               {vaga.vertical === "alocacao_tech" && <TabsTrigger value="contratos">Contratos</TabsTrigger>}
-              {vaga.confidencial && <TabsTrigger value="mapeamento">Mapeamento</TabsTrigger>}
+              {vaga.executiveSearch && <TabsTrigger value="mapeamento">Mapeamento</TabsTrigger>}
             </TabsList>
 
             <TabsContent value="candidatos" className="flex flex-1 flex-col gap-2 overflow-hidden">
@@ -221,7 +222,7 @@ export function VagaDetailView({
               </TabsContent>
             )}
 
-            {vaga.confidencial && (
+            {vaga.executiveSearch && (
               <TabsContent value="mapeamento" className="flex flex-col gap-3 overflow-y-auto">
                 <EmpresasAlvoEditor vagaId={vaga.id} empresasAlvo={vaga.empresasAlvo} />
               </TabsContent>

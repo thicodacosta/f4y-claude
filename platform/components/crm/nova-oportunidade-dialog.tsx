@@ -24,7 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { criarOportunidadeSchema, verticalNegocioValues, verticalNegocioLabel, type CriarOportunidadeFormInput } from "@/modules/crm/schemas";
+import {
+  criarOportunidadeSchema,
+  verticalNegocioLabel,
+  categoriaVagaValues,
+  categoriaVagaLabel,
+  type CriarOportunidadeFormInput,
+} from "@/modules/crm/schemas";
 import { criarOportunidade } from "@/modules/crm/actions";
 
 const NOVA_EMPRESA = "__nova__";
@@ -39,6 +45,9 @@ export function NovaOportunidadeDialog({
   empresas: { id: string; nome: string }[];
 }) {
   const [empresaSelecionada, setEmpresaSelecionada] = useState<string>("");
+  // Mesma dimensão de UI de nova-vaga-dialog.tsx: Categoria decide só qual
+  // Vertical persistir por baixo, não é campo do schema.
+  const [categoria, setCategoria] = useState<(typeof categoriaVagaValues)[number]>("recrutamento");
 
   const {
     register,
@@ -53,7 +62,7 @@ export function NovaOportunidadeDialog({
     // (Base UI) nasce "não controlado" e vira "controlado" só quando o
     // usuário escolhe algo, o que o Base UI rejeita com um warning e perde o
     // valor selecionado.
-    defaultValues: { valorEstimado: 0, vertical: verticalNegocioValues[0] },
+    defaultValues: { valorEstimado: 0, vertical: "tecnologia", executiveSearch: false },
   });
 
   async function onSubmit(values: CriarOportunidadeFormInput) {
@@ -62,6 +71,7 @@ export function NovaOportunidadeDialog({
       toast.success("Oportunidade criada.");
       reset();
       setEmpresaSelecionada("");
+      setCategoria("recrutamento");
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Não foi possível criar a oportunidade.");
@@ -114,28 +124,61 @@ export function NovaOportunidadeDialog({
             )}
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label>Vertical</Label>
-            <Controller
-              control={control}
-              name="vertical"
-              render={({ field }) => (
-                <Select items={verticalNegocioLabel} value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a vertical" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {verticalNegocioValues.map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {verticalNegocioLabel[v]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {errors.vertical && <p className="text-sm text-destructive">{errors.vertical.message}</p>}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <Label>Categoria</Label>
+              <Select
+                items={categoriaVagaLabel}
+                value={categoria}
+                onValueChange={(value) => {
+                  const nova = (value ?? "recrutamento") as (typeof categoriaVagaValues)[number];
+                  setCategoria(nova);
+                  setValue("vertical", nova === "alocacao" ? "alocacao_tech" : "tecnologia");
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoriaVagaValues.map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {categoriaVagaLabel[v]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {categoria === "recrutamento" && (
+              <div className="flex flex-col gap-2">
+                <Label>Vertical</Label>
+                <Controller
+                  control={control}
+                  name="vertical"
+                  render={({ field }) => (
+                    <Select
+                      items={{ tecnologia: verticalNegocioLabel.tecnologia, corporativo: verticalNegocioLabel.corporativo }}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Vertical" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="tecnologia">{verticalNegocioLabel.tecnologia}</SelectItem>
+                        <SelectItem value="corporativo">{verticalNegocioLabel.corporativo}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.vertical && <p className="text-sm text-destructive">{errors.vertical.message}</p>}
+              </div>
+            )}
           </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="size-4 rounded border-input" {...register("executiveSearch")} />
+            Executive Search
+          </label>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">

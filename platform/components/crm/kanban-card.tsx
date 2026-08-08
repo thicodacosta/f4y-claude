@@ -41,9 +41,12 @@ export function KanbanCard({
     >
       <div className="flex items-start justify-between gap-2">
         <span className="text-sm font-semibold leading-tight">{oportunidade.empresaNome}</span>
-        <Badge variant="secondary" className="shrink-0">
-          {verticalNegocioLabel[oportunidade.vertical as keyof typeof verticalNegocioLabel]}
-        </Badge>
+        <div className="flex shrink-0 flex-wrap justify-end gap-1">
+          <Badge variant="secondary">
+            {verticalNegocioLabel[oportunidade.vertical as keyof typeof verticalNegocioLabel]}
+          </Badge>
+          {oportunidade.executiveSearch && <Badge>Executive Search</Badge>}
+        </div>
       </div>
       {oportunidade.contatoNome && (
         <span className="text-xs text-muted-foreground">{oportunidade.contatoNome}</span>

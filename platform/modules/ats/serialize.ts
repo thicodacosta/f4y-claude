@@ -32,6 +32,7 @@ export type VagaClient = {
   tags: string[];
   stackTecnologica: string[];
   confidencial: boolean;
+  executiveSearch: boolean;
   empresasAlvo: string[];
   jobDescription: string | null;
   skillsRequeridas: string[];
@@ -81,6 +82,7 @@ export function serializeVaga(v: VagaComRelacoes): VagaClient {
     tags: v.tags,
     stackTecnologica: v.stackTecnologica,
     confidencial: v.confidencial,
+    executiveSearch: v.executiveSearch,
     empresasAlvo: v.empresasAlvo,
     jobDescription: v.jobDescription,
     skillsRequeridas: v.skillsRequeridas,

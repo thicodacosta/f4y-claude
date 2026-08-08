@@ -119,7 +119,8 @@ export function OportunidadeDrawer({
             <SheetHeader>
               <SheetTitle>{oportunidade.empresaNome}</SheetTitle>
               <SheetDescription>
-                {verticalNegocioLabel[oportunidade.vertical as keyof typeof verticalNegocioLabel]} ·{" "}
+                {verticalNegocioLabel[oportunidade.vertical as keyof typeof verticalNegocioLabel]}
+                {oportunidade.executiveSearch && " · Executive Search"} ·{" "}
                 {currency.format(oportunidade.valorEstimado)}
               </SheetDescription>
             </SheetHeader>

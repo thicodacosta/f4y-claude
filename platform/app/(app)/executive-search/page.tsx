@@ -8,7 +8,7 @@ export default async function ExecutiveSearchPage() {
   await requirePapel(PAPEIS_EXECUTIVE_SEARCH);
 
   const vagas = await getVagas();
-  const vagasEs = vagas.filter((v) => v.vertical === "executive_search").map(serializeVaga);
+  const vagasEs = vagas.filter((v) => v.executiveSearch).map(serializeVaga);
 
   return (
     <div className="flex flex-1 flex-col gap-4 px-4 py-6 sm:px-6">

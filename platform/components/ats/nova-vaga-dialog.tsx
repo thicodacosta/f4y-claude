@@ -24,7 +24,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { verticalNegocioValues, verticalNegocioLabel } from "@/modules/crm/schemas";
+import {
+  verticalNegocioLabel,
+  categoriaVagaValues,
+  categoriaVagaLabel,
+} from "@/modules/crm/schemas";
 import {
   criarVagaSchema,
   prioridadeVagaValues,
@@ -51,6 +55,10 @@ export function NovaVagaDialog({
   onCriada?: (vagaId: string) => void;
 }) {
   const [empresaSelecionada, setEmpresaSelecionada] = useState<string>("");
+  // Categoria não é campo do schema — é uma dimensão de UI que só decide qual
+  // Vertical persistir por baixo (Alocação sempre vira vertical=alocacao_tech,
+  // já que o módulo /alocacao filtra por esse valor; ver schema.prisma).
+  const [categoria, setCategoria] = useState<(typeof categoriaVagaValues)[number]>("recrutamento");
 
   const {
     register,
@@ -61,7 +69,7 @@ export function NovaVagaDialog({
     formState: { errors, isSubmitting },
   } = useForm<CriarVagaFormInput>({
     resolver: zodResolver(criarVagaSchema),
-    defaultValues: { vertical: verticalNegocioValues[0], prioridade: "media", quantidadePosicoes: 1 },
+    defaultValues: { vertical: "tecnologia", prioridade: "media", quantidadePosicoes: 1, executiveSearch: false },
   });
 
   async function onSubmit(values: CriarVagaFormInput) {
@@ -70,6 +78,7 @@ export function NovaVagaDialog({
       toast.success("Vaga criada.");
       reset();
       setEmpresaSelecionada("");
+      setCategoria("recrutamento");
       onOpenChange(false);
       onCriada?.(vaga.id);
     } catch (err) {
@@ -127,25 +136,27 @@ export function NovaVagaDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
-              <Label>Vertical</Label>
-              <Controller
-                control={control}
-                name="vertical"
-                render={({ field }) => (
-                  <Select items={verticalNegocioLabel} value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Vertical" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {verticalNegocioValues.map((v) => (
-                        <SelectItem key={v} value={v}>
-                          {verticalNegocioLabel[v]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
+              <Label>Categoria</Label>
+              <Select
+                items={categoriaVagaLabel}
+                value={categoria}
+                onValueChange={(value) => {
+                  const nova = (value ?? "recrutamento") as (typeof categoriaVagaValues)[number];
+                  setCategoria(nova);
+                  setValue("vertical", nova === "alocacao" ? "alocacao_tech" : "tecnologia");
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoriaVagaValues.map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {categoriaVagaLabel[v]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-col gap-2">
               <Label>Prioridade</Label>
@@ -169,6 +180,31 @@ export function NovaVagaDialog({
               />
             </div>
           </div>
+
+          {categoria === "recrutamento" && (
+            <div className="flex flex-col gap-2">
+              <Label>Vertical</Label>
+              <Controller
+                control={control}
+                name="vertical"
+                render={({ field }) => (
+                  <Select
+                    items={{ tecnologia: verticalNegocioLabel.tecnologia, corporativo: verticalNegocioLabel.corporativo }}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Vertical" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tecnologia">{verticalNegocioLabel.tecnologia}</SelectItem>
+                      <SelectItem value="corporativo">{verticalNegocioLabel.corporativo}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-3 gap-4">
             <div className="flex flex-col gap-2">
@@ -251,10 +287,16 @@ export function NovaVagaDialog({
             <Textarea id="jobDescription" rows={4} {...register("jobDescription")} />
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" className="size-4 rounded border-input" {...register("confidencial")} />
-            Vaga confidencial
-          </label>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" className="size-4 rounded border-input" {...register("confidencial")} />
+              Vaga confidencial
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" className="size-4 rounded border-input" {...register("executiveSearch")} />
+              Executive Search
+            </label>
+          </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

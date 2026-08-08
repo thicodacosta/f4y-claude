@@ -66,6 +66,7 @@ export async function criarVaga(input: CriarVagaFormInput) {
         stackTecnologica: csvToArray(data.stackTecnologica),
         jobDescription: data.jobDescription,
         confidencial: data.confidencial,
+        executiveSearch: data.executiveSearch,
       },
       include: { empresa: true },
     });

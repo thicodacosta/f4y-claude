@@ -49,9 +49,12 @@ export function VagaKanbanCard({
     >
       <div className="flex items-start justify-between gap-2">
         <span className="text-sm font-semibold leading-tight">{vaga.cargo}</span>
-        <Badge variant="secondary" className="shrink-0">
-          {verticalNegocioLabel[vaga.vertical as keyof typeof verticalNegocioLabel]}
-        </Badge>
+        <div className="flex shrink-0 flex-wrap justify-end gap-1">
+          <Badge variant="secondary">
+            {verticalNegocioLabel[vaga.vertical as keyof typeof verticalNegocioLabel]}
+          </Badge>
+          {vaga.executiveSearch && <Badge>Executive Search</Badge>}
+        </div>
       </div>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">{vaga.empresaNome}</span>

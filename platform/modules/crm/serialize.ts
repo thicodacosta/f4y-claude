@@ -16,6 +16,7 @@ export type OportunidadeClient = {
   responsavelId: string | null;
   responsavelNome: string | null;
   vertical: string;
+  executiveSearch: boolean;
   origem: string | null;
   valorEstimado: number;
   probabilidade: number | null;
@@ -44,6 +45,7 @@ export function serializeOportunidade(o: OportunidadeComRelacoes): OportunidadeC
     responsavelId: o.responsavelId,
     responsavelNome: o.responsavel?.nome ?? null,
     vertical: o.vertical,
+    executiveSearch: o.executiveSearch,
     origem: o.origem,
     valorEstimado: Number(o.valorEstimado),
     probabilidade: o.probabilidade ? Number(o.probabilidade) : null,

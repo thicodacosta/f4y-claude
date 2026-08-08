@@ -38,6 +38,7 @@ export function ListaView({
             <Badge variant="secondary" className="shrink-0">
               {verticalNegocioLabel[o.vertical as keyof typeof verticalNegocioLabel]}
             </Badge>
+            {o.executiveSearch && <Badge className="shrink-0">Executive Search</Badge>}
             {etapa && (
               <span className="flex shrink-0 items-center gap-1.5">
                 <span className="size-2 rounded-full" style={{ background: etapa.cor }} />

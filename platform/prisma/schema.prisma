@@ -186,6 +186,8 @@ model Oportunidade {
   etapaId            String          @map("etapa_id") @db.Uuid
   responsavelId      String?         @map("responsavel_id") @db.Uuid
   vertical           VerticalNegocio
+  /// Mesma flag independente de Vaga.executiveSearch — ver comentário lá.
+  executiveSearch    Boolean         @default(false) @map("executive_search")
   origem             String?
   valorEstimado      Decimal         @default(0) @map("valor_estimado") @db.Decimal(14, 2)
   probabilidade      Decimal?        @db.Decimal(5, 2)
@@ -316,6 +318,11 @@ model Vaga {
   tags                 String[]        @default([])
   stackTecnologica     String[]        @default([]) @map("stack_tecnologica")
   confidencial         Boolean         @default(false)
+  /// Flag independente da Vertical — marca a vaga como Executive Search
+  /// (mapeamento de mercado + abordagem confidencial) sem afetar a
+  /// classificação Alocação/Recrutamento nem a comissão (RegraComissao
+  /// continua chaveada só por VerticalNegocio, sem alteração).
+  executiveSearch      Boolean         @default(false) @map("executive_search")
   /// Nomes de empresas-alvo do mapeamento de mercado (Executive Search,
   /// Fase 6) — livre, não FK em Empresa: um alvo de prospecção pode nem
   /// estar cadastrado ainda. Ver fluxos-usuario.md #3, passo 2.

@@ -44,9 +44,12 @@ export function VagasTable({ vagas }: { vagas: VagaClient[] }) {
               </TableCell>
               <TableCell className="text-muted-foreground">{v.empresaNome}</TableCell>
               <TableCell>
-                <Badge variant="secondary">
-                  {verticalNegocioLabel[v.vertical as keyof typeof verticalNegocioLabel]}
-                </Badge>
+                <div className="flex flex-wrap gap-1">
+                  <Badge variant="secondary">
+                    {verticalNegocioLabel[v.vertical as keyof typeof verticalNegocioLabel]}
+                  </Badge>
+                  {v.executiveSearch && <Badge>Executive Search</Badge>}
+                </div>
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {prioridadeVagaLabel[v.prioridade as keyof typeof prioridadeVagaLabel]}
