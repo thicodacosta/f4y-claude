@@ -73,6 +73,19 @@ export async function getEmpresas() {
   });
 }
 
+/** Clientes de verdade (status=ativo) pra visão geral do CRM — diferente de
+ * getEmpresas() (traz tudo, inclusive os 337 prospects do import de
+ * contatos de prospecção, pesado demais pra um card de resumo). */
+export async function getClientesAtivos() {
+  await requirePapel(PAPEIS_CRM);
+
+  return prisma.empresa.findMany({
+    where: { status: "ativo" },
+    include: { _count: { select: { oportunidades: true, vagas: true, contatos: true } } },
+    orderBy: { nome: "asc" },
+  });
+}
+
 /** Fase 7 — base pra /empresas/[id], que hoje existe sobretudo pra gerenciar
  * contatos e convite ao Portal do Cliente (não havia detalhe de empresa
  * antes disso). */
