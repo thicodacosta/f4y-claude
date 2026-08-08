@@ -93,8 +93,10 @@ export async function getVagasFechadasPorPeriodo(meses = 12) {
     .reverse();
 }
 
-/** Vagas ativas (nem fechada, nem perdida) agrupadas por vertical — mesmo
- * gate de confidencialidade de getVagas(). */
+/** Vagas ativas (nem fechada, nem perdida) agrupadas por vertical, com soma
+ * de valor — mesmo gate de confidencialidade de getVagas(). valorTotal
+ * alimenta as médias por Categoria (Alocação = vertical alocacao_tech;
+ * Recrutamento & Seleção = as demais) no relatório acima do Kanban. */
 export async function getVagasAtivasPorVertical() {
   const usuario = await requirePapel(PAPEIS_ATS);
 
@@ -105,9 +107,14 @@ export async function getVagasAtivasPorVertical() {
       ...(podeVerConfidencial(usuario.papel) ? {} : { confidencial: false }),
     },
     _count: true,
+    _sum: { valor: true },
   });
 
-  return grupos.map((g) => ({ vertical: g.vertical, total: g._count }));
+  return grupos.map((g) => ({
+    vertical: g.vertical,
+    total: g._count,
+    valorTotal: g._sum.valor ? Number(g._sum.valor) : 0,
+  }));
 }
 
 /** Funil do Pipeline de Vagas com valor por etapa — mesma contagem de

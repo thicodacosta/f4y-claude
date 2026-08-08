@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatMesAno } from "@/lib/format";
-import { verticalNegocioLabel } from "@/modules/crm/schemas";
+import { verticalNegocioLabel, categoriaVagaLabel } from "@/modules/crm/schemas";
 import { cn } from "@/lib/utils";
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -31,7 +31,7 @@ export function RelatorioPipelineVagas({
   fechadasPorPeriodo,
 }: {
   funil: { id: string; nome: string; cor: string; total: number; valorTotal: number; isGanho: boolean; isPerdido: boolean }[];
-  porVertical: { vertical: string; total: number }[];
+  porVertical: { vertical: string; total: number; valorTotal: number }[];
   fechadasPorPeriodo: { mes: string; quantidade: number; valorTotal: number }[];
 }) {
   const [expandido, setExpandido] = useState(false);
@@ -43,6 +43,19 @@ export function RelatorioPipelineVagas({
   const vagasAtivas = porVertical.reduce((acc, v) => acc + v.total, 0);
   // "Pipeline" = etapas em aberto — não conta Fechada nem Perdida.
   const totalPipeline = funil.reduce((acc, e) => acc + (e.isGanho || e.isPerdido ? 0 : e.valorTotal), 0);
+
+  // Categoria = Alocação (vertical alocacao_tech) vs. Recrutamento & Seleção
+  // (as demais) — ver categoriaVagaValues em modules/crm/schemas.ts.
+  const somar = (grupo: typeof porVertical) =>
+    grupo.reduce((acc, v) => ({ total: acc.total + v.total, valorTotal: acc.valorTotal + v.valorTotal }), {
+      total: 0,
+      valorTotal: 0,
+    });
+  const porCategoria = {
+    alocacao: somar(porVertical.filter((v) => v.vertical === "alocacao_tech")),
+    recrutamento: somar(porVertical.filter((v) => v.vertical !== "alocacao_tech")),
+  };
+  const media = (valor: number, qtd: number) => (qtd > 0 ? currency.format(valor / qtd) : "—");
 
   const ehMesEspecifico = MES_REGEX.test(selecao);
   const dentroDaJanela = useMemo(() => {
@@ -76,6 +89,29 @@ export function RelatorioPipelineVagas({
           value={mesAtual ? String(mesAtual.quantidade) : "0"}
           hint={mesAtual && mesAtual.valorTotal > 0 ? currency.format(mesAtual.valorTotal) : undefined}
           icon={Wallet}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <KpiCard label="Média geral" value={media(totalPipeline, vagasAtivas)} icon={Wallet} />
+        <KpiCard
+          label={`Média ${categoriaVagaLabel.alocacao}`}
+          value={media(porCategoria.alocacao.valorTotal, porCategoria.alocacao.total)}
+          icon={Wallet}
+        />
+        <KpiCard
+          label={`Média ${categoriaVagaLabel.recrutamento}`}
+          value={media(porCategoria.recrutamento.valorTotal, porCategoria.recrutamento.total)}
+          icon={Wallet}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <KpiCard label={`Vagas ${categoriaVagaLabel.alocacao}`} value={String(porCategoria.alocacao.total)} icon={Briefcase} />
+        <KpiCard
+          label={`Vagas ${categoriaVagaLabel.recrutamento}`}
+          value={String(porCategoria.recrutamento.total)}
+          icon={Briefcase}
         />
       </div>
 
