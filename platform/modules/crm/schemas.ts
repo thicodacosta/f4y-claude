@@ -53,10 +53,17 @@ export type CriarOportunidadeInput = z.infer<typeof criarOportunidadeSchema>;
  * `valorEstimado` aceita string do input HTML antes do zodResolver coagir. */
 export type CriarOportunidadeFormInput = z.input<typeof criarOportunidadeSchema>;
 
+export const areaContatoValues = ["rh", "tecnologia"] as const;
+export const areaContatoLabel: Record<(typeof areaContatoValues)[number], string> = {
+  rh: "RH",
+  tecnologia: "Tecnologia",
+};
+
 export const criarContatoSchema = z.object({
   empresaId: z.string().uuid(),
   nome: z.string().trim().min(1, "Informe o nome do contato"),
   cargo: z.string().trim().optional(),
+  area: z.enum(areaContatoValues).optional(),
   telefone: z.string().trim().optional(),
   email: z.string().trim().email("E-mail inválido").optional().or(z.literal("")),
   linkedin: z.string().trim().optional(),

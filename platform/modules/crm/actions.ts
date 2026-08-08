@@ -174,6 +174,7 @@ export async function criarContato(input: CriarContatoInput) {
       empresaId: data.empresaId,
       nome: data.nome,
       cargo: data.cargo,
+      area: data.area,
       telefone: data.telefone,
       email: data.email || undefined,
       linkedin: data.linkedin,

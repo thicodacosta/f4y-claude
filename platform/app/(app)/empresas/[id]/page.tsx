@@ -9,6 +9,8 @@ import { TimelineUnificada } from "@/components/timeline/timeline-unificada";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { waLink } from "@/lib/whatsapp";
+import { areaContatoLabel } from "@/modules/crm/schemas";
+import type { Contato } from "@/lib/generated/prisma/client";
 
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
   ativo: "default",
@@ -57,50 +59,28 @@ export default async function EmpresaDetailPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
+      <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
         <h2 className="font-heading text-sm font-semibold">Contatos</h2>
         {empresa.contatos.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhum contato cadastrado ainda.</p>
         ) : (
-          <div className="flex flex-col gap-2">
-            {empresa.contatos.map((c) => (
-              <div
-                key={c.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3 text-sm"
-              >
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">
-                    {c.nome}
-                    {c.principal && (
-                      <Badge variant="secondary" className="ml-2">
-                        Principal
-                      </Badge>
-                    )}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {c.cargo ?? "—"} · {c.email ?? "sem e-mail"} · {c.telefone ?? "sem telefone"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {waLink(c.telefone) && (
-                    <a
-                      href={waLink(c.telefone)!}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Conversar no WhatsApp"
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <MessageCircle className="size-4" />
-                    </a>
-                  )}
-                  <ConvidarContatoPortalButton
-                    contatoId={c.id}
-                    temAcesso={!!c.email && emailsComPortal.has(c.email)}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+          <>
+            <GrupoContatos
+              titulo={areaContatoLabel.tecnologia}
+              contatos={empresa.contatos.filter((c) => c.area === "tecnologia")}
+              emailsComPortal={emailsComPortal}
+            />
+            <GrupoContatos
+              titulo={areaContatoLabel.rh}
+              contatos={empresa.contatos.filter((c) => c.area === "rh")}
+              emailsComPortal={emailsComPortal}
+            />
+            <GrupoContatos
+              titulo="Outros"
+              contatos={empresa.contatos.filter((c) => c.area == null)}
+              emailsComPortal={emailsComPortal}
+            />
+          </>
         )}
       </div>
 
@@ -110,6 +90,65 @@ export default async function EmpresaDetailPage({ params }: { params: Promise<{ 
           Todas as interações com esta empresa — comercial, recrutamento e alocação — em uma única linha do tempo.
         </p>
         <TimelineUnificada itens={timeline} />
+      </div>
+    </div>
+  );
+}
+
+/** Separa Tecnologia/RH (regra do CRM: decisor/influenciador de cada área
+ * se aborda diferente) — "Outros" cobre contatos sem área marcada (a maioria
+ * cadastrada antes deste campo existir). Grupo vazio não renderiza. */
+function GrupoContatos({
+  titulo,
+  contatos,
+  emailsComPortal,
+}: {
+  titulo: string;
+  contatos: Contato[];
+  emailsComPortal: Set<string>;
+}) {
+  if (contatos.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {titulo} ({contatos.length})
+      </h3>
+      <div className="flex flex-col gap-2">
+        {contatos.map((c) => (
+          <div
+            key={c.id}
+            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3 text-sm"
+          >
+            <div className="flex flex-col gap-0.5">
+              <span className="font-medium">
+                {c.nome}
+                {c.principal && (
+                  <Badge variant="secondary" className="ml-2">
+                    Principal
+                  </Badge>
+                )}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {c.cargo ?? "—"} · {c.email ?? "sem e-mail"} · {c.telefone ?? "sem telefone"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {waLink(c.telefone) && (
+                <a
+                  href={waLink(c.telefone)!}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Conversar no WhatsApp"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <MessageCircle className="size-4" />
+                </a>
+              )}
+              <ConvidarContatoPortalButton contatoId={c.id} temAcesso={!!c.email && emailsComPortal.has(c.email)} />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -121,16 +121,25 @@ model Empresa {
   @@map("empresas")
 }
 
+/// Fase 12 — segmentação de contatos por área de atuação, pra separar
+/// decisores/influenciadores de Tecnologia dos de RH numa mesma empresa
+/// (ver import de contatos de prospecção, scripts/import-contatos-crm.ts).
+enum AreaContato {
+  rh
+  tecnologia
+}
+
 model Contato {
-  id        String   @id @default(uuid()) @db.Uuid
-  empresaId String   @map("empresa_id") @db.Uuid
+  id        String       @id @default(uuid()) @db.Uuid
+  empresaId String       @map("empresa_id") @db.Uuid
   nome      String
   cargo     String?
+  area      AreaContato?
   telefone  String?
   email     String?
   linkedin  String?
-  principal Boolean  @default(false)
-  criadoEm  DateTime @default(now()) @map("criado_em")
+  principal Boolean      @default(false)
+  criadoEm  DateTime     @default(now()) @map("criado_em")
 
   empresa       Empresa        @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   oportunidades Oportunidade[]

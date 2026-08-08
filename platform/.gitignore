@@ -42,3 +42,7 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+
+# dados intermediários de import (repo é público — nunca commitar PII de
+# terceiros, mesmo em scripts/ pra "documentação")
+scripts/*.json
