@@ -3,6 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { requireUsuario, requirePapel } from "@/lib/auth";
 import { PAPEIS_GESTAO } from "@/lib/roles";
+import { getReceitaPorVerticalNegocio } from "@/modules/intelligence/metrics";
 
 function inicioDoMes(ano: number, mes: number) {
   return new Date(ano, mes - 1, 1);
@@ -103,6 +104,46 @@ export async function getMetasEquipe(ano?: number, mes?: number) {
   );
 
   return linhas.sort((a, b) => b.percentual - a.percentual);
+}
+
+/** Goal Center — metas da empresa/vertical, diferente do leaderboard por
+ * usuário acima. "valorAtual" reaproveita getReceitaPorVerticalNegocio
+ * (Metrics Engine) com o período do mês, em vez de recalcular a mesma
+ * classificação Vaga/Oportunidade → categoria de outro jeito aqui. */
+export async function getMetasOrganizacionais(ano?: number, mes?: number) {
+  await requirePapel(PAPEIS_GESTAO);
+  const hoje = new Date();
+  const anoAlvo = ano ?? hoje.getFullYear();
+  const mesAlvo = mes ?? hoje.getMonth() + 1;
+
+  const [metas, receitaPorVertical] = await Promise.all([
+    prisma.metaOrganizacional.findMany({ where: { ano: anoAlvo, mes: mesAlvo } }),
+    getReceitaPorVerticalNegocio({ desde: inicioDoMes(anoAlvo, mesAlvo), ate: fimDoMes(anoAlvo, mesAlvo) }),
+  ]);
+
+  const receitaTotal = receitaPorVertical
+    ? receitaPorVertical.alocacao + receitaPorVertical.recrutamento + receitaPorVertical.executive_search
+    : 0;
+
+  function valorAtualDaCategoria(categoria: string) {
+    if (categoria === "todas") return receitaTotal;
+    return receitaPorVertical?.[categoria as "alocacao" | "recrutamento" | "executive_search"] ?? 0;
+  }
+
+  return metas.map((m) => {
+    const alvo = Number(m.valorAlvo);
+    const atual = valorAtualDaCategoria(m.categoria);
+    return {
+      id: m.id,
+      categoria: m.categoria,
+      ano: m.ano,
+      mes: m.mes,
+      valorAlvo: alvo,
+      valorAtual: atual,
+      gap: Math.max(0, alvo - atual),
+      percentual: alvo > 0 ? Math.round((atual / alvo) * 100) : 0,
+    };
+  });
 }
 
 export async function getUsuariosParaMetas() {

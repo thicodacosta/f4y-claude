@@ -194,10 +194,26 @@ export async function getConcentracaoReceita(topN = 5) {
  * Vaga/Oportunidade.vertical + .executiveSearch (mesma regra de categoria
  * usada em nova-vaga-dialog.tsx e no relatório de pipeline de vagas). Junta
  * Faturamento (polimórfico) de volta em Vaga/Oportunidade pra classificar. */
-export async function getReceitaPorVerticalNegocio() {
+export async function getReceitaPorVerticalNegocio(periodo?: { desde: Date; ate: Date }) {
+  const classificados = await classificarFaturamentosPorCategoria(periodo);
+  if (!classificados) return null;
+
+  const totais: Record<Categoria, number> = { alocacao: 0, recrutamento: 0, executive_search: 0 };
+  for (const f of classificados) totais[f.categoria] += f.valor;
+  return totais;
+}
+
+type Categoria = "alocacao" | "recrutamento" | "executive_search";
+
+/** Junta Faturamento (polimórfico) de volta em Vaga/Oportunidade pra
+ * classificar por categoria — compartilhado por getReceitaPorVerticalNegocio
+ * e getTicketMedioPorVertical, pra não reimplementar a mesma junção duas
+ * vezes (regra 34 do pedido: uma métrica, um lugar só que sabe calculá-la). */
+async function classificarFaturamentosPorCategoria(periodo?: { desde: Date; ate: Date }) {
   await requirePapel(PAPEIS_GESTAO);
 
   const faturamentos = await prisma.faturamento.findMany({
+    where: periodo ? { criadoEm: { gte: periodo.desde, lt: periodo.ate } } : undefined,
     select: { valor: true, origemTipo: true, origemId: true },
   });
   if (faturamentos.length === 0) return null;
@@ -217,7 +233,6 @@ export async function getReceitaPorVerticalNegocio() {
       : [],
   ]);
 
-  type Categoria = "alocacao" | "recrutamento" | "executive_search";
   function categoriaDe(vertical: string, executiveSearch: boolean): Categoria {
     if (executiveSearch) return "executive_search";
     return vertical === "alocacao_tech" ? "alocacao" : "recrutamento";
@@ -227,13 +242,62 @@ export async function getReceitaPorVerticalNegocio() {
   for (const v of vagas) categoriaPorId.set(v.id, categoriaDe(v.vertical, v.executiveSearch));
   for (const o of oportunidades) categoriaPorId.set(o.id, categoriaDe(o.vertical, o.executiveSearch));
 
-  const totais: Record<Categoria, number> = { alocacao: 0, recrutamento: 0, executive_search: 0 };
-  for (const f of faturamentos) {
-    const cat = categoriaPorId.get(f.origemId);
-    if (cat) totais[cat] += Number(f.valor);
+  return faturamentos
+    .map((f) => ({ valor: Number(f.valor), categoria: categoriaPorId.get(f.origemId) }))
+    .filter((f): f is { valor: number; categoria: Categoria } => !!f.categoria);
+}
+
+/** Ticket médio por vertical = receita da categoria / número de fechamentos
+ * — base real pro Reverse Planning ("quero faturar X, quantos contratos/
+ * vagas/mandatos preciso"). Categoria sem nenhum fechamento retorna
+ * ticketMedio null (não divide por zero, não inventa um número). */
+export async function getTicketMedioPorVertical() {
+  const classificados = await classificarFaturamentosPorCategoria();
+  if (!classificados) return null;
+
+  const acumulado: Record<Categoria, { receita: number; contagem: number }> = {
+    alocacao: { receita: 0, contagem: 0 },
+    recrutamento: { receita: 0, contagem: 0 },
+    executive_search: { receita: 0, contagem: 0 },
+  };
+  for (const f of classificados) {
+    acumulado[f.categoria].receita += f.valor;
+    acumulado[f.categoria].contagem += 1;
   }
 
-  return totais;
+  const resultado = {} as Record<Categoria, { receita: number; contagem: number; ticketMedio: number | null }>;
+  for (const categoria of Object.keys(acumulado) as Categoria[]) {
+    const { receita, contagem } = acumulado[categoria];
+    resultado[categoria] = { receita, contagem, ticketMedio: contagem > 0 ? receita / contagem : null };
+  }
+  return resultado;
+}
+
+/** Base real pro Business Simulator (What-If) — clientes ativos, ticket
+ * médio geral e capacidade de recrutamento por cabeça. Tudo real; qualquer
+ * campo sem dado suficiente vem null, nunca um número inventado. */
+export async function getBaselineSimulador() {
+  await requirePapel(PAPEIS_GESTAO);
+
+  const tresMesesAtras = new Date();
+  tresMesesAtras.setMonth(tresMesesAtras.getMonth() - 3);
+
+  const [clientesAtivos, faturamentoGeral, recrutadoresAtivos, vagasFechadas3Meses] = await Promise.all([
+    prisma.empresa.count({ where: { status: "ativo" } }),
+    prisma.faturamento.aggregate({ _sum: { valor: true }, _count: true }),
+    prisma.usuario.count({ where: { papel: "recrutador", ativo: true } }),
+    prisma.vaga.count({ where: { status: "fechada", fechadoEm: { gte: tresMesesAtras } } }),
+  ]);
+
+  const ticketMedioGeral = faturamentoGeral._count > 0 ? Number(faturamentoGeral._sum.valor ?? 0) / faturamentoGeral._count : null;
+  const vagasFechadasPorRecrutadorMes = recrutadoresAtivos > 0 ? vagasFechadas3Meses / recrutadoresAtivos / 3 : null;
+
+  return {
+    clientesAtivos,
+    ticketMedioGeral,
+    recrutadoresAtivos,
+    vagasFechadasPorRecrutadorMes,
+  };
 }
 
 /** Margem estimada = receita contratada − comissões geradas. Não é margem

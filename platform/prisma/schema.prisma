@@ -762,6 +762,38 @@ model Meta {
   @@map("metas")
 }
 
+/// As 3 verticais de negócio reais da Find4You + "todas" (meta da empresa
+/// inteira) — Fase 11/Intelligence. Diferente de VerticalNegocio (que
+/// mistura Tecnologia/Corporativo com Alocação/Executive Search por razões
+/// históricas de comissão, ver modules/crm/schemas.ts). "todas" em vez de
+/// categoria nullable de propósito: unique index com coluna null trata cada
+/// NULL como distinto no Postgres, o que quebraria a unicidade de "uma meta
+/// de empresa por mês" — um enum não-nulo com sentinela evita esse problema.
+enum CategoriaMeta {
+  todas
+  alocacao
+  recrutamento
+  executive_search
+}
+
+/// Meta organizacional — Goal Center (Fase 11/Intelligence). Diferente do
+/// model Meta acima (que é por usuário, alimenta o leaderboard de
+/// produtividade): esta é a meta que o Forecast Engine e o Gap-to-Goal
+/// consultam. Progresso também é sempre calculado on-the-fly (ver
+/// modules/intelligence/forecast.ts), nunca armazenado aqui.
+model MetaOrganizacional {
+  id           String        @id @default(uuid()) @db.Uuid
+  categoria    CategoriaMeta
+  ano          Int
+  mes          Int
+  valorAlvo    Decimal       @map("valor_alvo") @db.Decimal(14, 2)
+  criadoEm     DateTime      @default(now()) @map("criado_em")
+  atualizadoEm DateTime      @updatedAt @map("atualizado_em")
+
+  @@unique([categoria, ano, mes])
+  @@map("metas_organizacionais")
+}
+
 // ---------------------------------------------------------------------------
 // Fase 9 — Integrações (por pessoa, não por conta da empresa)
 // ---------------------------------------------------------------------------

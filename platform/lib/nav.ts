@@ -15,6 +15,8 @@ import {
   Settings,
   Sparkles,
   Crown,
+  LineChart,
+  FlaskConical,
 } from "lucide-react";
 
 /**
@@ -83,6 +85,20 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Crown,
         roles: ["admin", "diretoria"],
         descricao: "O essencial do negócio em uma tela — sem ruído.",
+      },
+      {
+        label: "Forecast",
+        href: "/intelligence/forecast",
+        icon: LineChart,
+        roles: ["admin", "diretoria"],
+        descricao: "Previsão conservadora/provável/agressiva por janela, com fórmula auditável.",
+      },
+      {
+        label: "Simulador",
+        href: "/intelligence/simulador",
+        icon: FlaskConical,
+        roles: ["admin", "diretoria"],
+        descricao: "What-If e planejamento reverso — altere variáveis, veja o impacto na hora.",
       },
     ],
   },
