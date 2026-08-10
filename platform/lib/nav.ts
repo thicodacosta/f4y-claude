@@ -6,15 +6,10 @@ import {
   Kanban,
   Briefcase,
   UserRound,
-  UsersRound,
-  Target,
-  Award,
-  Calendar,
   BarChart3,
   Wallet,
   Settings,
   Sparkles,
-  Crown,
   LineChart,
   FlaskConical,
   Contact,
@@ -79,13 +74,6 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Sparkles,
         roles: ["admin", "diretoria"],
         descricao: "Receita, pipeline ponderado, capacidade e alertas consolidados das três verticais.",
-      },
-      {
-        label: "Modo CEO",
-        href: "/intelligence/ceo",
-        icon: Crown,
-        roles: ["admin", "diretoria"],
-        descricao: "O essencial do negócio em uma tela — sem ruído.",
       },
       {
         label: "Forecast",
@@ -161,38 +149,8 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "Verticais",
-    items: [
-      {
-        label: "Alocação de Profissionais",
-        href: "/alocacao",
-        icon: UsersRound,
-        roles: ["admin", "diretoria", "recrutador"],
-        fase: "Fase 6",
-        descricao: "Staffing — pool de talentos e contratos de alocação.",
-      },
-      {
-        label: "Recrutamento & Seleção",
-        href: "/recrutamento",
-        icon: Target,
-        roles: ["admin", "diretoria", "recrutador"],
-        fase: "Fase 2",
-        descricao: "Vagas de Tecnologia e Corporativo (não-executivas).",
-      },
-      {
-        label: "Executive Search",
-        href: "/executive-search",
-        icon: Award,
-        roles: ["admin", "diretoria", "consultor_executive_search"],
-        fase: "Fase 6",
-        descricao: "Busca executiva confidencial — C-level e board.",
-      },
-    ],
-  },
-  {
     label: "Gestão",
     items: [
-      { label: "Agenda", href: "/agenda", icon: Calendar, roles: "all", fase: "Fase 9" },
       {
         label: "Relatórios",
         href: "/relatorios",
