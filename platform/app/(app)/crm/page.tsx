@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { GitPullRequest, Briefcase, TrendingUp, Target, Percent } from "lucide-react";
 import { getKpisComercial, getFunilComercial } from "@/modules/dashboard/queries";
-import { getClientesAtivos } from "@/modules/crm/queries";
+import { getClientesAtivos, getContatos } from "@/modules/crm/queries";
+import { serializeContato } from "@/modules/crm/serialize";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { BarList } from "@/components/dashboard/bar-list";
+import { ContatosView } from "@/components/crm/contatos-view";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -11,14 +13,19 @@ const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "
 const percent = (n: number) => `${n.toFixed(0)}%`;
 
 export default async function CrmPage() {
-  const [kpis, funil, clientes] = await Promise.all([getKpisComercial(), getFunilComercial(), getClientesAtivos()]);
+  const [kpis, funil, clientes, contatos] = await Promise.all([
+    getKpisComercial(),
+    getFunilComercial(),
+    getClientesAtivos(),
+    getContatos(),
+  ]);
 
   return (
     <div className="flex flex-1 flex-col gap-4 px-4 py-6 sm:px-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-heading text-2xl font-bold">CRM</h1>
-          <p className="text-sm text-muted-foreground">Visão consolidada do CRM — pipeline comercial e clientes.</p>
+          <p className="text-sm text-muted-foreground">Visão consolidada do CRM — pipeline comercial, clientes e contatos.</p>
         </div>
         <div className="flex gap-2">
           <Link href="/empresas">
@@ -60,6 +67,11 @@ export default async function CrmPage() {
           formatValue={(v) => currency.format(v)}
           emptyLabel="Nenhuma oportunidade cadastrada ainda."
         />
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
+        <h2 className="font-heading text-sm font-semibold">Contatos ({contatos.length})</h2>
+        <ContatosView contatos={contatos.map(serializeContato)} />
       </div>
 
       <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">

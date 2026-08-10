@@ -4,6 +4,7 @@ import { KpiCard } from "@/components/dashboard/kpi-card";
 import { BarList } from "@/components/dashboard/bar-list";
 import { RevenueLineChart } from "@/components/dashboard/revenue-line-chart";
 import { AlertList } from "@/components/intelligence/alert-list";
+import { ForecastView } from "@/components/intelligence/forecast-view";
 import {
   getReceitaConsolidada,
   getReceitaMensalConsolidada,
@@ -13,6 +14,8 @@ import {
   getReceitaPorVerticalNegocio,
 } from "@/modules/intelligence/metrics";
 import { getAlertasInteligentes } from "@/modules/intelligence/alerts";
+import { getForecastMultiplasJanelas, getGapToGoal } from "@/modules/intelligence/forecast";
+import { categoriaMetaValues } from "@/modules/metas/schemas";
 import { getFunilComercial } from "@/modules/dashboard/queries";
 import { getFunilVagasComValor } from "@/modules/ats/queries";
 
@@ -26,18 +29,32 @@ const VERTICAL_LABEL: Record<string, string> = {
 };
 
 export default async function IntelligencePage() {
-  const [receita, receitaMensal, pipeline, capacidade, concentracao, receitaPorVertical, funilComercial, funilVagas, alertas] =
-    await Promise.all([
-      getReceitaConsolidada(),
-      getReceitaMensalConsolidada(6),
-      getPipelineConsolidado(),
-      getCapacidadeAlocacao(),
-      getConcentracaoReceita(5),
-      getReceitaPorVerticalNegocio(),
-      getFunilComercial(),
-      getFunilVagasComValor(),
-      getAlertasInteligentes(),
-    ]);
+  const [
+    receita,
+    receitaMensal,
+    pipeline,
+    capacidade,
+    concentracao,
+    receitaPorVertical,
+    funilComercial,
+    funilVagas,
+    alertas,
+    janelasForecast,
+    gapsForecast,
+  ] = await Promise.all([
+    getReceitaConsolidada(),
+    getReceitaMensalConsolidada(6),
+    getPipelineConsolidado(),
+    getCapacidadeAlocacao(),
+    getConcentracaoReceita(5),
+    getReceitaPorVerticalNegocio(),
+    getFunilComercial(),
+    getFunilVagasComValor(),
+    getAlertasInteligentes(),
+    getForecastMultiplasJanelas(),
+    Promise.all(categoriaMetaValues.map((categoria) => getGapToGoal(categoria))),
+  ]);
+  const gapsValidos = gapsForecast.filter((g): g is NonNullable<typeof g> => g != null);
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
@@ -110,6 +127,17 @@ export default async function IntelligencePage() {
             emptyLabel="Nenhuma vaga cadastrada ainda."
           />
         </div>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+        <div>
+          <h2 className="font-heading text-sm font-semibold">Forecast</h2>
+          <p className="text-xs text-muted-foreground">
+            Conservador (só pipeline com data e probabilidade), provável (+ tendência histórica) e agressivo (tudo
+            previsto fechando).
+          </p>
+        </div>
+        <ForecastView janelas={janelasForecast} gaps={gapsValidos} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

@@ -10,11 +10,29 @@ import type { ContatoClient } from "@/modules/crm/serialize";
 const TODOS = "__todos__";
 const SEM_EMPRESA = "__sem_empresa__";
 
+/** Perfil de atendimento — deriva de área/nível já existentes, sem campo
+ * novo no banco. Recrutamento & Seleção fala com RH e também direto com
+ * C-Level (CEO/C-suite decide contratação executiva mesmo fora de RH);
+ * Alocação Tech fala com o time técnico, então é a área Tecnologia que
+ * sobra fora desse recorte. Contato sem área nem nível C-Level fica sem
+ * perfil (só aparece em "Todos"). */
+const perfilLabel = {
+  recrutamento: "Recrutamento (RH e C-Level)",
+  alocacao: "Alocação (TI)",
+} as const;
+
+function perfilDoContato(c: ContatoClient): keyof typeof perfilLabel | null {
+  if (c.area === "rh" || c.nivel === "c_level") return "recrutamento";
+  if (c.area === "tecnologia") return "alocacao";
+  return null;
+}
+
 export function ContatosView({ contatos }: { contatos: ContatoClient[] }) {
   const [busca, setBusca] = useState("");
   const [area, setArea] = useState("");
   const [tipo, setTipo] = useState("");
   const [empresa, setEmpresa] = useState("");
+  const [perfil, setPerfil] = useState("");
 
   const empresas = useMemo(() => {
     const nomes = new Set(contatos.map((c) => c.empresaNome).filter((n): n is string => !!n));
@@ -29,9 +47,10 @@ export function ContatosView({ contatos }: { contatos: ContatoClient[] }) {
       if (tipo && c.tipo !== tipo) return false;
       if (empresa === SEM_EMPRESA && c.empresaNome) return false;
       if (empresa && empresa !== SEM_EMPRESA && c.empresaNome !== empresa) return false;
+      if (perfil && perfilDoContato(c) !== perfil) return false;
       return true;
     });
-  }, [contatos, busca, area, tipo, empresa]);
+  }, [contatos, busca, area, tipo, empresa, perfil]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -77,6 +96,19 @@ export function ContatosView({ contatos }: { contatos: ContatoClient[] }) {
             {empresas.map((e) => (
               <SelectItem key={e} value={e}>
                 {e}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select items={{ [TODOS]: "Todos os perfis", ...perfilLabel }} value={perfil || TODOS} onValueChange={(v) => setPerfil(!v || v === TODOS ? "" : v)}>
+          <SelectTrigger className="w-56">
+            <SelectValue placeholder="Perfil de atendimento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS}>Todos os perfis</SelectItem>
+            {Object.entries(perfilLabel).map(([v, label]) => (
+              <SelectItem key={v} value={v}>
+                {label}
               </SelectItem>
             ))}
           </SelectContent>

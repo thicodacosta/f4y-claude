@@ -10,9 +10,7 @@ import {
   Wallet,
   Settings,
   Sparkles,
-  LineChart,
   FlaskConical,
-  Contact,
 } from "lucide-react";
 
 /**
@@ -76,13 +74,6 @@ export const NAV_GROUPS: NavGroup[] = [
         descricao: "Receita, pipeline ponderado, capacidade e alertas consolidados das três verticais.",
       },
       {
-        label: "Forecast",
-        href: "/intelligence/forecast",
-        icon: LineChart,
-        roles: ["admin", "diretoria"],
-        descricao: "Previsão conservadora/provável/agressiva por janela, com fórmula auditável.",
-      },
-      {
         label: "Simulador",
         href: "/intelligence/simulador",
         icon: FlaskConical,
@@ -122,13 +113,6 @@ export const NAV_GROUPS: NavGroup[] = [
         roles: ["admin", "diretoria", "consultor_comercial", "recrutador", "financeiro"],
         fase: "Fase 1",
         descricao: "Base de empresas — clientes, prospects, contatos, segmento, histórico.",
-      },
-      {
-        label: "Contatos",
-        href: "/crm/contatos",
-        icon: Contact,
-        roles: ["admin", "diretoria", "consultor_comercial", "recrutador", "financeiro"],
-        descricao: "Contatos de prospecção e decisores cruzando todas as empresas, com filtros.",
       },
       {
         label: "Vagas",

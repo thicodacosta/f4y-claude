@@ -2,11 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, Plus, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -15,21 +14,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { NovoCandidatoDialog } from "@/components/ats/novo-candidato-dialog";
-import { disponibilidadeValues, disponibilidadeLabel, statusCandidatoLabel } from "@/modules/ats/schemas";
+import { CandidatoCard } from "@/components/ats/candidato-card";
+import { disponibilidadeValues, disponibilidadeLabel } from "@/modules/ats/schemas";
 import type { CandidatoClient } from "@/modules/ats/serialize";
 
-function initials(nome: string) {
-  return nome.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
-}
-
 const TODOS = "__todos__";
-
-const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
-  ativo: "default",
-  em_processo: "secondary",
-  alocado: "default",
-  inativo: "outline",
-};
 
 export function CandidatosGrid({ candidatos }: { candidatos: CandidatoClient[] }) {
   const router = useRouter();
@@ -89,43 +78,9 @@ export function CandidatosGrid({ candidatos }: { candidatos: CandidatoClient[] }
       {filtrados.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum candidato encontrado.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filtrados.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => router.push(`/candidatos/${c.id}`)}
-              className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 text-left shadow-sm transition-colors hover:bg-muted/50"
-            >
-              <div className="flex items-center gap-2">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
-                  {initials(c.nome)}
-                </span>
-                <div className="flex min-w-0 flex-col">
-                  <span className="truncate font-semibold">{c.nome}</span>
-                  <span className="truncate text-xs text-muted-foreground">{c.cargoAtual ?? "—"}</span>
-                </div>
-              </div>
-              {c.cidade && (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <MapPin className="size-3" />
-                  {c.cidade}
-                  {c.estado ? `/${c.estado}` : ""}
-                </span>
-              )}
-              <div className="flex flex-wrap gap-1">
-                {c.skills.slice(0, 3).map((s) => (
-                  <Badge key={s} variant="outline" className="text-[10px]">
-                    {s}
-                  </Badge>
-                ))}
-              </div>
-              <div className="flex items-center justify-between">
-                <Badge variant={statusVariant[c.status] ?? "outline"}>
-                  {statusCandidatoLabel[c.status as keyof typeof statusCandidatoLabel]}
-                </Badge>
-                {c.scoreIa !== null && <Badge variant="secondary">Score {c.scoreIa}</Badge>}
-              </div>
-            </button>
+            <CandidatoCard key={c.id} candidato={c} />
           ))}
         </div>
       )}
