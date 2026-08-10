@@ -1,8 +1,13 @@
--- Seed do Pipeline Comercial padrão — Fase 1.
+-- Seed do Pipeline Comercial padrão — Fase 1, redefinido na Fase 13
+-- (reestruturação completa do Pipeline Comercial, ver
+-- git log "Redefinir Pipeline Comercial").
 --
--- Etapas conforme especificado no pedido original / docs/business-platform:
--- Lead, Contato, Qualificação, Diagnóstico, Proposta, Negociação, Fechamento,
--- depois Ganho/Perdido como colunas fixas (is_ganho/is_perdido).
+-- Etapas: Lead, Contato, Reunião, Proposta, Negociação, depois
+-- Homologado/Perdido como colunas fixas (is_ganho/is_perdido). Em produção
+-- essas etapas já existiam com nomes antigos (Qualificação/Diagnóstico/
+-- Fechamento/Ganho) — a migração renomeou/consolidou as linhas em vez de
+-- recriar, pra preservar os IDs referenciados por Automacao. Este INSERT só
+-- roda em ambiente novo (idempotente via not exists).
 --
 -- Rodar uma vez, depois de `npm run db:migrate` e de aplicar `rls.sql` —
 -- mesma forma de aplicação (docker exec / SQL Editor), ver platform/README.md.
@@ -18,15 +23,13 @@ with p as (
 insert into public.pipeline_etapas (id, pipeline_id, nome, cor, ordem, sla_dias, probabilidade_padrao, is_ganho, is_perdido)
 select gen_random_uuid(), p.id, etapa.nome, etapa.cor, etapa.ordem, etapa.sla_dias, etapa.probabilidade, etapa.is_ganho, etapa.is_perdido
 from p, (values
-  ('Lead',        '#9297A0', 1, 5,  5,   false, false),
-  ('Contato',     '#28AAF0', 2, 5,  15,  false, false),
-  ('Qualificação','#28AAF0', 3, 7,  30,  false, false),
-  ('Diagnóstico', '#5860A9', 4, 7,  40,  false, false),
-  ('Proposta',    '#5860A9', 5, 10, 55,  false, false),
-  ('Negociação',  '#F5A623', 6, 10, 70,  false, false),
-  ('Fechamento',  '#F5A623', 7, 5,  85,  false, false),
-  ('Ganho',       '#15A66B', 8, null, 100, true,  false),
-  ('Perdido',     '#E5484D', 9, null, 0,   false, true)
+  ('Lead',        '#9297A0', 1, 5,  10,  false, false),
+  ('Contato',     '#28AAF0', 2, 5,  20,  false, false),
+  ('Reunião',     '#28AAF0', 3, 7,  40,  false, false),
+  ('Proposta',    '#5860A9', 4, 10, 60,  false, false),
+  ('Negociação',  '#F5A623', 5, 10, 80,  false, false),
+  ('Homologado',  '#15A66B', 6, null, 100, true,  false),
+  ('Perdido',     '#E5484D', 7, null, 0,   false, true)
 ) as etapa(nome, cor, ordem, sla_dias, probabilidade, is_ganho, is_perdido)
 where not exists (
   select 1 from public.pipeline_etapas pe where pe.pipeline_id = p.id and pe.nome = etapa.nome
@@ -102,8 +105,58 @@ select gen_random_uuid(),
   now()
 from public.pipeline_etapas pe
 join public.pipelines p on p.id = pe.pipeline_id
-where p.tipo = 'comercial' and pe.nome = 'Ganho'
+where p.tipo = 'comercial' and pe.nome = 'Homologado'
   and not exists (select 1 from public.automacoes where nome = 'Oportunidade Ganha → tarefa de confirmação');
+
+-- Fase 13 — automações adicionais do Pipeline Comercial reestruturado
+-- (seção 17 do pedido: "automações estruturadas" por transição de etapa).
+insert into public.automacoes (id, nome, pipeline_etapa_id, evento, acao, atualizado_em)
+select gen_random_uuid(),
+  'Reunião agendada → preparar proposta',
+  pe.id,
+  'entrou_etapa'::"EventoAutomacao",
+  '{"tipo": "criar_tarefa", "params": {"titulo": "Registrar resultado da reunião e preparar proposta", "prazoDias": 2}}'::jsonb,
+  now()
+from public.pipeline_etapas pe
+join public.pipelines p on p.id = pe.pipeline_id
+where p.tipo = 'comercial' and pe.nome = 'Reunião'
+  and not exists (select 1 from public.automacoes where nome = 'Reunião agendada → preparar proposta');
+
+insert into public.automacoes (id, nome, pipeline_etapa_id, evento, acao, atualizado_em)
+select gen_random_uuid(),
+  'Proposta enviada → follow-up',
+  pe.id,
+  'entrou_etapa'::"EventoAutomacao",
+  '{"tipo": "criar_tarefa", "params": {"titulo": "Fazer follow-up da proposta enviada", "prazoDias": 3}}'::jsonb,
+  now()
+from public.pipeline_etapas pe
+join public.pipelines p on p.id = pe.pipeline_id
+where p.tipo = 'comercial' and pe.nome = 'Proposta'
+  and not exists (select 1 from public.automacoes where nome = 'Proposta enviada → follow-up');
+
+insert into public.automacoes (id, nome, pipeline_etapa_id, evento, acao, atualizado_em)
+select gen_random_uuid(),
+  'Em negociação → alinhar condições',
+  pe.id,
+  'entrou_etapa'::"EventoAutomacao",
+  '{"tipo": "criar_tarefa", "params": {"titulo": "Alinhar condições finais e objeções da negociação", "prazoDias": 2}}'::jsonb,
+  now()
+from public.pipeline_etapas pe
+join public.pipelines p on p.id = pe.pipeline_id
+where p.tipo = 'comercial' and pe.nome = 'Negociação'
+  and not exists (select 1 from public.automacoes where nome = 'Em negociação → alinhar condições');
+
+insert into public.automacoes (id, nome, pipeline_etapa_id, evento, acao, atualizado_em)
+select gen_random_uuid(),
+  'Homologado → iniciar onboarding do cliente',
+  pe.id,
+  'entrou_etapa'::"EventoAutomacao",
+  '{"tipo": "criar_tarefa", "params": {"titulo": "Iniciar onboarding do cliente", "prazoDias": 5}}'::jsonb,
+  now()
+from public.pipeline_etapas pe
+join public.pipelines p on p.id = pe.pipeline_id
+where p.tipo = 'comercial' and pe.nome = 'Homologado'
+  and not exists (select 1 from public.automacoes where nome = 'Homologado → iniciar onboarding do cliente');
 
 insert into public.automacoes (id, nome, pipeline_etapa_id, evento, acao, atualizado_em)
 select gen_random_uuid(),

@@ -10,8 +10,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { motivoPerdaPresetValues } from "@/modules/crm/schemas";
+
+const OUTRO = "Outro";
 
 export function MotivoPerdaDialog({
   open,
@@ -22,13 +33,24 @@ export function MotivoPerdaDialog({
   onOpenChange: (open: boolean) => void;
   onConfirm: (motivo: string) => void;
 }) {
-  const [motivo, setMotivo] = useState("");
+  const [preset, setPreset] = useState<string>("");
+  const [outro, setOutro] = useState("");
+  const [observacoes, setObservacoes] = useState("");
+
+  function reset() {
+    setPreset("");
+    setOutro("");
+    setObservacoes("");
+  }
+
+  const motivoFinal = preset === OUTRO ? outro.trim() : preset;
+  const podeConfirmar = preset !== "" && (preset !== OUTRO || outro.trim() !== "");
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) setMotivo("");
+        if (!next) reset();
         onOpenChange(next);
       }}
     >
@@ -40,25 +62,57 @@ export function MotivoPerdaDialog({
             de motivos de perda do Forecast.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="motivo-perda">Motivo</Label>
-          <Textarea
-            id="motivo-perda"
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-            placeholder="Ex.: cliente optou por concorrente, orçamento cancelado…"
-            autoFocus
-          />
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
+            <Label>Motivo</Label>
+            <Select
+              items={Object.fromEntries(motivoPerdaPresetValues.map((m) => [m, m]))}
+              value={preset}
+              onValueChange={(v) => setPreset(v ?? "")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione o motivo" />
+              </SelectTrigger>
+              <SelectContent>
+                {motivoPerdaPresetValues.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {preset === OUTRO && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="motivo-outro">Descreva o motivo</Label>
+              <Input
+                id="motivo-outro"
+                value={outro}
+                onChange={(e) => setOutro(e.target.value)}
+                autoFocus
+              />
+            </div>
+          )}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="motivo-observacoes">Observações (opcional)</Label>
+            <Textarea
+              id="motivo-observacoes"
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              placeholder="Detalhes adicionais sobre a perda…"
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <Button
-            disabled={!motivo.trim()}
+            disabled={!podeConfirmar}
             onClick={() => {
-              onConfirm(motivo.trim());
-              setMotivo("");
+              const motivo = observacoes.trim() ? `${motivoFinal} — ${observacoes.trim()}` : motivoFinal;
+              onConfirm(motivo);
+              reset();
             }}
           >
             Confirmar

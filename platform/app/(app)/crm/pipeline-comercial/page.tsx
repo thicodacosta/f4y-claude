@@ -1,13 +1,14 @@
-import { getPipelineComercial, getOportunidades, getEmpresas, getConsultoresComerciais } from "@/modules/crm/queries";
-import { serializeOportunidade, serializeEtapa } from "@/modules/crm/serialize";
+import { getPipelineComercial, getOportunidades, getEmpresas, getConsultoresComerciais, getContatos } from "@/modules/crm/queries";
+import { serializeOportunidade, serializeEtapa, serializeContato } from "@/modules/crm/serialize";
 import { PipelineComercialView } from "@/components/crm/pipeline-comercial-view";
 
 export default async function PipelineComercialPage() {
-  const [pipeline, oportunidades, empresas, consultores] = await Promise.all([
+  const [pipeline, oportunidades, empresas, consultores, contatos] = await Promise.all([
     getPipelineComercial(),
     getOportunidades(),
     getEmpresas(),
     getConsultoresComerciais(),
+    getContatos(),
   ]);
 
   return (
@@ -23,6 +24,7 @@ export default async function PipelineComercialPage() {
         oportunidades={oportunidades.map(serializeOportunidade)}
         empresas={empresas.map((e) => ({ id: e.id, nome: e.nome }))}
         consultores={consultores.map((c) => ({ id: c.id, nome: c.nome }))}
+        contatos={contatos.map(serializeContato)}
       />
     </div>
   );

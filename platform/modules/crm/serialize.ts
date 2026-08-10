@@ -10,8 +10,18 @@ export type OportunidadeClient = {
   id: string;
   empresaId: string;
   empresaNome: string;
+  empresaLogoUrl: string | null;
+  empresaSegmento: string | null;
+  empresaPorte: string | null;
+  empresaCidade: string | null;
+  empresaEstado: string | null;
+  empresaStatus: string;
   contatoId: string | null;
   contatoNome: string | null;
+  contatoCargo: string | null;
+  contatoEmail: string | null;
+  contatoTelefone: string | null;
+  contatoLinkedin: string | null;
   etapaId: string;
   responsavelId: string | null;
   responsavelNome: string | null;
@@ -24,6 +34,18 @@ export type OportunidadeClient = {
   produtos: string[];
   motivoPerda: string | null;
   observacoes: string | null;
+  // Fase 13 — campos ricos do Pipeline Comercial (ver comentário no schema).
+  resultadoReuniao: string | null;
+  valorProposta: number | null;
+  valorNegociado: number | null;
+  desconto: number | null;
+  motivoNegociacao: string | null;
+  concorrente: string | null;
+  proximaAcao: string | null;
+  proximaAcaoData: string | null;
+  detalhes: Record<string, unknown>;
+  atualizadoEm: string;
+  fechadoEm: string | null;
   criadoEm: string;
 };
 
@@ -39,8 +61,18 @@ export function serializeOportunidade(o: OportunidadeComRelacoes): OportunidadeC
     id: o.id,
     empresaId: o.empresaId,
     empresaNome: o.empresa.nome,
+    empresaLogoUrl: o.empresa.logoUrl,
+    empresaSegmento: o.empresa.segmento,
+    empresaPorte: o.empresa.porte,
+    empresaCidade: o.empresa.cidade,
+    empresaEstado: o.empresa.estado,
+    empresaStatus: o.empresa.status,
     contatoId: o.contatoId,
     contatoNome: o.contato?.nome ?? null,
+    contatoCargo: o.contato?.cargo ?? null,
+    contatoEmail: o.contato?.email ?? null,
+    contatoTelefone: o.contato?.telefone ?? null,
+    contatoLinkedin: o.contato?.linkedin ?? null,
     etapaId: o.etapaId,
     responsavelId: o.responsavelId,
     responsavelNome: o.responsavel?.nome ?? null,
@@ -53,6 +85,17 @@ export function serializeOportunidade(o: OportunidadeComRelacoes): OportunidadeC
     produtos: o.produtos,
     motivoPerda: o.motivoPerda,
     observacoes: o.observacoes,
+    resultadoReuniao: o.resultadoReuniao,
+    valorProposta: o.valorProposta ? Number(o.valorProposta) : null,
+    valorNegociado: o.valorNegociado ? Number(o.valorNegociado) : null,
+    desconto: o.desconto ? Number(o.desconto) : null,
+    motivoNegociacao: o.motivoNegociacao,
+    concorrente: o.concorrente,
+    proximaAcao: o.proximaAcao,
+    proximaAcaoData: o.proximaAcaoData ? o.proximaAcaoData.toISOString() : null,
+    detalhes: (o.detalhes as Record<string, unknown>) ?? {},
+    atualizadoEm: o.atualizadoEm.toISOString(),
+    fechadoEm: o.fechadoEm ? o.fechadoEm.toISOString() : null,
     criadoEm: o.criadoEm.toISOString(),
   };
 }

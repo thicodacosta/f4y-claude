@@ -53,17 +53,17 @@ model Usuario {
   empresa   Empresa?   @relation(fields: [empresaId], references: [id], onDelete: SetNull)
   candidato Candidato? @relation(fields: [candidatoId], references: [id], onDelete: SetNull)
 
-  oportunidades        Oportunidade[]
-  atividades           Atividade[]            @relation("AtividadesAutor")
-  arquivosEnviados     Arquivo[]              @relation("ArquivosEnviadoPor")
-  vagasComoConsultor   Vaga[]                 @relation("VagaConsultor")
-  vagasComoRecrutador  Vaga[]                 @relation("VagaRecrutador")
-  comissoes            Comissao[]
-  tarefas              Tarefa[]
-  notificacoes         Notificacao[]
+  oportunidades         Oportunidade[]
+  atividades            Atividade[]            @relation("AtividadesAutor")
+  arquivosEnviados      Arquivo[]              @relation("ArquivosEnviadoPor")
+  vagasComoConsultor    Vaga[]                 @relation("VagaConsultor")
+  vagasComoRecrutador   Vaga[]                 @relation("VagaRecrutador")
+  comissoes             Comissao[]
+  tarefas               Tarefa[]
+  notificacoes          Notificacao[]
   edicoesPerfilRevistas EdicaoPerfilPendente[] @relation("EdicoesPerfilRevisadas")
-  metas                Meta[]
-  integracoes          IntegracaoUsuario[]
+  metas                 Meta[]
+  integracoes           IntegracaoUsuario[]
 
   @@unique([candidatoId])
   @@map("usuarios")
@@ -101,6 +101,11 @@ enum PorteEmpresa {
 model Empresa {
   id               String        @id @default(uuid()) @db.Uuid
   nome             String
+  /// Fase 13 — logo pro card do Pipeline Comercial ("quando disponível", ver
+  /// seção 3 do pedido). Sem upload dedicado por ora: URL externa (site da
+  /// empresa, Clearbit etc.) informada manualmente — não inventa dado
+  /// quando não existe, só não mostra nada.
+  logoUrl          String?       @map("logo_url")
   segmento         String?
   porte            PorteEmpresa?
   cidade           String?
@@ -214,6 +219,18 @@ model PipelineEtapa {
   @@map("pipeline_etapas")
 }
 
+/// Etapa Reunião (Fase 13) — "Resultado da reunião", vocabulário fixo e
+/// pequeno o suficiente pra virar coluna real (filtrável/reportável), ao
+/// contrário dos campos narrativos da reunião (necessidade, dor, budget...),
+/// que ficam em Oportunidade.detalhes (json).
+enum ResultadoReuniao {
+  interesse_alto
+  interesse_medio
+  interesse_baixo
+  sem_fit
+  aguardando_decisao
+}
+
 model Oportunidade {
   id                 String          @id @default(uuid()) @db.Uuid
   empresaId          String          @map("empresa_id") @db.Uuid
@@ -233,6 +250,27 @@ model Oportunidade {
   criadoEm           DateTime        @default(now()) @map("criado_em")
   atualizadoEm       DateTime        @updatedAt @map("atualizado_em")
   fechadoEm          DateTime?       @map("fechado_em")
+
+  /// Fase 13 — reestruturação do Pipeline Comercial. Campos que alimentam
+  /// filtro/KPI/relatório viram coluna real; campos narrativos por etapa
+  /// (participantes, necessidade, dor, objeções, tomadores de decisão...)
+  /// ficam em `detalhes`, um json solto editado por aba no drawer — evita
+  /// uma tabela com 40 colunas majoritariamente nulas (decisão explícita do
+  /// usuário ao pedir a reestruturação).
+  resultadoReuniao ResultadoReuniao? @map("resultado_reuniao")
+  valorProposta    Decimal?          @map("valor_proposta") @db.Decimal(14, 2)
+  valorNegociado   Decimal?          @map("valor_negociado") @db.Decimal(14, 2)
+  desconto         Decimal?          @db.Decimal(5, 2)
+  /// Motivo da negociação (Preço/Prazo/Escopo/Pagamento/Concorrência/
+  /// Aprovação/Jurídico/Procurement/Outro) — texto livre como motivoPerda
+  /// acima (não enum), pra caber "Outro: <detalhe>" sem engessar.
+  motivoNegociacao String?           @map("motivo_negociacao")
+  /// Concorrente em jogo (Negociação) ou concorrente vencedor (Perdido) —
+  /// mesmo campo, semântica depende da etapa atual.
+  concorrente      String?
+  proximaAcao      String?           @map("proxima_acao")
+  proximaAcaoData  DateTime?         @map("proxima_acao_data") @db.Date
+  detalhes         Json              @default("{}")
 
   empresa     Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   contato     Contato?      @relation(fields: [contatoId], references: [id], onDelete: SetNull)
@@ -286,15 +324,27 @@ model Atividade {
   @@map("atividades")
 }
 
+/// Fase 13 — categoria da proposta comercial em Arquivo.categoria (não um
+/// enum: "proposta"/"contrato"/"outro" como string simples, já que Arquivo é
+/// usado por várias entidades — Vaga, Candidato, Oportunidade — e só
+/// Oportunidade usa essa distinção).
 model Arquivo {
-  id           String       @id @default(uuid()) @db.Uuid
-  entidadeTipo EntidadeTipo @map("entidade_tipo")
-  entidadeId   String       @map("entidade_id") @db.Uuid
-  nome         String
-  url          String
-  tamanho      Int?
-  enviadoPorId String?      @map("enviado_por_id") @db.Uuid
-  criadoEm     DateTime     @default(now()) @map("criado_em")
+  id             String       @id @default(uuid()) @db.Uuid
+  entidadeTipo   EntidadeTipo @map("entidade_tipo")
+  entidadeId     String       @map("entidade_id") @db.Uuid
+  nome           String
+  url            String
+  tamanho        Int?
+  /// "proposta" | "contrato" | "outro" — null pros usos genéricos (Vaga,
+  /// Candidato) que não têm essa distinção.
+  categoria      String?
+  /// Versão dentro da categoria — cada upload de proposta nova é uma linha
+  /// nova com versão incrementada, histórico nunca é sobrescrito.
+  versao         Int          @default(1)
+  valorProposta  Decimal?     @map("valor_proposta") @db.Decimal(14, 2)
+  statusProposta String?      @map("status_proposta")
+  enviadoPorId   String?      @map("enviado_por_id") @db.Uuid
+  criadoEm       DateTime     @default(now()) @map("criado_em")
 
   enviadoPor Usuario? @relation(fields: [enviadoPorId], references: [id], onDelete: SetNull, name: "ArquivosEnviadoPor")
 
@@ -520,37 +570,37 @@ enum StatusComissao {
 /// vaga (Fechada) — ver fluxos-usuario.md #5. Reconciliação contra nota
 /// fiscal fica fora do sistema por ora (mesmo doc, passo 2, [TODO] em aberto).
 model Faturamento {
-  id           String            @id @default(uuid()) @db.Uuid
-  empresaId    String            @map("empresa_id") @db.Uuid
-  origemTipo   EntidadeTipo      @map("origem_tipo")
-  origemId     String            @map("origem_id") @db.Uuid
-  valor        Decimal           @db.Decimal(14, 2)
-  status       StatusFaturamento @default(pendente)
-  dataPrevista DateTime?         @map("data_prevista") @db.Date
-  dataEfetiva  DateTime?         @map("data_efetiva") @db.Date
+  id                     String            @id @default(uuid()) @db.Uuid
+  empresaId              String            @map("empresa_id") @db.Uuid
+  origemTipo             EntidadeTipo      @map("origem_tipo")
+  origemId               String            @map("origem_id") @db.Uuid
+  valor                  Decimal           @db.Decimal(14, 2)
+  status                 StatusFaturamento @default(pendente)
+  dataPrevista           DateTime?         @map("data_prevista") @db.Date
+  dataEfetiva            DateTime?         @map("data_efetiva") @db.Date
   /// Fase 11 — preenchidos no pop-up de fechamento de vaga (ver
   /// components/ats/fechar-vaga-dialog.tsx e modules/ats/actions.ts#fecharVaga).
   /// Só populado quando origemTipo="vaga" — Oportunidade (CRM) continua sem
   /// esses campos, gerarFaturamentoEComissao trata como opcional.
-  dataInicio    DateTime? @map("data_inicio") @db.Date
+  dataInicio             DateTime?         @map("data_inicio") @db.Date
   /// Ids de Contato (não é FK de verdade — mesmo padrão de Vaga.empresasAlvo)
   /// que devem receber/emitir a nota fiscal.
-  contatosNfIds String[]  @default([]) @map("contatos_nf_ids") @db.Uuid
-  dataEmissaoNf DateTime? @map("data_emissao_nf") @db.Date
+  contatosNfIds          String[]          @default([]) @map("contatos_nf_ids") @db.Uuid
+  dataEmissaoNf          DateTime?         @map("data_emissao_nf") @db.Date
   /// Marcado manualmente em /financeiro quando a NF sai — some o alerta
   /// oportunista (modules/financeiro/alertas.ts#verificarNfsPendentes).
-  nfEmitida     Boolean   @default(false) @map("nf_emitida")
+  nfEmitida              Boolean           @default(false) @map("nf_emitida")
   /// Só quando a vaga é Categoria Alocação (Vaga.vertical=alocacao_tech) —
   /// datas do profissional alocado. Independente de ContratoAlocacao (que
   /// segue sendo o contrato formal com rate/prazo, criado à parte na aba
   /// Contratos) — aqui é só o alerta pedido no fechamento.
-  dataInicioProfissional DateTime? @map("data_inicio_profissional") @db.Date
-  dataTerminoAlocacao    DateTime? @map("data_termino_alocacao") @db.Date
+  dataInicioProfissional DateTime?         @map("data_inicio_profissional") @db.Date
+  dataTerminoAlocacao    DateTime?         @map("data_termino_alocacao") @db.Date
   /// Marcado manualmente em /financeiro — some o alerta oportunista
   /// (modules/financeiro/alertas.ts#verificarVencimentosAlocacao).
-  alocacaoEncerrada      Boolean   @default(false) @map("alocacao_encerrada")
-  criadoEm     DateTime          @default(now()) @map("criado_em")
-  atualizadoEm DateTime          @updatedAt @map("atualizado_em")
+  alocacaoEncerrada      Boolean           @default(false) @map("alocacao_encerrada")
+  criadoEm               DateTime          @default(now()) @map("criado_em")
+  atualizadoEm           DateTime          @updatedAt @map("atualizado_em")
 
   empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
 

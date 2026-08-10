@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePapel } from "@/lib/auth";
 import { PAPEIS_CRM, PAPEIS_ADMIN } from "@/lib/roles";
@@ -9,16 +10,19 @@ import {
   criarContatoSchema,
   criarAtividadeSchema,
   moverOportunidadeSchema,
+  atualizarOportunidadeSchema,
   criarEtapaSchema,
   atualizarEtapaSchema,
   reordenarEtapasSchema,
   type CriarOportunidadeFormInput,
   type CriarContatoInput,
   type CriarAtividadeInput,
+  type AtualizarOportunidadeFormInput,
 } from "@/modules/crm/schemas";
 import { serializeEtapa } from "@/modules/crm/serialize";
 import { gerarFaturamentoEComissao } from "@/modules/financeiro/comissoes";
 import { dispararEntrouEtapa } from "@/modules/automacoes/engine";
+import { uploadArquivo, urlAssinadaArquivo, removerArquivo } from "@/lib/storage";
 
 function revalidateCrm() {
   revalidatePath("/crm/pipeline-comercial");
@@ -165,6 +169,53 @@ export async function moverOportunidade(input: {
   revalidateCrm();
 }
 
+/** Edição dos campos ricos por etapa (Fase 13) — cada aba do drawer manda só
+ * o que mudou. Registra na timeline quando um campo relevante muda, mesmo
+ * princípio de auditoria da seção 21 do pedido (sem duplicar toda a lógica
+ * de moverOportunidade, que já cobre a própria mudança de etapa). */
+export async function atualizarOportunidade(input: AtualizarOportunidadeFormInput) {
+  const usuario = await requirePapel(PAPEIS_CRM);
+  const { oportunidadeId, previsaoFechamento, proximaAcaoData, detalhes, ...resto } = atualizarOportunidadeSchema.parse(input);
+
+  const anterior = await prisma.oportunidade.findUniqueOrThrow({ where: { id: oportunidadeId } });
+
+  const atualizada = await prisma.oportunidade.update({
+    where: { id: oportunidadeId },
+    data: {
+      ...resto,
+      previsaoFechamento: previsaoFechamento !== undefined ? (previsaoFechamento ? new Date(previsaoFechamento) : null) : undefined,
+      proximaAcaoData: proximaAcaoData !== undefined ? (proximaAcaoData ? new Date(proximaAcaoData) : null) : undefined,
+      detalhes:
+        detalhes !== undefined ? ({ ...(anterior.detalhes as object), ...detalhes } as Prisma.InputJsonValue) : undefined,
+    },
+  });
+
+  const mudancas: string[] = [];
+  if (resto.valorEstimado !== undefined && Number(anterior.valorEstimado) !== resto.valorEstimado) {
+    mudancas.push(`valor da oportunidade para ${resto.valorEstimado.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`);
+  }
+  if (resto.responsavelId !== undefined && anterior.responsavelId !== resto.responsavelId) {
+    mudancas.push("responsável");
+  }
+  if (resto.valorNegociado !== undefined && resto.valorNegociado !== null) {
+    mudancas.push(`valor negociado para ${resto.valorNegociado.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`);
+  }
+  if (mudancas.length > 0) {
+    await prisma.atividade.create({
+      data: {
+        entidadeTipo: "oportunidade",
+        entidadeId: oportunidadeId,
+        tipo: "nota",
+        autorId: usuario.id,
+        conteudo: `Atualizou ${mudancas.join(", ")}.`,
+      },
+    });
+  }
+
+  revalidateCrm();
+  return { id: atualizada.id };
+}
+
 export async function criarContato(input: CriarContatoInput) {
   await requirePapel(PAPEIS_CRM);
   const data = criarContatoSchema.parse(input);
@@ -213,13 +264,112 @@ export async function listarAtividades(entidadeTipo: string, entidadeId: string)
   });
 }
 
+/** `url` no banco guarda só o caminho no Storage (bucket privado) — aqui
+ * resolve pra uma signed URL de verdade antes de devolver ao client, pra
+ * nunca vazar um caminho interno nem servir um link expirado. Serializa
+ * campo a campo (não `...a` direto) porque `valorProposta` é Decimal — um
+ * Server Action cruza a fronteira RSC igual um Server Component, e Decimal
+ * não é um valor plano serializável (mesmo motivo do comentário em
+ * moverOportunidade). */
 export async function listarArquivos(entidadeTipo: string, entidadeId: string) {
   await requirePapel(PAPEIS_CRM);
-  return prisma.arquivo.findMany({
+  const arquivos = await prisma.arquivo.findMany({
     where: { entidadeTipo: entidadeTipo as never, entidadeId },
     include: { enviadoPor: true },
-    orderBy: { criadoEm: "desc" },
+    orderBy: [{ categoria: "asc" }, { versao: "desc" }, { criadoEm: "desc" }],
   });
+
+  return Promise.all(
+    arquivos.map(async (a) => ({
+      id: a.id,
+      nome: a.nome,
+      categoria: a.categoria,
+      versao: a.versao,
+      valorProposta: a.valorProposta ? Number(a.valorProposta) : null,
+      statusProposta: a.statusProposta,
+      criadoEm: a.criadoEm,
+      enviadoPorNome: a.enviadoPor?.nome ?? null,
+      urlAssinada: await urlAssinadaArquivo(a.url),
+    })),
+  );
+}
+
+/** Upload real de proposta/contrato/documento (Fase 13) — grava no Supabase
+ * Storage e cria o registro Arquivo. Proposta nova vira uma nova versão
+ * (nunca sobrescreve a anterior — histórico completo, ver seção 4 do
+ * pedido), e atualiza Oportunidade.valorProposta + registra na timeline. */
+export async function uploadDocumento(formData: FormData) {
+  const usuario = await requirePapel(PAPEIS_CRM);
+
+  const entidadeTipo = String(formData.get("entidadeTipo") ?? "");
+  const entidadeId = String(formData.get("entidadeId") ?? "");
+  const categoria = (formData.get("categoria") as string | null) || null;
+  const valorProposta = formData.get("valorProposta");
+  const arquivo = formData.get("arquivo") as File | null;
+
+  if (!entidadeTipo || !entidadeId) throw new Error("Entidade não informada.");
+  if (!arquivo || arquivo.size === 0) throw new Error("Selecione um arquivo.");
+
+  let versao = 1;
+  if (categoria === "proposta") {
+    const ultima = await prisma.arquivo.findFirst({
+      where: { entidadeTipo: entidadeTipo as never, entidadeId, categoria: "proposta" },
+      orderBy: { versao: "desc" },
+      select: { versao: true },
+    });
+    versao = (ultima?.versao ?? 0) + 1;
+  }
+
+  const caminho = `${entidadeTipo}/${entidadeId}/${Date.now()}-${arquivo.name}`;
+  await uploadArquivo(caminho, arquivo);
+
+  const valorNumero = valorProposta && String(valorProposta).trim() ? Number(valorProposta) : undefined;
+
+  const registro = await prisma.arquivo.create({
+    data: {
+      entidadeTipo: entidadeTipo as never,
+      entidadeId,
+      nome: arquivo.name,
+      url: caminho,
+      tamanho: arquivo.size,
+      categoria,
+      versao,
+      valorProposta: valorNumero,
+      statusProposta: categoria === "proposta" ? "enviada" : undefined,
+      enviadoPorId: usuario.id,
+    },
+  });
+
+  if (categoria === "proposta") {
+    await prisma.atividade.create({
+      data: {
+        entidadeTipo: entidadeTipo as never,
+        entidadeId,
+        tipo: "nota",
+        autorId: usuario.id,
+        conteudo: `📄 Proposta enviada — ${arquivo.name} (v${versao})${
+          valorNumero != null ? ` — ${valorNumero.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}` : ""
+        }`,
+      },
+    });
+
+    if (entidadeTipo === "oportunidade" && valorNumero != null) {
+      await prisma.oportunidade.update({ where: { id: entidadeId }, data: { valorProposta: valorNumero } });
+    }
+  }
+
+  revalidateCrm();
+  return { id: registro.id };
+}
+
+export async function excluirDocumento(arquivoId: string) {
+  await requirePapel(PAPEIS_CRM);
+  const arquivo = await prisma.arquivo.findUniqueOrThrow({ where: { id: arquivoId } });
+
+  await removerArquivo(arquivo.url);
+  await prisma.arquivo.delete({ where: { id: arquivoId } });
+
+  revalidateCrm();
 }
 
 // --- Configuração de pipeline (admin) ---------------------------------------

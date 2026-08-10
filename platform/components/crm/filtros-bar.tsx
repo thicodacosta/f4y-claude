@@ -9,28 +9,62 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { verticalNegocioValues, verticalNegocioLabel } from "@/modules/crm/schemas";
+import { statusProximaAcao } from "@/lib/pipeline";
+import type { OportunidadeClient, PipelineEtapaClient } from "@/modules/crm/serialize";
 
 export type Filtros = {
   busca: string;
   vertical: string;
   responsavelId: string;
+  etapaId: string;
+  empresaId: string;
+  origem: string;
+  valorMin: string;
+  probabilidadeMin: string;
+  proximaAcao: "" | "atrasada" | "hoje" | "agendada" | "sem_acao";
+};
+
+export const FILTROS_VAZIOS: Filtros = {
+  busca: "",
+  vertical: "",
+  responsavelId: "",
+  etapaId: "",
+  empresaId: "",
+  origem: "",
+  valorMin: "",
+  probabilidadeMin: "",
+  proximaAcao: "",
 };
 
 const TODOS = "__todos__";
+
+const proximaAcaoLabel: Record<string, string> = {
+  [TODOS]: "Qualquer próxima ação",
+  atrasada: "🔴 Atrasada",
+  hoje: "🟡 Hoje",
+  agendada: "🟢 Agendada",
+  sem_acao: "Sem próxima ação",
+};
 
 export function FiltrosBar({
   filtros,
   onChange,
   consultores,
+  etapas,
+  empresas,
 }: {
   filtros: Filtros;
   onChange: (filtros: Filtros) => void;
   consultores: { id: string; nome: string }[];
+  etapas: PipelineEtapaClient[];
+  empresas: { id: string; nome: string }[];
 }) {
+  const temFiltroAtivo = JSON.stringify(filtros) !== JSON.stringify(FILTROS_VAZIOS);
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Input
-        placeholder="Buscar empresa ou contato…"
+        placeholder="Buscar empresa, contato ou origem…"
         value={filtros.busca}
         onChange={(e) => onChange({ ...filtros, busca: e.target.value })}
         className="w-56"
@@ -48,6 +82,46 @@ export function FiltrosBar({
           {verticalNegocioValues.map((v) => (
             <SelectItem key={v} value={v}>
               {verticalNegocioLabel[v]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        items={{
+          [TODOS]: "Todas as etapas",
+          ...Object.fromEntries(etapas.map((e) => [e.id, e.nome])),
+        }}
+        value={filtros.etapaId || TODOS}
+        onValueChange={(v) => onChange({ ...filtros, etapaId: !v || v === TODOS ? "" : v })}
+      >
+        <SelectTrigger className="w-40">
+          <SelectValue placeholder="Etapa" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={TODOS}>Todas as etapas</SelectItem>
+          {etapas.map((e) => (
+            <SelectItem key={e.id} value={e.id}>
+              {e.nome}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        items={{
+          [TODOS]: "Todas as empresas",
+          ...Object.fromEntries(empresas.map((e) => [e.id, e.nome])),
+        }}
+        value={filtros.empresaId || TODOS}
+        onValueChange={(v) => onChange({ ...filtros, empresaId: !v || v === TODOS ? "" : v })}
+      >
+        <SelectTrigger className="w-44">
+          <SelectValue placeholder="Empresa" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={TODOS}>Todas as empresas</SelectItem>
+          {empresas.map((e) => (
+            <SelectItem key={e.id} value={e.id}>
+              {e.nome}
             </SelectItem>
           ))}
         </SelectContent>
@@ -72,21 +146,83 @@ export function FiltrosBar({
           ))}
         </SelectContent>
       </Select>
+      <Select
+        items={proximaAcaoLabel}
+        value={filtros.proximaAcao || TODOS}
+        onValueChange={(v) => onChange({ ...filtros, proximaAcao: (!v || v === TODOS ? "" : v) as Filtros["proximaAcao"] })}
+      >
+        <SelectTrigger className="w-44">
+          <SelectValue placeholder="Próxima ação" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={TODOS}>{proximaAcaoLabel[TODOS]}</SelectItem>
+          <SelectItem value="atrasada">{proximaAcaoLabel.atrasada}</SelectItem>
+          <SelectItem value="hoje">{proximaAcaoLabel.hoje}</SelectItem>
+          <SelectItem value="agendada">{proximaAcaoLabel.agendada}</SelectItem>
+          <SelectItem value="sem_acao">{proximaAcaoLabel.sem_acao}</SelectItem>
+        </SelectContent>
+      </Select>
+      <Input
+        type="number"
+        min={0}
+        placeholder="Valor mín. (R$)"
+        value={filtros.valorMin}
+        onChange={(e) => onChange({ ...filtros, valorMin: e.target.value })}
+        className="w-32"
+      />
+      <Input
+        type="number"
+        min={0}
+        max={100}
+        placeholder="Prob. mín. (%)"
+        value={filtros.probabilidadeMin}
+        onChange={(e) => onChange({ ...filtros, probabilidadeMin: e.target.value })}
+        className="w-32"
+      />
+      {temFiltroAtivo && (
+        <button
+          type="button"
+          onClick={() => onChange(FILTROS_VAZIOS)}
+          className="text-sm text-muted-foreground underline-offset-2 hover:underline"
+        >
+          Limpar filtros
+        </button>
+      )}
     </div>
   );
 }
 
-export function aplicarFiltros<T extends { empresaNome: string; contatoNome: string | null; vertical: string; responsavelId: string | null }>(
-  items: T[],
-  filtros: Filtros,
-): T[] {
+export function aplicarFiltros(items: OportunidadeClient[], filtros: Filtros): OportunidadeClient[] {
   const busca = filtros.busca.trim().toLowerCase();
+  const valorMin = filtros.valorMin ? Number(filtros.valorMin) : null;
+  const probabilidadeMin = filtros.probabilidadeMin ? Number(filtros.probabilidadeMin) : null;
+
   return items.filter((o) => {
-    if (busca && !o.empresaNome.toLowerCase().includes(busca) && !o.contatoNome?.toLowerCase().includes(busca)) {
+    if (
+      busca &&
+      !o.empresaNome.toLowerCase().includes(busca) &&
+      !o.contatoNome?.toLowerCase().includes(busca) &&
+      !o.origem?.toLowerCase().includes(busca)
+    ) {
       return false;
     }
     if (filtros.vertical && o.vertical !== filtros.vertical) return false;
     if (filtros.responsavelId && o.responsavelId !== filtros.responsavelId) return false;
+    if (filtros.etapaId && o.etapaId !== filtros.etapaId) return false;
+    if (filtros.empresaId && o.empresaId !== filtros.empresaId) return false;
+    if (valorMin !== null) {
+      const valor = o.valorNegociado ?? o.valorProposta ?? o.valorEstimado;
+      if (valor < valorMin) return false;
+    }
+    if (probabilidadeMin !== null && (o.probabilidade ?? 0) < probabilidadeMin) return false;
+    if (filtros.proximaAcao) {
+      if (filtros.proximaAcao === "sem_acao") {
+        if (o.proximaAcaoData) return false;
+      } else {
+        const status = statusProximaAcao(o.proximaAcaoData);
+        if (status?.chave !== filtros.proximaAcao) return false;
+      }
+    }
     return true;
   });
 }

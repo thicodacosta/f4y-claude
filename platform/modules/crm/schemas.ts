@@ -126,3 +126,81 @@ export const reordenarEtapasSchema = z.object({
   pipelineId: z.string().uuid(),
   ordem: z.array(z.string().uuid()),
 });
+
+// --- Fase 13 — reestruturação do Pipeline Comercial ------------------------
+
+export const resultadoReuniaoValues = [
+  "interesse_alto",
+  "interesse_medio",
+  "interesse_baixo",
+  "sem_fit",
+  "aguardando_decisao",
+] as const;
+export const resultadoReuniaoLabel: Record<(typeof resultadoReuniaoValues)[number], string> = {
+  interesse_alto: "Interesse alto",
+  interesse_medio: "Interesse médio",
+  interesse_baixo: "Interesse baixo",
+  sem_fit: "Sem fit",
+  aguardando_decisao: "Aguardando decisão",
+};
+
+/** Vocabulário sugerido — o campo continua String livre no banco (motivoPerda
+ * já era assim), então "Outro" aceita qualquer texto digitado à parte. */
+export const motivoPerdaPresetValues = [
+  "Preço",
+  "Concorrência",
+  "Sem orçamento",
+  "Sem fit",
+  "Timing",
+  "Cliente desistiu",
+  "Projeto cancelado",
+  "Contratou concorrente",
+  "Não conseguimos contato",
+  "Outro",
+] as const;
+
+export const motivoNegociacaoPresetValues = [
+  "Preço",
+  "Prazo",
+  "Escopo",
+  "Condições de pagamento",
+  "Concorrência",
+  "Aprovação interna",
+  "Jurídico",
+  "Procurement",
+  "Outro",
+] as const;
+
+export const documentoCategoriaValues = ["proposta", "contrato", "outro"] as const;
+export const documentoCategoriaLabel: Record<(typeof documentoCategoriaValues)[number], string> = {
+  proposta: "Proposta comercial",
+  contrato: "Contrato",
+  outro: "Outro documento",
+};
+
+/** Edição dos campos ricos por etapa — tudo opcional, cada aba do drawer
+ * manda só o que mudou (mesmo padrão de atualizarVagaSchema em
+ * modules/ats/schemas.ts). `detalhes` é json solto (ver comentário no
+ * schema.prisma) — validado como objeto genérico, não uma forma fixa. */
+export const atualizarOportunidadeSchema = z.object({
+  oportunidadeId: z.string().uuid(),
+  contatoId: z.string().uuid().nullable().optional(),
+  responsavelId: z.string().uuid().nullable().optional(),
+  valorEstimado: z.coerce.number().min(0).optional(),
+  probabilidade: z.coerce.number().min(0).max(100).nullable().optional(),
+  previsaoFechamento: z.string().nullable().optional(),
+  origem: z.string().trim().nullable().optional(),
+  observacoes: z.string().trim().nullable().optional(),
+  resultadoReuniao: z.enum(resultadoReuniaoValues).nullable().optional(),
+  valorProposta: z.coerce.number().min(0).nullable().optional(),
+  valorNegociado: z.coerce.number().min(0).nullable().optional(),
+  desconto: z.coerce.number().min(0).max(100).nullable().optional(),
+  motivoNegociacao: z.string().trim().nullable().optional(),
+  concorrente: z.string().trim().nullable().optional(),
+  proximaAcao: z.string().trim().nullable().optional(),
+  proximaAcaoData: z.string().nullable().optional(),
+  detalhes: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type AtualizarOportunidadeInput = z.infer<typeof atualizarOportunidadeSchema>;
+export type AtualizarOportunidadeFormInput = z.input<typeof atualizarOportunidadeSchema>;

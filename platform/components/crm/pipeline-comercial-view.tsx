@@ -9,28 +9,29 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KanbanView } from "@/components/crm/kanban-view";
 import { ListaView } from "@/components/crm/lista-view";
 import { TabelaView } from "@/components/crm/tabela-view";
-import { FiltrosBar, aplicarFiltros, type Filtros } from "@/components/crm/filtros-bar";
+import { FiltrosBar, FILTROS_VAZIOS, aplicarFiltros, type Filtros } from "@/components/crm/filtros-bar";
+import { PipelineKpis } from "@/components/crm/pipeline-kpis";
 import { MotivoPerdaDialog } from "@/components/crm/motivo-perda-dialog";
 import { NovaOportunidadeDialog } from "@/components/crm/nova-oportunidade-dialog";
 import { OportunidadeDrawer } from "@/components/crm/oportunidade-drawer";
 import { moverOportunidade } from "@/modules/crm/actions";
-import type { OportunidadeClient, PipelineEtapaClient } from "@/modules/crm/serialize";
+import type { OportunidadeClient, PipelineEtapaClient, ContatoClient } from "@/modules/crm/serialize";
 
 type Empresa = { id: string; nome: string };
 type Consultor = { id: string; nome: string };
-
-const FILTROS_VAZIOS: Filtros = { busca: "", vertical: "", responsavelId: "" };
 
 export function PipelineComercialView({
   etapas,
   oportunidades,
   empresas,
   consultores,
+  contatos,
 }: {
   etapas: PipelineEtapaClient[];
   oportunidades: OportunidadeClient[];
   empresas: Empresa[];
   consultores: Consultor[];
+  contatos: ContatoClient[];
 }) {
   const [items, setItems] = useState(oportunidades);
   // Resincroniza o estado local quando o Server Component pai revalida (ex.:
@@ -45,7 +46,12 @@ export function PipelineComercialView({
 
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS);
   const [pendingPerda, setPendingPerda] = useState<{ oportunidadeId: string; etapaId: string } | null>(null);
-  const [selecionada, setSelecionada] = useState<OportunidadeClient | null>(null);
+  // Guarda só o id, não o objeto — assim, quando o servidor revalida (ex.:
+  // depois de um Server Action disparado de dentro do drawer), o drawer
+  // aberto acompanha os dados mais recentes em vez de ficar preso no
+  // snapshot do momento do clique.
+  const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
+  const selecionada = selecionadaId ? (items.find((o) => o.id === selecionadaId) ?? null) : null;
   const [novaAberta, setNovaAberta] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -77,8 +83,10 @@ export function PipelineComercialView({
 
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-hidden">
+      <PipelineKpis etapas={etapas} items={items} />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <FiltrosBar filtros={filtros} onChange={setFiltros} consultores={consultores} />
+        <FiltrosBar filtros={filtros} onChange={setFiltros} consultores={consultores} etapas={etapas} empresas={empresas} />
         <Button onClick={() => setNovaAberta(true)}>
           <Plus />
           Nova oportunidade
@@ -92,13 +100,13 @@ export function PipelineComercialView({
           <TabsTrigger value="tabela">Tabela</TabsTrigger>
         </TabsList>
         <TabsContent value="kanban" className="flex flex-1 overflow-hidden">
-          <KanbanView etapas={etapas} items={filtrados} onCardClick={setSelecionada} onMove={handleMove} />
+          <KanbanView etapas={etapas} items={filtrados} onCardClick={(o) => setSelecionadaId(o.id)} onMove={handleMove} />
         </TabsContent>
         <TabsContent value="lista" className="flex-1 overflow-hidden">
-          <ListaView items={filtrados} etapas={etapas} onCardClick={setSelecionada} />
+          <ListaView items={filtrados} etapas={etapas} onCardClick={(o) => setSelecionadaId(o.id)} />
         </TabsContent>
         <TabsContent value="tabela" className="flex-1 overflow-hidden">
-          <TabelaView items={filtrados} etapas={etapas} onCardClick={setSelecionada} />
+          <TabelaView items={filtrados} etapas={etapas} onCardClick={(o) => setSelecionadaId(o.id)} />
         </TabsContent>
       </Tabs>
 
@@ -115,9 +123,10 @@ export function PipelineComercialView({
 
       <OportunidadeDrawer
         oportunidade={selecionada}
-        onOpenChange={(open) => !open && setSelecionada(null)}
+        onOpenChange={(open) => !open && setSelecionadaId(null)}
         consultores={consultores}
         etapas={etapas}
+        contatos={contatos}
       />
     </div>
   );
