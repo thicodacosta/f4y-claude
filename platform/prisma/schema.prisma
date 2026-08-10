@@ -129,19 +129,45 @@ enum AreaContato {
   tecnologia
 }
 
+/// Papel do contato na decisão de compra — mesma taxonomia da planilha de
+/// prospecção (ver scripts/import-contatos-crm.ts).
+enum TipoContato {
+  decisor
+  influenciador
+  usuario_final
+}
+
+/// Nível hierárquico do contato — vocabulário próprio (não é o mesmo enum
+/// Senioridade usado em Candidato/Vaga, que é sobre trilha técnica).
+enum NivelContato {
+  c_level
+  diretor
+  gestao
+  senior
+  especialista
+}
+
 model Contato {
-  id        String       @id @default(uuid()) @db.Uuid
-  empresaId String       @map("empresa_id") @db.Uuid
+  id        String        @id @default(uuid()) @db.Uuid
+  /// Opcional — contatos de prospecção sem empresa identificada na fonte
+  /// (ver scripts/import-contatos-crm.ts) existem sem vínculo. onDelete
+  /// SetNull em vez de Cascade: apagar a empresa não deve apagar a pessoa,
+  /// só desvincular.
+  empresaId String?       @map("empresa_id") @db.Uuid
   nome      String
   cargo     String?
   area      AreaContato?
+  tipo      TipoContato?
+  nivel     NivelContato?
+  cidade    String?
+  estado    String?
   telefone  String?
   email     String?
   linkedin  String?
-  principal Boolean      @default(false)
-  criadoEm  DateTime     @default(now()) @map("criado_em")
+  principal Boolean       @default(false)
+  criadoEm  DateTime      @default(now()) @map("criado_em")
 
-  empresa       Empresa        @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  empresa       Empresa?       @relation(fields: [empresaId], references: [id], onDelete: SetNull)
   oportunidades Oportunidade[]
 
   @@map("contatos")

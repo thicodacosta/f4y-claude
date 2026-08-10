@@ -27,7 +27,7 @@ export type ContatoClient = {
   nome: string;
   email: string | null;
   cargo: string | null;
-  empresaId: string;
+  empresaId: string | null;
 };
 
 /** Categoria não é persistida — só decide, aqui, quais campos são

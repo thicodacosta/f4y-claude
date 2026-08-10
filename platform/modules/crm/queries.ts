@@ -101,6 +101,19 @@ export async function getEmpresa(id: string) {
   });
 }
 
+/** Todos os contatos de prospecção, cruzando empresas — inclusive os sem
+ * empresa identificada na fonte (empresaId null, ver Contato no schema).
+ * Base pra /crm/contatos, que mostra tudo num grid de cards com filtro
+ * client-side (453 linhas é pouco pra precisar paginar/filtrar no banco). */
+export async function getContatos() {
+  await requirePapel(PAPEIS_CRM);
+
+  return prisma.contato.findMany({
+    include: { empresa: true },
+    orderBy: { nome: "asc" },
+  });
+}
+
 export async function getConsultoresComerciais() {
   await requirePapel(PAPEIS_CRM);
 

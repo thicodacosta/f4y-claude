@@ -47,6 +47,9 @@ export async function convidarClientePortal(input: { contatoId: string }) {
   if (!contato.email) {
     throw new Error("Este contato não tem e-mail cadastrado — adicione um e-mail antes de convidar.");
   }
+  if (!contato.empresaId) {
+    throw new Error("Este contato não está vinculado a uma empresa — o Portal do Cliente exige uma empresa.");
+  }
 
   await vincularUsuarioPortal(contato.email, "cliente_portal", { empresaId: contato.empresaId });
   revalidatePath(`/empresas/${contato.empresaId}`);

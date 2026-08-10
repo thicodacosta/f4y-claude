@@ -59,11 +59,31 @@ export const areaContatoLabel: Record<(typeof areaContatoValues)[number], string
   tecnologia: "Tecnologia",
 };
 
+export const tipoContatoValues = ["decisor", "influenciador", "usuario_final"] as const;
+export const tipoContatoLabel: Record<(typeof tipoContatoValues)[number], string> = {
+  decisor: "Decisor",
+  influenciador: "Influenciador",
+  usuario_final: "Usuário final",
+};
+
+export const nivelContatoValues = ["c_level", "diretor", "gestao", "senior", "especialista"] as const;
+export const nivelContatoLabel: Record<(typeof nivelContatoValues)[number], string> = {
+  c_level: "C-Level",
+  diretor: "Diretor",
+  gestao: "Gestão",
+  senior: "Sênior",
+  especialista: "Especialista",
+};
+
 export const criarContatoSchema = z.object({
-  empresaId: z.string().uuid(),
+  empresaId: z.string().uuid().optional(),
   nome: z.string().trim().min(1, "Informe o nome do contato"),
   cargo: z.string().trim().optional(),
   area: z.enum(areaContatoValues).optional(),
+  tipo: z.enum(tipoContatoValues).optional(),
+  nivel: z.enum(nivelContatoValues).optional(),
+  cidade: z.string().trim().optional(),
+  estado: z.string().trim().optional(),
   telefone: z.string().trim().optional(),
   email: z.string().trim().email("E-mail inválido").optional().or(z.literal("")),
   linkedin: z.string().trim().optional(),

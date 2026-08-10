@@ -57,6 +57,42 @@ export function serializeOportunidade(o: OportunidadeComRelacoes): OportunidadeC
   };
 }
 
+export type ContatoClient = {
+  id: string;
+  nome: string;
+  cargo: string | null;
+  area: string | null;
+  tipo: string | null;
+  nivel: string | null;
+  cidade: string | null;
+  estado: string | null;
+  telefone: string | null;
+  email: string | null;
+  linkedin: string | null;
+  empresaId: string | null;
+  empresaNome: string | null;
+};
+
+type ContatoComEmpresa = Contato & { empresa: Empresa | null };
+
+export function serializeContato(c: ContatoComEmpresa): ContatoClient {
+  return {
+    id: c.id,
+    nome: c.nome,
+    cargo: c.cargo,
+    area: c.area,
+    tipo: c.tipo,
+    nivel: c.nivel,
+    cidade: c.cidade,
+    estado: c.estado,
+    telefone: c.telefone,
+    email: c.email,
+    linkedin: c.linkedin,
+    empresaId: c.empresaId,
+    empresaNome: c.empresa?.nome ?? null,
+  };
+}
+
 export type PipelineEtapaClient = {
   id: string;
   nome: string;
