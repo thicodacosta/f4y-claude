@@ -105,8 +105,8 @@ export default async function IntelligencePage() {
         <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
           <h2 className="font-heading text-sm font-semibold">Funil de Vagas</h2>
           <BarList
-            items={funilVagas.map((e) => ({ id: e.id, label: e.nome, value: e.valorTotal, color: e.cor }))}
-            formatValue={(v) => currency.format(v)}
+            items={funilVagas.map((e) => ({ id: e.id, label: e.nome, value: e.total, color: e.cor }))}
+            formatValue={(v) => `${v} posiç${v === 1 ? "ão" : "ões"}`}
             emptyLabel="Nenhuma vaga cadastrada ainda."
           />
         </div>
