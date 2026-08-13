@@ -108,8 +108,26 @@ export async function getEmpresa(id: string) {
 export async function getContatos() {
   await requirePapel(PAPEIS_CRM);
 
+  // `select` explícito (não `include: { empresa: true }`) — só os campos que
+  // serializeContato realmente usa. Empresa tem colunas pesadas (logoUrl,
+  // observações etc.) que não fazem sentido carregar/serializar 453x só pra
+  // exibir o nome no card.
   return prisma.contato.findMany({
-    include: { empresa: true },
+    select: {
+      id: true,
+      nome: true,
+      cargo: true,
+      area: true,
+      tipo: true,
+      nivel: true,
+      cidade: true,
+      estado: true,
+      telefone: true,
+      email: true,
+      linkedin: true,
+      empresaId: true,
+      empresa: { select: { nome: true } },
+    },
     orderBy: { nome: "asc" },
   });
 }

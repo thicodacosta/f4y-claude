@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ContatoCard } from "@/components/crm/contato-card";
 import { areaContatoLabel, tipoContatoLabel } from "@/modules/crm/schemas";
@@ -9,6 +10,10 @@ import type { ContatoClient } from "@/modules/crm/serialize";
 
 const TODOS = "__todos__";
 const SEM_EMPRESA = "__sem_empresa__";
+// Renderizar os 453 cards de uma vez é o principal peso client-side desta
+// tela (cada card tem avatar/badges/3 links) — carrega em lotes em vez de
+// tudo de uma vez, sem tirar nenhum contato da lista.
+const LOTE = 30;
 
 /** Perfil de atendimento — deriva de área/nível já existentes, sem campo
  * novo no banco. Recrutamento & Seleção fala com RH e também direto com
@@ -51,6 +56,17 @@ export function ContatosView({ contatos }: { contatos: ContatoClient[] }) {
       return true;
     });
   }, [contatos, busca, area, tipo, empresa, perfil]);
+
+  // Reseta o lote visível quando o filtro muda — ajuste durante o render
+  // (não useEffect), mesmo padrão de components/crm/pipeline-comercial-view.tsx.
+  const filtroChave = `${busca}|${area}|${tipo}|${empresa}|${perfil}`;
+  const [filtroAnterior, setFiltroAnterior] = useState(filtroChave);
+  const [visiveis, setVisiveis] = useState(LOTE);
+  if (filtroChave !== filtroAnterior) {
+    setFiltroAnterior(filtroChave);
+    setVisiveis(LOTE);
+  }
+  const exibidos = filtrados.slice(0, visiveis);
 
   return (
     <div className="flex flex-col gap-4">
@@ -119,11 +135,18 @@ export function ContatosView({ contatos }: { contatos: ContatoClient[] }) {
       {filtrados.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhum contato encontrado com esses filtros.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filtrados.map((c) => (
-            <ContatoCard key={c.id} contato={c} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {exibidos.map((c) => (
+              <ContatoCard key={c.id} contato={c} />
+            ))}
+          </div>
+          {filtrados.length > visiveis && (
+            <Button variant="outline" onClick={() => setVisiveis((v) => v + LOTE)} className="self-center">
+              Carregar mais ({filtrados.length - visiveis} restantes)
+            </Button>
+          )}
+        </>
       )}
     </div>
   );

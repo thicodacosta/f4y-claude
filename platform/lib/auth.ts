@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import type { Papel } from "@/lib/nav";
@@ -11,7 +12,14 @@ export type SessionUsuario = {
   papel: Papel | null;
 };
 
-export async function getSessionUsuario(): Promise<SessionUsuario | null> {
+/** `cache()` deduplica por request (RSC) — sem isso, cada chamada re-executa
+ * um round-trip de rede pro Supabase Auth (`auth.getUser()` valida o JWT no
+ * servidor deles, não só lê o cookie) + uma query no Postgres. Como toda
+ * query/action de todo módulo chama `requirePapel`/`requireUsuario`
+ * (>130 call sites) e várias rodam em paralelo num único Promise.all de
+ * página, sem cache isso vira dezenas de chamadas redundantes por navegação
+ * — a causa direta da lentidão ao abrir qualquer tela. */
+export const getSessionUsuario = cache(async (): Promise<SessionUsuario | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -25,7 +33,7 @@ export async function getSessionUsuario(): Promise<SessionUsuario | null> {
     email: user.email ?? "",
     papel: (usuario?.papel as Papel | null) ?? null,
   };
-}
+});
 
 /** Usa em Server Actions: lança erro (não redirect — quem chama é uma mutação, não uma navegação de página). */
 export async function requireUsuario(): Promise<SessionUsuario> {

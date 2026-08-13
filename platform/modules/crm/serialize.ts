@@ -116,7 +116,10 @@ export type ContatoClient = {
   empresaNome: string | null;
 };
 
-type ContatoComEmpresa = Contato & { empresa: Empresa | null };
+type ContatoComEmpresa = Pick<
+  Contato,
+  "id" | "nome" | "cargo" | "area" | "tipo" | "nivel" | "cidade" | "estado" | "telefone" | "email" | "linkedin" | "empresaId"
+> & { empresa: Pick<Empresa, "nome"> | null };
 
 export function serializeContato(c: ContatoComEmpresa): ContatoClient {
   return {
