@@ -2,7 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { requirePapel } from "@/lib/auth";
-import { PAPEIS_CRM } from "@/lib/roles";
+import { PAPEIS_CRM, PAPEIS_INTERNOS } from "@/lib/roles";
 
 export async function getPipelineComercial() {
   await requirePapel(PAPEIS_CRM);
@@ -64,11 +64,15 @@ export async function getArquivosDaEntidade(entidadeTipo: string, entidadeId: st
   });
 }
 
+/** PAPEIS_INTERNOS (não PAPEIS_CRM) — o menu libera "Empresas" pra
+ * recrutador/financeiro também (ver lib/nav.ts), e o registro precisa
+ * mostrar toda empresa com quem já houve contato, inclusive as que só têm
+ * vaga aberta (sem nenhuma oportunidade comercial associada). */
 export async function getEmpresas() {
-  await requirePapel(PAPEIS_CRM);
+  await requirePapel(PAPEIS_INTERNOS);
 
   return prisma.empresa.findMany({
-    include: { contatos: true, _count: { select: { oportunidades: true } } },
+    include: { contatos: true, _count: { select: { oportunidades: true, vagas: true } } },
     orderBy: { nome: "asc" },
   });
 }
@@ -90,7 +94,7 @@ export async function getClientesAtivos() {
  * contatos e convite ao Portal do Cliente (não havia detalhe de empresa
  * antes disso). */
 export async function getEmpresa(id: string) {
-  await requirePapel(PAPEIS_CRM);
+  await requirePapel(PAPEIS_INTERNOS);
 
   return prisma.empresa.findUnique({
     where: { id },

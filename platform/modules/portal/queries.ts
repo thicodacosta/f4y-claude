@@ -2,7 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { requirePapel } from "@/lib/auth";
-import { PAPEIS_CRM, PAPEIS_ATS } from "@/lib/roles";
+import { PAPEIS_ATS, PAPEIS_INTERNOS } from "@/lib/roles";
 
 /** Usuario só guarda `empresaId` (não `contatoId` — uma empresa pode ter
  * vários contatos, cada um com seu próprio login de portal), então "este
@@ -10,7 +10,9 @@ import { PAPEIS_CRM, PAPEIS_ATS } from "@/lib/roles";
  * e-mail com auth.users — daí o SQL cru (mesma razão de
  * modules/portal/actions.ts#vincularUsuarioPortal). */
 export async function getEmailsComPortalNaEmpresa(empresaId: string): Promise<Set<string>> {
-  await requirePapel(PAPEIS_CRM);
+  // PAPEIS_INTERNOS (não PAPEIS_CRM) — usada em /empresas/[id], que
+  // recrutador/financeiro também acessam (ver lib/nav.ts).
+  await requirePapel(PAPEIS_INTERNOS);
 
   const linhas = await prisma.$queryRaw<{ email: string }[]>`
     select au.email

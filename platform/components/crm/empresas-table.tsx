@@ -11,7 +11,7 @@ type EmpresaRow = {
   status: string;
   cidade: string | null;
   estado: string | null;
-  _count: { oportunidades: number };
+  _count: { oportunidades: number; vagas: number };
   contatos: { id: string }[];
 };
 
@@ -39,6 +39,7 @@ export function EmpresasTable({ empresas }: { empresas: EmpresaRow[] }) {
             <TableHead>Cidade/UF</TableHead>
             <TableHead>Contatos</TableHead>
             <TableHead>Oportunidades</TableHead>
+            <TableHead>Vagas</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -54,6 +55,7 @@ export function EmpresasTable({ empresas }: { empresas: EmpresaRow[] }) {
               </TableCell>
               <TableCell className="tabular-nums">{e.contatos.length}</TableCell>
               <TableCell className="tabular-nums">{e._count.oportunidades}</TableCell>
+              <TableCell className="tabular-nums">{e._count.vagas}</TableCell>
             </TableRow>
           ))}
         </TableBody>
