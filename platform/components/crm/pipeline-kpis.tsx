@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Wallet, Target, FileText, Handshake, CheckCircle2, XCircle, TrendingUp, Layers } from "lucide-react";
+import { ChevronDown, FileText, Handshake, XCircle, TrendingUp } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { BarList } from "@/components/dashboard/bar-list";
 import { Button } from "@/components/ui/button";
@@ -29,10 +29,6 @@ export function PipelineKpis({ etapas, items }: { etapas: PipelineEtapaClient[];
   const [expandido, setExpandido] = useState(false);
 
   const etapaDe = (o: OportunidadeClient) => etapas.find((e) => e.id === o.etapaId);
-  const abertas = items.filter((o) => {
-    const e = etapaDe(o);
-    return e && !e.isGanho && !e.isPerdido;
-  });
   const homologados = items.filter((o) => etapaDe(o)?.isGanho);
   const perdidos = items.filter((o) => etapaDe(o)?.isPerdido);
 
@@ -41,12 +37,8 @@ export function PipelineKpis({ etapas, items }: { etapas: PipelineEtapaClient[];
     return etapa ? items.filter((o) => o.etapaId === etapa.id).length : 0;
   };
 
-  const pipelineTotal = abertas.reduce((acc, o) => acc + valorPrincipal(o), 0);
   const totalDecidido = homologados.length + perdidos.length;
   const taxaConversao = totalDecidido > 0 ? (homologados.length / totalDecidido) * 100 : 0;
-  const ticketMedio = homologados.length > 0
-    ? homologados.reduce((acc, o) => acc + valorPrincipal(o), 0) / homologados.length
-    : 0;
 
   const funil = etapas.map((etapa) => {
     const doEtapa = items.filter((o) => o.etapaId === etapa.id);
@@ -75,15 +67,11 @@ export function PipelineKpis({ etapas, items }: { etapas: PipelineEtapaClient[];
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-        <KpiCard label="Pipeline total" value={currency.format(pipelineTotal)} icon={Wallet} />
-        <KpiCard label="Oportunidades" value={String(abertas.length)} icon={Layers} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KpiCard label="Propostas" value={String(contarPorNome("Proposta"))} icon={FileText} />
         <KpiCard label="Negociações" value={String(contarPorNome("Negociação"))} icon={Handshake} />
-        <KpiCard label="Homologados" value={String(homologados.length)} icon={CheckCircle2} />
         <KpiCard label="Perdidos" value={String(perdidos.length)} icon={XCircle} />
         <KpiCard label="Taxa de conversão" value={`${taxaConversao.toFixed(0)}%`} hint="Homologados / decididos" icon={TrendingUp} />
-        <KpiCard label="Ticket médio" value={ticketMedio > 0 ? currency.format(ticketMedio) : "—"} icon={Target} />
       </div>
 
       {expandido && (

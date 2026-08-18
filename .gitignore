@@ -51,3 +51,5 @@ dist/
 # IDE
 .vscode/
 .idea/
+.vercel
+.env*

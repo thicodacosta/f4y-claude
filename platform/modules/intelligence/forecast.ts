@@ -3,8 +3,16 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { requirePapel } from "@/lib/auth";
 import { PAPEIS_GESTAO } from "@/lib/roles";
-import { getReceitaMensalConsolidada, getReceitaConsolidada } from "@/modules/intelligence/metrics";
+import {
+  getReceitaMensalConsolidada,
+  getReceitaConsolidada,
+  getReceitaMensalPorCategoria,
+  getReceitaPorVerticalNegocio,
+  categoriaDeVerticalNegocio,
+} from "@/modules/intelligence/metrics";
 import type { categoriaMetaValues } from "@/modules/metas/schemas";
+
+type CategoriaMeta = (typeof categoriaMetaValues)[number];
 
 /**
  * Forecast Engine (Fase 2/Intelligence) — regra 36 do pedido: sem dado
@@ -13,8 +21,12 @@ import type { categoriaMetaValues } from "@/modules/metas/schemas";
  * (dado real) + tendência da média histórica recente (dado real). Cada
  * banda tem fórmula explícita, auditável em `componentes` — nada de
  * "confiança 87%" saído do nada.
+ *
+ * `categoria` filtra pipeline e tendência histórica pela mesma vertical de
+ * negócio (Alocação/Recrutamento/Executive Search) — "todas" (padrão) soma
+ * as três, igual ao comportamento original.
  */
-export async function getForecast(dias: number) {
+export async function getForecast(dias: number, categoria: CategoriaMeta = "todas") {
   await requirePapel(PAPEIS_GESTAO);
 
   const hoje = new Date();
@@ -23,39 +35,53 @@ export async function getForecast(dias: number) {
   const [oportunidadesComPrevisao, vagasComLimite] = await Promise.all([
     prisma.oportunidade.findMany({
       where: { etapa: { isGanho: false, isPerdido: false }, previsaoFechamento: { gte: hoje, lte: fimJanela } },
-      select: { valorEstimado: true, probabilidade: true, etapa: { select: { probabilidadePadrao: true } } },
+      select: {
+        valorEstimado: true,
+        probabilidade: true,
+        vertical: true,
+        executiveSearch: true,
+        etapa: { select: { probabilidadePadrao: true } },
+      },
     }),
     prisma.vaga.findMany({
       where: { status: { notIn: ["fechada", "perdida"] }, dataLimite: { gte: hoje, lte: fimJanela } },
-      select: { valor: true, etapa: { select: { probabilidadePadrao: true } } },
+      select: { valor: true, vertical: true, executiveSearch: true, etapa: { select: { probabilidadePadrao: true } } },
     }),
   ]);
 
+  const pertenceACategoria = (vertical: string, executiveSearch: boolean) =>
+    categoria === "todas" || categoriaDeVerticalNegocio(vertical, executiveSearch) === categoria;
+
+  const oportunidadesNaCategoria = oportunidadesComPrevisao.filter((o) => pertenceACategoria(o.vertical, o.executiveSearch));
+  const vagasNaCategoria = vagasComLimite.filter((v) => pertenceACategoria(v.vertical, v.executiveSearch));
+
   let pipelineNaJanela = 0;
   let pipelineNaJanelaPonderado = 0;
-  for (const o of oportunidadesComPrevisao) {
+  for (const o of oportunidadesNaCategoria) {
     const valor = Number(o.valorEstimado);
     const prob = o.probabilidade != null ? Number(o.probabilidade) : Number(o.etapa.probabilidadePadrao ?? 0);
     pipelineNaJanela += valor;
     pipelineNaJanelaPonderado += valor * (prob / 100);
   }
-  for (const v of vagasComLimite) {
+  for (const v of vagasNaCategoria) {
     const valor = v.valor ? Number(v.valor) : 0;
     const prob = Number(v.etapa.probabilidadePadrao ?? 0);
     pipelineNaJanela += valor;
     pipelineNaJanelaPonderado += valor * (prob / 100);
   }
 
-  // Tendência = média dos últimos 3 meses de receita real, prorrateada pros
-  // dias da janela — capta receita que ainda não tem data prevista de
-  // fechamento (a maioria dos negócios reais hoje), sem fingir que sabe qual.
-  const historico = await getReceitaMensalConsolidada(3);
+  // Tendência = média dos últimos 3 meses de receita real (da mesma
+  // categoria), prorrateada pros dias da janela — capta receita que ainda
+  // não tem data prevista de fechamento (a maioria dos negócios reais
+  // hoje), sem fingir que sabe qual.
   const mediaHistoricaMensal =
-    historico.length > 0 ? historico.reduce((acc, d) => acc + d.valor, 0) / historico.length : 0;
-  const tendenciaNaJanela = mediaHistoricaMensal * (dias / 30);
+    categoria === "todas"
+      ? await mediaHistoricaConsolidada()
+      : await mediaHistoricaDaCategoria(categoria);
+  const tendenciaNaJanela = mediaHistoricaMensal.media * (dias / 30);
 
-  const temHistorico = historico.some((d) => d.valor > 0);
-  const temPipelineComData = oportunidadesComPrevisao.length > 0 || vagasComLimite.length > 0;
+  const temHistorico = mediaHistoricaMensal.temHistorico;
+  const temPipelineComData = oportunidadesNaCategoria.length > 0 || vagasNaCategoria.length > 0;
 
   return {
     dias,
@@ -65,13 +91,26 @@ export async function getForecast(dias: number) {
     componentes: {
       pipelineNaJanela,
       pipelineNaJanelaPonderado,
-      mediaHistoricaMensal,
+      mediaHistoricaMensal: mediaHistoricaMensal.media,
       tendenciaNaJanela,
-      oportunidadesComPrevisao: oportunidadesComPrevisao.length,
-      vagasComLimite: vagasComLimite.length,
+      oportunidadesComPrevisao: oportunidadesNaCategoria.length,
+      vagasComLimite: vagasNaCategoria.length,
     },
     dadosInsuficientes: !temHistorico && !temPipelineComData,
   };
+}
+
+async function mediaHistoricaConsolidada() {
+  const historico = await getReceitaMensalConsolidada(3);
+  const media = historico.length > 0 ? historico.reduce((acc, d) => acc + d.valor, 0) / historico.length : 0;
+  return { media, temHistorico: historico.some((d) => d.valor > 0) };
+}
+
+async function mediaHistoricaDaCategoria(categoria: Exclude<CategoriaMeta, "todas">) {
+  const historico = await getReceitaMensalPorCategoria(3);
+  const valores = historico.map((d) => d[categoria]);
+  const media = valores.length > 0 ? valores.reduce((acc, v) => acc + v, 0) / valores.length : 0;
+  return { media, temHistorico: valores.some((v) => v > 0) };
 }
 
 export const JANELAS_FORECAST = [7, 30, 60, 90, 180, 365] as const;
@@ -167,15 +206,33 @@ export async function getGapToGoal(categoria: (typeof categoriaMetaValues)[numbe
 
   const fimDoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1);
   const diasRestantes = Math.max(0, Math.ceil((fimDoMes.getTime() - hoje.getTime()) / 86_400_000));
+  const inicioDoMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
 
-  const [receita, forecastRestante] = await Promise.all([getReceitaConsolidada(), getForecast(diasRestantes)]);
+  const [realizado, forecastRestante] = await Promise.all([
+    getRealizadoMesDaCategoria(categoria, inicioDoMes, fimDoMes),
+    getForecast(diasRestantes, categoria),
+  ]);
 
   const valorAlvo = Number(meta.valorAlvo);
-  const realizado = receita.receitaMes;
   const gap = Math.max(0, valorAlvo - realizado);
   const forecastTotal = realizado + forecastRestante.provavel;
   const gapProjetado = Math.max(0, valorAlvo - forecastTotal);
   const probabilidadeAtingir = valorAlvo > 0 ? Math.min(100, Math.round((forecastTotal / valorAlvo) * 100)) : null;
 
   return { categoria, valorAlvo, realizado, gap, forecastTotal, gapProjetado, probabilidadeAtingir, diasRestantes };
+}
+
+/** Realizado do mês por categoria — "todas" usa getReceitaConsolidada
+ * (soma bruta de Faturamento, mesma métrica de sempre), categorias
+ * específicas usam getReceitaPorVerticalNegocio (só conta Faturamento
+ * classificável em Vaga/Oportunidade). Antes o Gap-to-Goal usava
+ * receita.receitaMes (empresa inteira) pra QUALQUER categoria — bug que
+ * comparava a meta de Alocação e a de Recrutamento com o mesmo número. */
+async function getRealizadoMesDaCategoria(categoria: CategoriaMeta, desde: Date, ate: Date) {
+  if (categoria === "todas") {
+    const receita = await getReceitaConsolidada();
+    return receita.receitaMes;
+  }
+  const porVertical = await getReceitaPorVerticalNegocio({ desde, ate });
+  return porVertical?.[categoria] ?? 0;
 }

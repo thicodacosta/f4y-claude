@@ -198,23 +198,33 @@ export async function getReceitaPorVerticalNegocio(periodo?: { desde: Date; ate:
   const classificados = await classificarFaturamentosPorCategoria(periodo);
   if (!classificados) return null;
 
-  const totais: Record<Categoria, number> = { alocacao: 0, recrutamento: 0, executive_search: 0 };
+  const totais: Record<CategoriaVertical, number> = { alocacao: 0, recrutamento: 0, executive_search: 0 };
   for (const f of classificados) totais[f.categoria] += f.valor;
   return totais;
 }
 
-type Categoria = "alocacao" | "recrutamento" | "executive_search";
+export type CategoriaVertical = "alocacao" | "recrutamento" | "executive_search";
+
+/** Regra de categoria de negócio — mesma usada em nova-vaga-dialog.tsx e no
+ * relatório de pipeline de vagas. Exportada porque o Forecast Engine
+ * (modules/intelligence/forecast.ts) precisa classificar pipeline em aberto
+ * (Oportunidade/Vaga) pela mesma regra, não só Faturamento já fechado. */
+export function categoriaDeVerticalNegocio(vertical: string, executiveSearch: boolean): CategoriaVertical {
+  if (executiveSearch) return "executive_search";
+  return vertical === "alocacao_tech" ? "alocacao" : "recrutamento";
+}
 
 /** Junta Faturamento (polimórfico) de volta em Vaga/Oportunidade pra
- * classificar por categoria — compartilhado por getReceitaPorVerticalNegocio
- * e getTicketMedioPorVertical, pra não reimplementar a mesma junção duas
- * vezes (regra 34 do pedido: uma métrica, um lugar só que sabe calculá-la). */
+ * classificar por categoria — compartilhado por getReceitaPorVerticalNegocio,
+ * getTicketMedioPorVertical e getReceitaMensalPorCategoria, pra não
+ * reimplementar a mesma junção várias vezes (regra 34 do pedido: uma
+ * métrica, um lugar só que sabe calculá-la). */
 async function classificarFaturamentosPorCategoria(periodo?: { desde: Date; ate: Date }) {
   await requirePapel(PAPEIS_GESTAO);
 
   const faturamentos = await prisma.faturamento.findMany({
     where: periodo ? { criadoEm: { gte: periodo.desde, lt: periodo.ate } } : undefined,
-    select: { valor: true, origemTipo: true, origemId: true },
+    select: { valor: true, origemTipo: true, origemId: true, criadoEm: true },
   });
   if (faturamentos.length === 0) return null;
 
@@ -233,18 +243,49 @@ async function classificarFaturamentosPorCategoria(periodo?: { desde: Date; ate:
       : [],
   ]);
 
-  function categoriaDe(vertical: string, executiveSearch: boolean): Categoria {
-    if (executiveSearch) return "executive_search";
-    return vertical === "alocacao_tech" ? "alocacao" : "recrutamento";
-  }
-
-  const categoriaPorId = new Map<string, Categoria>();
-  for (const v of vagas) categoriaPorId.set(v.id, categoriaDe(v.vertical, v.executiveSearch));
-  for (const o of oportunidades) categoriaPorId.set(o.id, categoriaDe(o.vertical, o.executiveSearch));
+  const categoriaPorId = new Map<string, CategoriaVertical>();
+  for (const v of vagas) categoriaPorId.set(v.id, categoriaDeVerticalNegocio(v.vertical, v.executiveSearch));
+  for (const o of oportunidades) categoriaPorId.set(o.id, categoriaDeVerticalNegocio(o.vertical, o.executiveSearch));
 
   return faturamentos
-    .map((f) => ({ valor: Number(f.valor), categoria: categoriaPorId.get(f.origemId) }))
-    .filter((f): f is { valor: number; categoria: Categoria } => !!f.categoria);
+    .map((f) => ({ valor: Number(f.valor), categoria: categoriaPorId.get(f.origemId), criadoEm: f.criadoEm }))
+    .filter((f): f is { valor: number; categoria: CategoriaVertical; criadoEm: Date } => !!f.categoria);
+}
+
+/** Série mensal por categoria — mesma base de getReceitaMensalConsolidada,
+ * só que sem somar as 3 verticais juntas. Alimenta a tendência histórica do
+ * Forecast Engine por categoria (getGapToGoal), que antes usava a série
+ * consolidada da empresa inteira mesmo pedindo o forecast de uma vertical
+ * só (bug: meta de Alocação e de Recrutamento comparadas com o mesmo
+ * número). */
+export async function getReceitaMensalPorCategoria(meses: number) {
+  const desde = new Date();
+  desde.setMonth(desde.getMonth() - (meses - 1));
+  desde.setDate(1);
+  desde.setHours(0, 0, 0, 0);
+  const ate = new Date();
+  ate.setMonth(ate.getMonth() + 1);
+  ate.setDate(1);
+  ate.setHours(0, 0, 0, 0);
+
+  const classificados = await classificarFaturamentosPorCategoria({ desde, ate });
+
+  const buckets = new Map<string, Record<CategoriaVertical, number>>();
+  for (let i = 0; i < meses; i++) {
+    const d = new Date(desde.getFullYear(), desde.getMonth() + i, 1);
+    buckets.set(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, {
+      alocacao: 0,
+      recrutamento: 0,
+      executive_search: 0,
+    });
+  }
+  for (const f of classificados ?? []) {
+    const key = `${f.criadoEm.getFullYear()}-${String(f.criadoEm.getMonth() + 1).padStart(2, "0")}`;
+    const bucket = buckets.get(key);
+    if (bucket) bucket[f.categoria] += f.valor;
+  }
+
+  return [...buckets.entries()].map(([mes, valores]) => ({ mes, ...valores }));
 }
 
 /** Ticket médio por vertical = receita da categoria / número de fechamentos
@@ -255,7 +296,7 @@ export async function getTicketMedioPorVertical() {
   const classificados = await classificarFaturamentosPorCategoria();
   if (!classificados) return null;
 
-  const acumulado: Record<Categoria, { receita: number; contagem: number }> = {
+  const acumulado: Record<CategoriaVertical, { receita: number; contagem: number }> = {
     alocacao: { receita: 0, contagem: 0 },
     recrutamento: { receita: 0, contagem: 0 },
     executive_search: { receita: 0, contagem: 0 },
@@ -265,8 +306,8 @@ export async function getTicketMedioPorVertical() {
     acumulado[f.categoria].contagem += 1;
   }
 
-  const resultado = {} as Record<Categoria, { receita: number; contagem: number; ticketMedio: number | null }>;
-  for (const categoria of Object.keys(acumulado) as Categoria[]) {
+  const resultado = {} as Record<CategoriaVertical, { receita: number; contagem: number; ticketMedio: number | null }>;
+  for (const categoria of Object.keys(acumulado) as CategoriaVertical[]) {
     const { receita, contagem } = acumulado[categoria];
     resultado[categoria] = { receita, contagem, ticketMedio: contagem > 0 ? receita / contagem : null };
   }

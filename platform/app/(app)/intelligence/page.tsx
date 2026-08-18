@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Wallet, TrendingUp, Target, UsersRound, AlertTriangle } from "lucide-react";
+import { Wallet, TrendingUp, Target, UsersRound, AlertTriangle, PieChart, Sparkles } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { BarList } from "@/components/dashboard/bar-list";
 import { RevenueLineChart } from "@/components/dashboard/revenue-line-chart";
@@ -8,12 +7,15 @@ import { ForecastView } from "@/components/intelligence/forecast-view";
 import {
   getReceitaConsolidada,
   getReceitaMensalConsolidada,
+  calcularCrescimentoMoM,
   getPipelineConsolidado,
   getCapacidadeAlocacao,
   getConcentracaoReceita,
   getReceitaPorVerticalNegocio,
+  getMargemEstimada,
 } from "@/modules/intelligence/metrics";
 import { getAlertasInteligentes } from "@/modules/intelligence/alerts";
+import { gerarInsightsCeo } from "@/modules/intelligence/insights";
 import { getForecastMultiplasJanelas, getGapToGoal } from "@/modules/intelligence/forecast";
 import { categoriaMetaValues } from "@/modules/metas/schemas";
 import { getFunilComercial } from "@/modules/dashboard/queries";
@@ -36,6 +38,7 @@ export default async function IntelligencePage() {
     capacidade,
     concentracao,
     receitaPorVertical,
+    margem,
     funilComercial,
     funilVagas,
     alertas,
@@ -48,6 +51,7 @@ export default async function IntelligencePage() {
     getCapacidadeAlocacao(),
     getConcentracaoReceita(5),
     getReceitaPorVerticalNegocio(),
+    getMargemEstimada(),
     getFunilComercial(),
     getFunilVagasComValor(),
     getAlertasInteligentes(),
@@ -56,31 +60,76 @@ export default async function IntelligencePage() {
   ]);
   const gapsValidos = gapsForecast.filter((g): g is NonNullable<typeof g> => g != null);
 
+  const crescimentoMoM = calcularCrescimentoMoM(receitaMensal);
+  const alertaCritico = alertas.find((a) => a.severidade === "critico") ?? null;
+  const insights = gerarInsightsCeo({
+    crescimentoMoM,
+    concentracao: concentracao ? { percentual: concentracao.percentual, topN: concentracao.topN } : null,
+    utilizacaoCapacidade: capacidade.utilizacao,
+    receitaPorVertical,
+    alertaCritico,
+  });
+
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="font-heading text-2xl font-bold">Find4You Executive Intelligence</h1>
-          <p className="text-sm text-muted-foreground">
-            Visão consolidada das três verticais — Alocação, Recrutamento &amp; Seleção e Executive Search.
-          </p>
-        </div>
-        <Link href="/intelligence/ceo" className="text-sm text-primary underline underline-offset-2">
-          Modo CEO →
-        </Link>
+      <div>
+        <h1 className="font-heading text-2xl font-bold">Find4You Executive Intelligence</h1>
+        <p className="text-sm text-muted-foreground">
+          Visão consolidada das três verticais — Alocação, Recrutamento &amp; Seleção e Executive Search.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <KpiCard label="Receita do mês" value={currency.format(receita.receitaMes)} hint={`${receita.negociosFechadosMes} fechamento(s)`} icon={Wallet} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <KpiCard
+          label="Receita do mês"
+          value={currency.format(receita.receitaMes)}
+          hint={
+            crescimentoMoM != null
+              ? `${crescimentoMoM >= 0 ? "+" : ""}${crescimentoMoM.toFixed(0)}% vs. mês anterior`
+              : `${receita.negociosFechadosMes} fechamento(s)`
+          }
+          icon={Wallet}
+        />
         <KpiCard label="Receita YTD" value={currency.format(receita.receitaYtd)} icon={Wallet} />
         <KpiCard label="Pipeline total" value={currency.format(pipeline.pipelineTotal)} icon={TrendingUp} />
-        <KpiCard label="Pipeline ponderado" value={currency.format(pipeline.pipelinePonderado)} hint="por probabilidade da etapa" icon={Target} />
+        <KpiCard
+          label="Pipeline ponderado"
+          value={currency.format(pipeline.pipelinePonderado)}
+          hint="por probabilidade da etapa"
+          icon={Target}
+          tooltip="Soma do valor de cada oportunidade e vaga em aberto (CRM + Vagas), multiplicado pela probabilidade da etapa atual — ou pela probabilidade específica da oportunidade, quando definida manualmente."
+        />
         <KpiCard
           label="Capacidade Alocação"
           value={capacidade.posicoesTotal > 0 ? `${capacidade.posicoesPreenchidas}/${capacidade.posicoesTotal}` : "Sem dados"}
           hint={capacidade.utilizacao != null ? `${percent(capacidade.utilizacao)} ocupada` : "Nenhuma vaga de Alocação ativa"}
           icon={UsersRound}
         />
+        <KpiCard
+          label="Margem estimada"
+          value={margem.margemPercentual != null ? percent(margem.margemPercentual) : "Sem dados"}
+          hint="receita − comissões geradas"
+          icon={PieChart}
+        />
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+        <h2 className="flex items-center gap-2 font-heading text-sm font-semibold">
+          <Sparkles className="size-4 text-primary" />
+          O que você precisa saber hoje
+        </h2>
+        {insights.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Ainda não há histórico suficiente para gerar insights automáticos.</p>
+        ) : (
+          <ol className="flex flex-col gap-2 text-sm">
+            {insights.map((texto, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="font-mono text-muted-foreground">{i + 1}.</span>
+                <span>{texto}</span>
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

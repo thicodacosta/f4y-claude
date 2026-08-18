@@ -38,7 +38,6 @@ export async function excluirMeta(id: string) {
 function revalidateIntelligence() {
   revalidatePath("/configuracoes/metas");
   revalidatePath("/intelligence");
-  revalidatePath("/intelligence/ceo");
   revalidatePath("/intelligence/forecast");
 }
 
