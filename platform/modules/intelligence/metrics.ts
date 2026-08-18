@@ -363,3 +363,66 @@ export async function getMargemEstimada() {
     margemPercentual: receitaTotal > 0 ? ((receitaTotal - comissoesTotal) / receitaTotal) * 100 : null,
   };
 }
+
+/** Pipeline em aberto (CRM + Vagas), bruto, agrupado por categoria de
+ * negócio — base do "Pipeline ponderado" em /intelligence, que passou a
+ * usar uma estimativa fixa de 20% do valor total em vez de ponderar por
+ * probabilidade de etapa (essa fórmula com probabilidade continua existindo
+ * em getPipelineConsolidado, usada pelo Simulador). */
+export async function getPipelineTotalPorCategoria() {
+  await requirePapel(PAPEIS_GESTAO);
+
+  const [oportunidadesAbertas, vagasAbertas] = await Promise.all([
+    prisma.oportunidade.findMany({
+      where: { etapa: { isGanho: false, isPerdido: false } },
+      select: { valorEstimado: true, vertical: true, executiveSearch: true },
+    }),
+    prisma.vaga.findMany({
+      where: { status: { notIn: ["fechada", "perdida"] } },
+      select: { valor: true, vertical: true, executiveSearch: true },
+    }),
+  ]);
+
+  const totais: Record<CategoriaVertical, number> = { alocacao: 0, recrutamento: 0, executive_search: 0 };
+  for (const o of oportunidadesAbertas) {
+    totais[categoriaDeVerticalNegocio(o.vertical, o.executiveSearch)] += Number(o.valorEstimado);
+  }
+  for (const v of vagasAbertas) {
+    totais[categoriaDeVerticalNegocio(v.vertical, v.executiveSearch)] += v.valor ? Number(v.valor) : 0;
+  }
+
+  return totais;
+}
+
+/** Total de vagas por categoria de negócio (todos os status) — base do
+ * card de "vagas por unidade de negócio" em /intelligence, que troca entre
+ * Recrutamento & Seleção e Alocação. */
+export async function getTotalVagasPorCategoria() {
+  await requirePapel(PAPEIS_GESTAO);
+
+  const vagas = await prisma.vaga.findMany({ select: { vertical: true, executiveSearch: true } });
+
+  const totais: Record<CategoriaVertical, number> = { alocacao: 0, recrutamento: 0, executive_search: 0 };
+  for (const v of vagas) totais[categoriaDeVerticalNegocio(v.vertical, v.executiveSearch)] += 1;
+
+  return totais;
+}
+
+/** Média por vaga fechada de Recrutamento & Seleção = soma de Vaga.valor
+ * (preenchido no fechamento, ver fecharVaga) dividido pela contagem de
+ * vagas fechadas dessa categoria — substituiu Margem Estimada no Executive
+ * Intelligence (getMargemEstimada segue existindo, só não é mais chamada
+ * ali). Sem vaga fechada com valor, retorna null (não divide por zero). */
+export async function getMediaPorVagaRecrutamento() {
+  await requirePapel(PAPEIS_GESTAO);
+
+  const vagasFechadas = await prisma.vaga.findMany({
+    where: { status: "fechada", vertical: { not: "alocacao_tech" }, executiveSearch: false },
+    select: { valor: true },
+  });
+
+  const valorTotal = vagasFechadas.reduce((acc, v) => acc + (v.valor ? Number(v.valor) : 0), 0);
+  const contagem = vagasFechadas.length;
+
+  return { valorTotal, contagem, media: contagem > 0 ? valorTotal / contagem : null };
+}

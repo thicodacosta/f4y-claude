@@ -1,18 +1,21 @@
-import { Wallet, TrendingUp, Target, UsersRound, AlertTriangle, PieChart, Sparkles } from "lucide-react";
+import { Wallet, TrendingUp, Target, AlertTriangle, Sparkles, Coins } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { BarList } from "@/components/dashboard/bar-list";
 import { RevenueLineChart } from "@/components/dashboard/revenue-line-chart";
 import { AlertList } from "@/components/intelligence/alert-list";
 import { ForecastView } from "@/components/intelligence/forecast-view";
+import { VagasCategoriaCard } from "@/components/intelligence/vagas-categoria-card";
 import {
   getReceitaConsolidada,
   getReceitaMensalConsolidada,
   calcularCrescimentoMoM,
   getPipelineConsolidado,
+  getPipelineTotalPorCategoria,
+  getTotalVagasPorCategoria,
+  getMediaPorVagaRecrutamento,
   getCapacidadeAlocacao,
   getConcentracaoReceita,
   getReceitaPorVerticalNegocio,
-  getMargemEstimada,
 } from "@/modules/intelligence/metrics";
 import { getAlertasInteligentes } from "@/modules/intelligence/alerts";
 import { gerarInsightsCeo } from "@/modules/intelligence/insights";
@@ -35,10 +38,12 @@ export default async function IntelligencePage() {
     receita,
     receitaMensal,
     pipeline,
+    pipelinePorCategoria,
+    vagasPorCategoria,
+    mediaPorVaga,
     capacidade,
     concentracao,
     receitaPorVertical,
-    margem,
     funilComercial,
     funilVagas,
     alertas,
@@ -48,16 +53,19 @@ export default async function IntelligencePage() {
     getReceitaConsolidada(),
     getReceitaMensalConsolidada(6),
     getPipelineConsolidado(),
+    getPipelineTotalPorCategoria(),
+    getTotalVagasPorCategoria(),
+    getMediaPorVagaRecrutamento(),
     getCapacidadeAlocacao(),
     getConcentracaoReceita(5),
     getReceitaPorVerticalNegocio(),
-    getMargemEstimada(),
     getFunilComercial(),
     getFunilVagasComValor(),
     getAlertasInteligentes(),
     getForecastMultiplasJanelas(),
     Promise.all(categoriaMetaValues.map((categoria) => getGapToGoal(categoria))),
   ]);
+  const PONDERADO_PERCENT = 0.2;
   const gapsValidos = gapsForecast.filter((g): g is NonNullable<typeof g> => g != null);
 
   const crescimentoMoM = calcularCrescimentoMoM(receitaMensal);
@@ -79,7 +87,7 @@ export default async function IntelligencePage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Receita do mês"
           value={currency.format(receita.receitaMes)}
@@ -93,23 +101,25 @@ export default async function IntelligencePage() {
         <KpiCard label="Receita YTD" value={currency.format(receita.receitaYtd)} icon={Wallet} />
         <KpiCard label="Pipeline total" value={currency.format(pipeline.pipelineTotal)} icon={TrendingUp} />
         <KpiCard
-          label="Pipeline ponderado"
-          value={currency.format(pipeline.pipelinePonderado)}
-          hint="por probabilidade da etapa"
+          label="Pipeline ponderado — Alocação"
+          value={currency.format(pipelinePorCategoria.alocacao * PONDERADO_PERCENT)}
+          hint="20% do pipeline aberto"
           icon={Target}
-          tooltip="Soma do valor de cada oportunidade e vaga em aberto (CRM + Vagas), multiplicado pela probabilidade da etapa atual — ou pela probabilidade específica da oportunidade, quando definida manualmente."
+          tooltip="Estimativa fixa: 20% do valor total do pipeline em aberto (CRM + Vagas) de Alocação de Profissionais."
         />
         <KpiCard
-          label="Capacidade Alocação"
-          value={capacidade.posicoesTotal > 0 ? `${capacidade.posicoesPreenchidas}/${capacidade.posicoesTotal}` : "Sem dados"}
-          hint={capacidade.utilizacao != null ? `${percent(capacidade.utilizacao)} ocupada` : "Nenhuma vaga de Alocação ativa"}
-          icon={UsersRound}
+          label="Pipeline ponderado — Recrutamento"
+          value={currency.format(pipelinePorCategoria.recrutamento * PONDERADO_PERCENT)}
+          hint="20% do pipeline aberto"
+          icon={Target}
+          tooltip="Estimativa fixa: 20% do valor total do pipeline em aberto (CRM + Vagas) de Recrutamento & Seleção."
         />
+        <VagasCategoriaCard vagas={vagasPorCategoria} />
         <KpiCard
-          label="Margem estimada"
-          value={margem.margemPercentual != null ? percent(margem.margemPercentual) : "Sem dados"}
-          hint="receita − comissões geradas"
-          icon={PieChart}
+          label="Média por vaga (R&S)"
+          value={mediaPorVaga.media != null ? currency.format(mediaPorVaga.media) : "Sem dados"}
+          hint={mediaPorVaga.contagem > 0 ? `${mediaPorVaga.contagem} vaga(s) fechada(s)` : "Nenhuma vaga fechada ainda"}
+          icon={Coins}
         />
       </div>
 
