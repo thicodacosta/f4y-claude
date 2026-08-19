@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 
 import {
   Dialog,
@@ -376,25 +376,23 @@ export function EditarVagaDialog({
             />
           </div>
 
-          <DialogFooter className="sm:justify-between">
+          <DialogFooter>
             <Button
               type="button"
               variant="destructive"
               onClick={handleExcluir}
               disabled={excluindo || isSubmitting}
             >
-              {excluindo && <Loader2 className="animate-spin" />}
+              {excluindo ? <Loader2 className="animate-spin" /> : <Trash2 />}
               Excluir
             </Button>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={isSubmitting || excluindo}>
-                {isSubmitting && <Loader2 className="animate-spin" />}
-                Salvar
-              </Button>
-            </div>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSubmitting || excluindo}>
+              {isSubmitting && <Loader2 className="animate-spin" />}
+              Salvar
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
