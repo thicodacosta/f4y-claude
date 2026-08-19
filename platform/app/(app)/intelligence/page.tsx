@@ -73,6 +73,20 @@ export default async function IntelligencePage() {
   const PONDERADO_PERCENT = 0.2;
   const gapsValidos = gapsForecast.filter((g): g is NonNullable<typeof g> => g != null);
 
+  // Pipeline ponderado — Total é sempre 20% do pipeline total da empresa
+  // (inclui Executive Search). O toggle R&S/Alocação não tem opção de
+  // Executive Search, então em vez de mostrar 20% do pipeline de cada
+  // unidade isoladamente (o que nunca soma o Total, já que sobra a fatia de
+  // Executive Search), distribui os mesmos 20% do total proporcionalmente
+  // ao volume de pipeline aberto de cada unidade — a soma das duas sempre
+  // bate com o card Total.
+  const pipelineTotalPonderado = pipeline.pipelineTotal * PONDERADO_PERCENT;
+  const baseRSAlocacao = pipelinePorCategoria.recrutamento + pipelinePorCategoria.alocacao;
+  const pipelinePonderadoPorCategoria = {
+    recrutamento: baseRSAlocacao > 0 ? pipelineTotalPonderado * (pipelinePorCategoria.recrutamento / baseRSAlocacao) : 0,
+    alocacao: baseRSAlocacao > 0 ? pipelineTotalPonderado * (pipelinePorCategoria.alocacao / baseRSAlocacao) : 0,
+  };
+
   const crescimentoMoM = calcularCrescimentoMoM(receitaMensal);
   const alertaCritico = alertas.find((a) => a.severidade === "critico") ?? null;
   const insights = gerarInsightsCeo({
@@ -108,17 +122,14 @@ export default async function IntelligencePage() {
         <CategoriaToggleCard
           labelPrefix="Pipeline ponderado"
           icon={<Target className="size-3.5" />}
-          values={{
-            alocacao: pipelinePorCategoria.alocacao * PONDERADO_PERCENT,
-            recrutamento: pipelinePorCategoria.recrutamento * PONDERADO_PERCENT,
-          }}
+          values={pipelinePonderadoPorCategoria}
           format="moeda"
-          hint="20% do pipeline aberto"
-          tooltip="Estimativa fixa: 20% do valor total do pipeline em aberto (CRM + Vagas) da unidade de negócio selecionada."
+          hint="20% do pipeline total, distribuído por volume"
+          tooltip="20% do pipeline total da empresa (todas as verticais), distribuído entre Recrutamento & Seleção e Alocação proporcionalmente ao volume de pipeline aberto de cada uma. A soma das duas bate com o card Total."
         />
         <KpiCard
           label="Pipeline ponderado — Total"
-          value={currency.format(pipeline.pipelineTotal * PONDERADO_PERCENT)}
+          value={currency.format(pipelineTotalPonderado)}
           hint="20% do pipeline total (todas as verticais)"
           icon={Target}
         />
