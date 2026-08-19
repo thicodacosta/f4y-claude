@@ -1,10 +1,9 @@
-import { Wallet, TrendingUp, Target, AlertTriangle, Sparkles, Coins } from "lucide-react";
+import { Wallet, TrendingUp, Target, Briefcase, AlertTriangle, Sparkles, Coins } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { BarList } from "@/components/dashboard/bar-list";
 import { RevenueLineChart } from "@/components/dashboard/revenue-line-chart";
-import { AlertList } from "@/components/intelligence/alert-list";
 import { ForecastView } from "@/components/intelligence/forecast-view";
-import { VagasCategoriaCard } from "@/components/intelligence/vagas-categoria-card";
+import { CategoriaToggleCard } from "@/components/intelligence/categoria-toggle-card";
 import {
   getReceitaConsolidada,
   getReceitaMensalConsolidada,
@@ -15,6 +14,7 @@ import {
   getMediaPorVagaRecrutamento,
   getCapacidadeAlocacao,
   getConcentracaoReceita,
+  getConcentracaoVagasFechadas,
   getReceitaPorVerticalNegocio,
 } from "@/modules/intelligence/metrics";
 import { getAlertasInteligentes } from "@/modules/intelligence/alerts";
@@ -43,6 +43,7 @@ export default async function IntelligencePage() {
     mediaPorVaga,
     capacidade,
     concentracao,
+    concentracaoVagas,
     receitaPorVertical,
     funilComercial,
     funilVagas,
@@ -58,6 +59,7 @@ export default async function IntelligencePage() {
     getMediaPorVagaRecrutamento(),
     getCapacidadeAlocacao(),
     getConcentracaoReceita(5),
+    getConcentracaoVagasFechadas(5),
     getReceitaPorVerticalNegocio(),
     getFunilComercial(),
     getFunilVagasComValor(),
@@ -100,21 +102,24 @@ export default async function IntelligencePage() {
         />
         <KpiCard label="Receita YTD" value={currency.format(receita.receitaYtd)} icon={Wallet} />
         <KpiCard label="Pipeline total" value={currency.format(pipeline.pipelineTotal)} icon={TrendingUp} />
-        <KpiCard
-          label="Pipeline ponderado — Alocação"
-          value={currency.format(pipelinePorCategoria.alocacao * PONDERADO_PERCENT)}
+        <CategoriaToggleCard
+          labelPrefix="Pipeline ponderado"
+          icon={<Target className="size-3.5" />}
+          values={{
+            alocacao: pipelinePorCategoria.alocacao * PONDERADO_PERCENT,
+            recrutamento: pipelinePorCategoria.recrutamento * PONDERADO_PERCENT,
+          }}
+          format="moeda"
           hint="20% do pipeline aberto"
-          icon={Target}
-          tooltip="Estimativa fixa: 20% do valor total do pipeline em aberto (CRM + Vagas) de Alocação de Profissionais."
+          tooltip="Estimativa fixa: 20% do valor total do pipeline em aberto (CRM + Vagas) da unidade de negócio selecionada."
         />
-        <KpiCard
-          label="Pipeline ponderado — Recrutamento"
-          value={currency.format(pipelinePorCategoria.recrutamento * PONDERADO_PERCENT)}
-          hint="20% do pipeline aberto"
-          icon={Target}
-          tooltip="Estimativa fixa: 20% do valor total do pipeline em aberto (CRM + Vagas) de Recrutamento & Seleção."
+        <CategoriaToggleCard
+          labelPrefix="Vagas"
+          icon={<Briefcase className="size-3.5" />}
+          values={vagasPorCategoria}
+          format="numero"
+          hint="vagas no total"
         />
-        <VagasCategoriaCard vagas={vagasPorCategoria} />
         <KpiCard
           label="Média por vaga (R&S)"
           value={mediaPorVaga.media != null ? currency.format(mediaPorVaga.media) : "Sem dados"}
@@ -226,8 +231,29 @@ export default async function IntelligencePage() {
         </div>
 
         <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
-          <h2 className="font-heading text-sm font-semibold">Alertas inteligentes</h2>
-          <AlertList alertas={alertas} />
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-heading text-sm font-semibold">Concentração de vagas fechadas</h2>
+            {concentracaoVagas && concentracaoVagas.percentual >= 40 && (
+              <span className="flex items-center gap-1 text-xs font-medium text-destructive">
+                <AlertTriangle className="size-3.5" />
+                Alta dependência
+              </span>
+            )}
+          </div>
+          {!concentracaoVagas ? (
+            <p className="text-sm text-muted-foreground">Dados insuficientes — nenhuma vaga fechada ainda.</p>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Os {concentracaoVagas.topN} maiores clientes representam{" "}
+                <strong className="text-foreground">{percent(concentracaoVagas.percentual)}</strong> das vagas fechadas.
+              </p>
+              <BarList
+                items={concentracaoVagas.clientes.map((c, i) => ({ id: `${i}-${c.nome}`, label: c.nome, value: c.quantidade }))}
+                formatValue={(v) => `${v} vaga${v === 1 ? "" : "s"}`}
+              />
+            </>
+          )}
         </div>
       </div>
     </div>

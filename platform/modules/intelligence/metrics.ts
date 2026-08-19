@@ -189,6 +189,39 @@ export async function getConcentracaoReceita(topN = 5) {
   };
 }
 
+/** Concentração de vagas fechadas — mesma lógica de getConcentracaoReceita,
+ * mas contando Vaga.status="fechada" por cliente em vez de R$ faturado.
+ * Substituiu o card "Alertas inteligentes" em /intelligence (getAlertasInteligentes
+ * segue alimentando os insights, só não tem mais card dedicado). */
+export async function getConcentracaoVagasFechadas(topN = 5) {
+  await requirePapel(PAPEIS_GESTAO);
+
+  const porEmpresa = await prisma.vaga.groupBy({
+    by: ["empresaId"],
+    where: { status: "fechada" },
+    _count: true,
+    orderBy: { _count: { empresaId: "desc" } },
+  });
+  if (porEmpresa.length === 0) return null;
+
+  const total = porEmpresa.reduce((acc, e) => acc + e._count, 0);
+  const top = porEmpresa.slice(0, topN);
+  const empresas = await prisma.empresa.findMany({
+    where: { id: { in: top.map((e) => e.empresaId) } },
+    select: { id: true, nome: true },
+  });
+  const nomePorId = new Map(empresas.map((e) => [e.id, e.nome]));
+  const somaTop = top.reduce((acc, e) => acc + e._count, 0);
+
+  return {
+    total,
+    topN,
+    somaTop,
+    percentual: total > 0 ? (somaTop / total) * 100 : 0,
+    clientes: top.map((e) => ({ nome: nomePorId.get(e.empresaId) ?? "—", quantidade: e._count })),
+  };
+}
+
 /** Receita por vertical de negócio (Alocação / Recrutamento & Seleção /
  * Executive Search) — as 3 verticais reais da Find4You, derivadas de
  * Vaga/Oportunidade.vertical + .executiveSearch (mesma regra de categoria
@@ -250,42 +283,6 @@ async function classificarFaturamentosPorCategoria(periodo?: { desde: Date; ate:
   return faturamentos
     .map((f) => ({ valor: Number(f.valor), categoria: categoriaPorId.get(f.origemId), criadoEm: f.criadoEm }))
     .filter((f): f is { valor: number; categoria: CategoriaVertical; criadoEm: Date } => !!f.categoria);
-}
-
-/** Série mensal por categoria — mesma base de getReceitaMensalConsolidada,
- * só que sem somar as 3 verticais juntas. Alimenta a tendência histórica do
- * Forecast Engine por categoria (getGapToGoal), que antes usava a série
- * consolidada da empresa inteira mesmo pedindo o forecast de uma vertical
- * só (bug: meta de Alocação e de Recrutamento comparadas com o mesmo
- * número). */
-export async function getReceitaMensalPorCategoria(meses: number) {
-  const desde = new Date();
-  desde.setMonth(desde.getMonth() - (meses - 1));
-  desde.setDate(1);
-  desde.setHours(0, 0, 0, 0);
-  const ate = new Date();
-  ate.setMonth(ate.getMonth() + 1);
-  ate.setDate(1);
-  ate.setHours(0, 0, 0, 0);
-
-  const classificados = await classificarFaturamentosPorCategoria({ desde, ate });
-
-  const buckets = new Map<string, Record<CategoriaVertical, number>>();
-  for (let i = 0; i < meses; i++) {
-    const d = new Date(desde.getFullYear(), desde.getMonth() + i, 1);
-    buckets.set(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, {
-      alocacao: 0,
-      recrutamento: 0,
-      executive_search: 0,
-    });
-  }
-  for (const f of classificados ?? []) {
-    const key = `${f.criadoEm.getFullYear()}-${String(f.criadoEm.getMonth() + 1).padStart(2, "0")}`;
-    const bucket = buckets.get(key);
-    if (bucket) bucket[f.categoria] += f.valor;
-  }
-
-  return [...buckets.entries()].map(([mes, valores]) => ({ mes, ...valores }));
 }
 
 /** Ticket médio por vertical = receita da categoria / número de fechamentos
