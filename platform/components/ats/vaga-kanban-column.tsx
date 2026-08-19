@@ -4,23 +4,36 @@ import { useDroppable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import type { PipelineEtapaClient } from "@/modules/ats/serialize";
 
+const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+
 export function VagaKanbanColumn({
   etapa,
   total,
+  valorTotal,
+  mostrarValor,
   children,
 }: {
   etapa: PipelineEtapaClient;
   total: number;
+  valorTotal: number;
+  mostrarValor: boolean;
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: etapa.id });
 
   return (
     <div className="flex w-72 shrink-0 flex-col gap-2">
-      <div className="flex items-center gap-2 px-1">
-        <span className="size-2 rounded-full" style={{ background: etapa.cor }} />
-        <span className="text-sm font-semibold">{etapa.nome}</span>
-        <span className="text-xs text-muted-foreground">{total}</span>
+      <div className="flex flex-col gap-0.5 px-1">
+        {mostrarValor && valorTotal > 0 && (
+          <span className="font-mono text-xs font-semibold tabular-nums text-foreground">
+            {currency.format(valorTotal)}
+          </span>
+        )}
+        <div className="flex items-center gap-2">
+          <span className="size-2 rounded-full" style={{ background: etapa.cor }} />
+          <span className="text-sm font-semibold">{etapa.nome}</span>
+          <span className="text-xs text-muted-foreground">{total}</span>
+        </div>
       </div>
       <div
         ref={setNodeRef}

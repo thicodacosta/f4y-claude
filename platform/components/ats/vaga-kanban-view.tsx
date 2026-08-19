@@ -133,8 +133,16 @@ export function VagaKanbanView({
             ));
           }
 
+          const valorTotalEtapa = daEtapa.reduce((acc, v) => acc + (v.valor ?? 0), 0);
+
           return (
-            <VagaKanbanColumn key={etapa.id} etapa={etapa} total={daEtapa.length}>
+            <VagaKanbanColumn
+              key={etapa.id}
+              etapa={etapa}
+              total={daEtapa.length}
+              valorTotal={valorTotalEtapa}
+              mostrarValor={mostrarValor}
+            >
               {conteudo}
             </VagaKanbanColumn>
           );
