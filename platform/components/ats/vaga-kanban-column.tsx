@@ -27,16 +27,25 @@ export function VagaKanbanColumn({
 
   return (
     <div className="flex w-72 shrink-0 flex-col gap-2">
+      {/* Duas linhas de altura fixa (h-4) reservadas mesmo vazias — sem
+          isso, colunas sem "no mês" (Forecast) ou sem valor (etapas com
+          total zerado) ficavam com a linha do status (bolinha + nome +
+          contagem) em alturas diferentes entre si, desalinhando a fileira
+          inteira de colunas. */}
       <div className="flex flex-col gap-0.5 px-1">
-        {mostrarValor && valorMesAtual != null && valorMesAtual > 0 && (
-          <span className="font-mono text-xs text-muted-foreground tabular-nums">
-            {currency.format(valorMesAtual)} <span className="text-[10px]">no mês</span>
-          </span>
-        )}
-        {mostrarValor && valorTotal > 0 && (
-          <span className="font-mono text-xs font-semibold tabular-nums text-foreground">
-            {currency.format(valorTotal)}
-          </span>
+        {mostrarValor && (
+          <>
+            <span className="h-4 font-mono text-xs text-muted-foreground tabular-nums">
+              {valorMesAtual != null && valorMesAtual > 0 && (
+                <>
+                  {currency.format(valorMesAtual)} <span className="text-[10px]">no mês</span>
+                </>
+              )}
+            </span>
+            <span className="h-4 font-mono text-xs font-semibold tabular-nums text-foreground">
+              {valorTotal > 0 && currency.format(valorTotal)}
+            </span>
+          </>
         )}
         <div className="flex items-center gap-2">
           <span className="size-2 rounded-full" style={{ background: etapa.cor }} />

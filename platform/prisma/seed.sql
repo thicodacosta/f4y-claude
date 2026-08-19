@@ -42,7 +42,7 @@ where not exists (
 -- candidato usa o enum EtapaVagaCandidato, fixo, não esta tabela.
 --
 -- "Fechada Alocação" é uma segunda coluna de Ganho (is_ganho=true), separada
--- de "Fechada" — Alocação de Profissionais é um modelo de receita recorrente
+-- de "Fechada R&S" — Alocação de Profissionais é um modelo de receita recorrente
 -- (contrato mensal via Faturamento, não um valor único de vaga), então
 -- misturar suas vagas fechadas na mesma coluna de R&S/Executive Search
 -- inflava o total em R$ da coluna sem representar receita real (ver
@@ -63,7 +63,7 @@ from p, (values
   ('CV Enviado',         '#28AAF0', 3, 7,  45,  false, false, false),
   ('Entrevista Cliente', '#5860A9', 4, 10, 65,  false, false, false),
   ('Forecast',           '#F5A623', 5, 10, 85,  false, false, false),
-  ('Fechada',            '#15A66B', 6, null, 100, true,  false, false),
+  ('Fechada R&S',        '#15A66B', 6, null, 100, true,  false, false),
   ('Fechada Alocação',   '#15A66B', 7, null, 100, true,  false, false),
   ('Perdida',            '#E5484D', 8, null, 0,   false, true,  false),
   ('Stand By',           '#EAB308', 9, null, 30,  false, false, true)
