@@ -40,6 +40,13 @@ where not exists (
 -- Entrevista Cliente, Forecast, depois Fechada/Perdida como colunas fixas.
 -- Este é o Kanban *externo* (move a vaga inteira) — o Kanban interno por
 -- candidato usa o enum EtapaVagaCandidato, fixo, não esta tabela.
+--
+-- "Fechada Alocação" é uma segunda coluna de Ganho (is_ganho=true), separada
+-- de "Fechada" — Alocação de Profissionais é um modelo de receita recorrente
+-- (contrato mensal via Faturamento, não um valor único de vaga), então
+-- misturar suas vagas fechadas na mesma coluna de R&S/Executive Search
+-- inflava o total em R$ da coluna sem representar receita real (ver
+-- reconciliação contra planilha financeira, checagem de 2026-08-19).
 
 insert into public.pipelines (id, tipo, nome)
 select gen_random_uuid(), 'vagas', 'Pipeline de Vagas'
@@ -57,8 +64,9 @@ from p, (values
   ('Entrevista Cliente', '#5860A9', 4, 10, 65,  false, false, false),
   ('Forecast',           '#F5A623', 5, 10, 85,  false, false, false),
   ('Fechada',            '#15A66B', 6, null, 100, true,  false, false),
-  ('Perdida',            '#E5484D', 7, null, 0,   false, true,  false),
-  ('Stand By',           '#EAB308', 8, null, 30,  false, false, true)
+  ('Fechada Alocação',   '#15A66B', 7, null, 100, true,  false, false),
+  ('Perdida',            '#E5484D', 8, null, 0,   false, true,  false),
+  ('Stand By',           '#EAB308', 9, null, 30,  false, false, true)
 ) as etapa(nome, cor, ordem, sla_dias, probabilidade, is_ganho, is_perdido, is_pausada)
 where not exists (
   select 1 from public.pipeline_etapas pe where pe.pipeline_id = p.id and pe.nome = etapa.nome
