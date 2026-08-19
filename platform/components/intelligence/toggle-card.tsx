@@ -11,6 +11,9 @@ export type ToggleCardOpcao = {
   label: string;
   valor: number;
   hint?: string;
+  /** Valor realizado até o momento no mesmo período da opção (ex.: receita
+   * já faturada no mês/ano) — sempre em R$, exibido abaixo do hint. */
+  realizado?: number;
 };
 
 /** Card de KPI com toggle entre 2+ opções — unidade de negócio (Recrutamento
@@ -65,6 +68,11 @@ export function ToggleCard({
       </div>
       <span className="font-mono text-2xl font-bold tabular-nums">{valorFormatado}</span>
       {opcao.hint && <span className="text-xs text-muted-foreground">{opcao.hint}</span>}
+      {opcao.realizado != null && (
+        <span className="font-mono text-xs font-medium tabular-nums text-foreground">
+          {currency.format(opcao.realizado)} realizado
+        </span>
+      )}
     </div>
   );
 }

@@ -113,8 +113,20 @@ export default async function IntelligencePage() {
           labelPrefix="Meta"
           icon={<Flag className="size-3.5" />}
           opcoes={[
-            { chave: "mes", label: "Mês", valor: metaAnoEMes.metaMes, hint: "meta da empresa no mês atual" },
-            { chave: "ano", label: "Ano", valor: metaAnoEMes.metaAno, hint: `soma das metas mensais de ${metaAnoEMes.ano}` },
+            {
+              chave: "mes",
+              label: "Mês",
+              valor: metaAnoEMes.metaMes,
+              hint: "meta da empresa no mês atual",
+              realizado: receita.receitaMes,
+            },
+            {
+              chave: "ano",
+              label: "Ano",
+              valor: metaAnoEMes.metaAno,
+              hint: `soma das metas mensais de ${metaAnoEMes.ano}`,
+              realizado: receita.receitaYtd,
+            },
           ]}
           format="moeda"
           ariaLabel="Trocar período da meta"
