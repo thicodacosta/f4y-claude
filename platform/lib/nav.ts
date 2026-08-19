@@ -137,7 +137,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       {
         label: "Relatórios",
-        href: "/relatorios",
+        href: "/relatorios/produtividade",
         icon: BarChart3,
         roles: ["admin", "diretoria", "financeiro"],
         fase: "Fase 3",

@@ -19,8 +19,6 @@ export type Filtros = {
   etapaId: string;
   empresaId: string;
   origem: string;
-  valorMin: string;
-  probabilidadeMin: string;
   proximaAcao: "" | "atrasada" | "hoje" | "agendada" | "sem_acao";
 };
 
@@ -31,8 +29,6 @@ export const FILTROS_VAZIOS: Filtros = {
   etapaId: "",
   empresaId: "",
   origem: "",
-  valorMin: "",
-  probabilidadeMin: "",
   proximaAcao: "",
 };
 
@@ -162,23 +158,6 @@ export function FiltrosBar({
           <SelectItem value="sem_acao">{proximaAcaoLabel.sem_acao}</SelectItem>
         </SelectContent>
       </Select>
-      <Input
-        type="number"
-        min={0}
-        placeholder="Valor mín. (R$)"
-        value={filtros.valorMin}
-        onChange={(e) => onChange({ ...filtros, valorMin: e.target.value })}
-        className="w-32"
-      />
-      <Input
-        type="number"
-        min={0}
-        max={100}
-        placeholder="Prob. mín. (%)"
-        value={filtros.probabilidadeMin}
-        onChange={(e) => onChange({ ...filtros, probabilidadeMin: e.target.value })}
-        className="w-32"
-      />
       {temFiltroAtivo && (
         <button
           type="button"
@@ -194,8 +173,6 @@ export function FiltrosBar({
 
 export function aplicarFiltros(items: OportunidadeClient[], filtros: Filtros): OportunidadeClient[] {
   const busca = filtros.busca.trim().toLowerCase();
-  const valorMin = filtros.valorMin ? Number(filtros.valorMin) : null;
-  const probabilidadeMin = filtros.probabilidadeMin ? Number(filtros.probabilidadeMin) : null;
 
   return items.filter((o) => {
     if (
@@ -210,11 +187,6 @@ export function aplicarFiltros(items: OportunidadeClient[], filtros: Filtros): O
     if (filtros.responsavelId && o.responsavelId !== filtros.responsavelId) return false;
     if (filtros.etapaId && o.etapaId !== filtros.etapaId) return false;
     if (filtros.empresaId && o.empresaId !== filtros.empresaId) return false;
-    if (valorMin !== null) {
-      const valor = o.valorNegociado ?? o.valorProposta ?? o.valorEstimado;
-      if (valor < valorMin) return false;
-    }
-    if (probabilidadeMin !== null && (o.probabilidade ?? 0) < probabilidadeMin) return false;
     if (filtros.proximaAcao) {
       if (filtros.proximaAcao === "sem_acao") {
         if (o.proximaAcaoData) return false;

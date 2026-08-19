@@ -14,12 +14,24 @@ const statusVariant: Record<string, "default" | "secondary" | "outline" | "destr
   perdida: "destructive",
 };
 
+// Cor "Success" do design system (mesma da etapa Fechada no Kanban de
+// Vagas) — Badge não tem variante verde própria, então sobrescreve aqui.
+const statusClassName: Record<string, string> = {
+  fechada: "border-transparent bg-[#15A66B]/10 text-[#15A66B] dark:bg-[#15A66B]/20",
+};
+
+// aberta (e pausada) → fechada → perdida, pra separar visualmente o que
+// ainda está em andamento do que já foi decidido.
+const statusOrdem: Record<string, number> = { aberta: 0, pausada: 1, fechada: 2, perdida: 3 };
+
 export function VagasTable({ vagas }: { vagas: VagaClient[] }) {
   const router = useRouter();
 
   if (vagas.length === 0) {
     return <p className="text-sm text-muted-foreground">Nenhuma vaga ainda.</p>;
   }
+
+  const ordenadas = [...vagas].sort((a, b) => (statusOrdem[a.status] ?? 99) - (statusOrdem[b.status] ?? 99));
 
   return (
     <div className="overflow-auto">
@@ -36,7 +48,7 @@ export function VagasTable({ vagas }: { vagas: VagaClient[] }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {vagas.map((v) => (
+          {ordenadas.map((v) => (
             <TableRow key={v.id} className="cursor-pointer" onClick={() => router.push(`/vagas/${v.id}`)}>
               <TableCell className="font-medium">
                 {v.confidencial && "🔒 "}
@@ -55,7 +67,9 @@ export function VagasTable({ vagas }: { vagas: VagaClient[] }) {
                 {prioridadeVagaLabel[v.prioridade as keyof typeof prioridadeVagaLabel]}
               </TableCell>
               <TableCell>
-                <Badge variant={statusVariant[v.status] ?? "outline"}>{v.status}</Badge>
+                <Badge variant={statusVariant[v.status] ?? "outline"} className={statusClassName[v.status]}>
+                  {v.status}
+                </Badge>
               </TableCell>
               <TableCell className="text-muted-foreground">{v.recrutadorNome ?? "—"}</TableCell>
               <TableCell className="tabular-nums">

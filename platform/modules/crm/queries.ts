@@ -71,10 +71,15 @@ export async function getArquivosDaEntidade(entidadeTipo: string, entidadeId: st
 export async function getEmpresas() {
   await requirePapel(PAPEIS_INTERNOS);
 
-  return prisma.empresa.findMany({
+  const empresas = await prisma.empresa.findMany({
     include: { contatos: true, _count: { select: { oportunidades: true, vagas: true } } },
     orderBy: { nome: "asc" },
   });
+
+  // status=ativo primeiro (nome asc dentro de cada grupo, via sort estável)
+  // — sem isso os clientes reais somem no meio dos 300+ prospects do
+  // import de contatos, que dominam a lista em ordem alfabética pura.
+  return empresas.sort((a, b) => Number(b.status === "ativo") - Number(a.status === "ativo"));
 }
 
 /** Clientes de verdade (status=ativo) pra visão geral do CRM — diferente de
