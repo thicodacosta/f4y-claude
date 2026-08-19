@@ -68,6 +68,7 @@ export function VagaKanbanView({
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const mesAtualChave = new Date().toISOString().slice(0, 7);
 
   function handleDragEnd(event: DragEndEvent) {
     setActiveId(null);
@@ -134,6 +135,14 @@ export function VagaKanbanView({
           }
 
           const valorTotalEtapa = daEtapa.reduce((acc, v) => acc + (v.valor ?? 0), 0);
+          // Só a etapa Fechada tem uma data (fechadoEm) que faz sentido
+          // comparar com "o mês vigente" — as demais etapas são pipeline em
+          // aberto, sem mês de referência.
+          const valorMesAtual = etapa.isGanho
+            ? daEtapa
+                .filter((v) => v.fechadoEm?.slice(0, 7) === mesAtualChave)
+                .reduce((acc, v) => acc + (v.valor ?? 0), 0)
+            : undefined;
 
           return (
             <VagaKanbanColumn
@@ -141,6 +150,7 @@ export function VagaKanbanView({
               etapa={etapa}
               total={daEtapa.length}
               valorTotal={valorTotalEtapa}
+              valorMesAtual={valorMesAtual}
               mostrarValor={mostrarValor}
             >
               {conteudo}

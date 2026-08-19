@@ -10,12 +10,16 @@ export function VagaKanbanColumn({
   etapa,
   total,
   valorTotal,
+  valorMesAtual,
   mostrarValor,
   children,
 }: {
   etapa: PipelineEtapaClient;
   total: number;
   valorTotal: number;
+  /** Só preenchido na etapa Fechada — valor das vagas fechadas no mês
+   * vigente, exibido acima do valor total acumulado da coluna. */
+  valorMesAtual?: number;
   mostrarValor: boolean;
   children: React.ReactNode;
 }) {
@@ -24,6 +28,11 @@ export function VagaKanbanColumn({
   return (
     <div className="flex w-72 shrink-0 flex-col gap-2">
       <div className="flex flex-col gap-0.5 px-1">
+        {mostrarValor && valorMesAtual != null && valorMesAtual > 0 && (
+          <span className="font-mono text-xs text-muted-foreground tabular-nums">
+            {currency.format(valorMesAtual)} <span className="text-[10px]">no mês</span>
+          </span>
+        )}
         {mostrarValor && valorTotal > 0 && (
           <span className="font-mono text-xs font-semibold tabular-nums text-foreground">
             {currency.format(valorTotal)}
