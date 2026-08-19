@@ -123,6 +123,38 @@ export async function getGapToGoal(categoria: (typeof categoriaMetaValues)[numbe
   return { categoria, valorAlvo, realizado, gap, forecastTotal, gapProjetado, probabilidadeAtingir, diasRestantes };
 }
 
+/** Meta do mês atual vs. meta do ano (soma dos meses cadastrados) — base do
+ * card "Meta" em /intelligence. Não existe meta anual de verdade no sistema
+ * (MetaOrganizacional é sempre por categoria+ano+mês, ver schema) — o total
+ * do ano é derivado aplicando a mesma regra de getValorAlvoDaCategoria
+ * (soma as metas de categoria quando não há uma meta "todas" explícita)
+ * mês a mês, e somando os 12 meses. Meses sem nenhuma meta cadastrada
+ * contam como zero, não interrompem a soma. */
+export async function getMetaAnoEMes() {
+  await requirePapel(PAPEIS_GESTAO);
+
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mesAtual = hoje.getMonth() + 1;
+
+  const metasDoAno = await prisma.metaOrganizacional.findMany({ where: { ano } });
+
+  let metaAno = 0;
+  let metaMes = 0;
+  for (let mes = 1; mes <= 12; mes++) {
+    const metaTodas = metasDoAno.find((m) => m.mes === mes && m.categoria === "todas");
+    const valorDoMes = metaTodas
+      ? Number(metaTodas.valorAlvo)
+      : metasDoAno
+          .filter((m) => m.mes === mes && m.categoria !== "todas")
+          .reduce((acc, m) => acc + Number(m.valorAlvo), 0);
+    metaAno += valorDoMes;
+    if (mes === mesAtual) metaMes = valorDoMes;
+  }
+
+  return { metaMes, metaAno, ano };
+}
+
 async function getValorAlvoDaCategoria(categoria: CategoriaMeta, ano: number, mes: number) {
   const meta = await prisma.metaOrganizacional.findUnique({ where: { categoria_ano_mes: { categoria, ano, mes } } });
   if (meta) return Number(meta.valorAlvo);

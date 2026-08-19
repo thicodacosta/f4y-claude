@@ -1,9 +1,9 @@
-import { Wallet, TrendingUp, Target, Briefcase, AlertTriangle, Sparkles, Coins, Ban } from "lucide-react";
+import { Wallet, TrendingUp, Target, Briefcase, AlertTriangle, Sparkles, Coins, Ban, Flag } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { BarList } from "@/components/dashboard/bar-list";
 import { RevenueLineChart } from "@/components/dashboard/revenue-line-chart";
 import { ForecastView } from "@/components/intelligence/forecast-view";
-import { CategoriaToggleCard } from "@/components/intelligence/categoria-toggle-card";
+import { ToggleCard } from "@/components/intelligence/toggle-card";
 import {
   getReceitaConsolidada,
   getReceitaMensalConsolidada,
@@ -20,7 +20,7 @@ import {
 } from "@/modules/intelligence/metrics";
 import { getAlertasInteligentes } from "@/modules/intelligence/alerts";
 import { gerarInsightsCeo } from "@/modules/intelligence/insights";
-import { getForecastMultiplasJanelas, getGapToGoal } from "@/modules/intelligence/forecast";
+import { getForecastMultiplasJanelas, getGapToGoal, getMetaAnoEMes } from "@/modules/intelligence/forecast";
 import { categoriaMetaValues } from "@/modules/metas/schemas";
 import { getFunilComercial } from "@/modules/dashboard/queries";
 import { getFunilVagasComValor } from "@/modules/ats/queries";
@@ -52,6 +52,7 @@ export default async function IntelligencePage() {
     alertas,
     janelasForecast,
     gapsForecast,
+    metaAnoEMes,
   ] = await Promise.all([
     getReceitaConsolidada(),
     getReceitaMensalConsolidada(6),
@@ -69,6 +70,7 @@ export default async function IntelligencePage() {
     getAlertasInteligentes(),
     getForecastMultiplasJanelas(),
     Promise.all(categoriaMetaValues.map((categoria) => getGapToGoal(categoria))),
+    getMetaAnoEMes(),
   ]);
   const PONDERADO_PERCENT = 0.2;
   const gapsValidos = gapsForecast.filter((g): g is NonNullable<typeof g> => g != null);
@@ -107,25 +109,55 @@ export default async function IntelligencePage() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          label="Receita do mês"
-          value={currency.format(receita.receitaMes)}
-          hint={
-            crescimentoMoM != null
-              ? `${crescimentoMoM >= 0 ? "+" : ""}${crescimentoMoM.toFixed(0)}% vs. mês anterior`
-              : `${receita.negociosFechadosMes} fechamento(s)`
-          }
-          icon={Wallet}
+        <ToggleCard
+          labelPrefix="Meta"
+          icon={<Flag className="size-3.5" />}
+          opcoes={[
+            { chave: "mes", label: "Mês", valor: metaAnoEMes.metaMes, hint: "meta da empresa no mês atual" },
+            { chave: "ano", label: "Ano", valor: metaAnoEMes.metaAno, hint: `soma das metas mensais de ${metaAnoEMes.ano}` },
+          ]}
+          format="moeda"
+          ariaLabel="Trocar período da meta"
         />
-        <KpiCard label="Receita YTD" value={currency.format(receita.receitaYtd)} icon={Wallet} />
+        <ToggleCard
+          labelPrefix="Receita"
+          icon={<Wallet className="size-3.5" />}
+          opcoes={[
+            {
+              chave: "mes",
+              label: "Mês",
+              valor: receita.receitaMes,
+              hint:
+                crescimentoMoM != null
+                  ? `${crescimentoMoM >= 0 ? "+" : ""}${crescimentoMoM.toFixed(0)}% vs. mês anterior`
+                  : `${receita.negociosFechadosMes} fechamento(s)`,
+            },
+            { chave: "ytd", label: "YTD", valor: receita.receitaYtd, hint: "acumulado no ano" },
+          ]}
+          format="moeda"
+          ariaLabel="Trocar período da receita"
+        />
         <KpiCard label="Pipeline total" value={currency.format(pipeline.pipelineTotal)} icon={TrendingUp} />
-        <CategoriaToggleCard
+        <ToggleCard
           labelPrefix="Pipeline ponderado"
           icon={<Target className="size-3.5" />}
-          values={pipelinePonderadoPorCategoria}
+          opcoes={[
+            {
+              chave: "recrutamento",
+              label: "Recrutamento & Seleção",
+              valor: pipelinePonderadoPorCategoria.recrutamento,
+              hint: "20% do pipeline total, distribuído por volume",
+            },
+            {
+              chave: "alocacao",
+              label: "Alocação",
+              valor: pipelinePonderadoPorCategoria.alocacao,
+              hint: "20% do pipeline total, distribuído por volume",
+            },
+          ]}
           format="moeda"
-          hint="20% do pipeline total, distribuído por volume"
           tooltip="20% do pipeline total da empresa (todas as verticais), distribuído entre Recrutamento & Seleção e Alocação proporcionalmente ao volume de pipeline aberto de cada uma. A soma das duas bate com o card Total."
+          ariaLabel="Trocar unidade de negócio"
         />
         <KpiCard
           label="Pipeline ponderado — Total"
@@ -133,19 +165,30 @@ export default async function IntelligencePage() {
           hint="20% do pipeline total (todas as verticais)"
           icon={Target}
         />
-        <CategoriaToggleCard
+        <ToggleCard
           labelPrefix="Vagas"
           icon={<Briefcase className="size-3.5" />}
-          values={vagasPorCategoria}
+          opcoes={[
+            { chave: "recrutamento", label: "Recrutamento & Seleção", valor: vagasPorCategoria.recrutamento, hint: "vagas no total" },
+            { chave: "alocacao", label: "Alocação", valor: vagasPorCategoria.alocacao, hint: "vagas no total" },
+          ]}
           format="numero"
-          hint="vagas no total"
+          ariaLabel="Trocar unidade de negócio"
         />
-        <CategoriaToggleCard
+        <ToggleCard
           labelPrefix="Vagas $$$ (valor)"
           icon={<Ban className="size-3.5" />}
-          values={valorVagasPerdidasPorCategoria}
+          opcoes={[
+            {
+              chave: "recrutamento",
+              label: "Recrutamento & Seleção",
+              valor: valorVagasPerdidasPorCategoria.recrutamento,
+              hint: "valor de vagas canceladas",
+            },
+            { chave: "alocacao", label: "Alocação", valor: valorVagasPerdidasPorCategoria.alocacao, hint: "valor de vagas canceladas" },
+          ]}
           format="moeda"
-          hint="valor de vagas canceladas"
+          ariaLabel="Trocar unidade de negócio"
         />
         <KpiCard
           label="Média por vaga (R&S)"
