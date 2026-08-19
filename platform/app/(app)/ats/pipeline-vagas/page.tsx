@@ -6,6 +6,7 @@ import {
   getVagasAtivasPorVertical,
   getFunilVagasComValor,
   getContatosParaFechamento,
+  getEquipeAts,
 } from "@/modules/ats/queries";
 import { getSessionUsuario } from "@/lib/auth";
 import { PAPEIS_ADMIN } from "@/lib/roles";
@@ -14,16 +15,18 @@ import { PipelineVagasView } from "@/components/ats/pipeline-vagas-view";
 import { RelatorioPipelineVagas } from "@/components/ats/relatorio-pipeline-vagas";
 
 export default async function PipelineVagasPage() {
-  const [pipeline, vagas, empresas, contatos, vagasFechadasPorPeriodo, funil, porVertical, usuario] = await Promise.all([
-    getPipelineVagas(),
-    getVagas(),
-    getEmpresasParaVaga(),
-    getContatosParaFechamento(),
-    getVagasFechadasPorPeriodo(24),
-    getFunilVagasComValor(),
-    getVagasAtivasPorVertical(),
-    getSessionUsuario(),
-  ]);
+  const [pipeline, vagas, empresas, contatos, vagasFechadasPorPeriodo, funil, porVertical, usuario, equipe] =
+    await Promise.all([
+      getPipelineVagas(),
+      getVagas(),
+      getEmpresasParaVaga(),
+      getContatosParaFechamento(),
+      getVagasFechadasPorPeriodo(24),
+      getFunilVagasComValor(),
+      getVagasAtivasPorVertical(),
+      getSessionUsuario(),
+      getEquipeAts(),
+    ]);
   const mostrarValor = !!usuario?.papel && (PAPEIS_ADMIN as string[]).includes(usuario.papel);
 
   return (
@@ -41,6 +44,7 @@ export default async function PipelineVagasPage() {
         empresas={empresas}
         contatos={contatos}
         mostrarValor={mostrarValor}
+        equipe={equipe.map((u) => ({ id: u.id, nome: u.nome }))}
       />
     </div>
   );

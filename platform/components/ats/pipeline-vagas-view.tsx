@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { VagaKanbanView } from "@/components/ats/vaga-kanban-view";
 import { NovaVagaDialog } from "@/components/ats/nova-vaga-dialog";
 import { FecharVagaDialog, type ContatoClient } from "@/components/ats/fechar-vaga-dialog";
+import { EditarVagaDialog } from "@/components/ats/editar-vaga-dialog";
 import { moverVaga } from "@/modules/ats/actions";
 import type { VagaClient, PipelineEtapaClient } from "@/modules/ats/serialize";
 
@@ -18,12 +19,14 @@ export function PipelineVagasView({
   empresas,
   contatos,
   mostrarValor,
+  equipe,
 }: {
   etapas: PipelineEtapaClient[];
   vagas: VagaClient[];
   empresas: { id: string; nome: string }[];
   contatos: ContatoClient[];
   mostrarValor: boolean;
+  equipe: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [items, setItems] = useState(vagas);
@@ -35,6 +38,7 @@ export function PipelineVagasView({
 
   const [novaAberta, setNovaAberta] = useState(false);
   const [fecharAlvo, setFecharAlvo] = useState<{ vaga: VagaClient; novaEtapaId: string } | null>(null);
+  const [editarAlvo, setEditarAlvo] = useState<VagaClient | null>(null);
   const [, startTransition] = useTransition();
 
   function handleMove(vagaId: string, novaEtapaId: string) {
@@ -68,7 +72,7 @@ export function PipelineVagasView({
       <VagaKanbanView
         etapas={etapas}
         items={items}
-        onCardClick={(v) => router.push(`/vagas/${v.id}`)}
+        onCardClick={(v) => setEditarAlvo(v)}
         onMove={handleMove}
         onFechar={(vaga, novaEtapaId) => setFecharAlvo({ vaga, novaEtapaId })}
         mostrarValor={mostrarValor}
@@ -89,6 +93,20 @@ export function PipelineVagasView({
         contatos={contatos}
         onFechada={handleFechada}
       />
+
+      {/* key={editarAlvo.id} força remontagem do form com defaultValues da
+          vaga certa — react-hook-form só lê defaultValues no primeiro
+          render, então trocar de card sem remontar deixaria os campos
+          antigos visíveis. */}
+      {editarAlvo && (
+        <EditarVagaDialog
+          key={editarAlvo.id}
+          open
+          onOpenChange={(open) => !open && setEditarAlvo(null)}
+          vaga={editarAlvo}
+          equipe={equipe}
+        />
+      )}
     </div>
   );
 }
