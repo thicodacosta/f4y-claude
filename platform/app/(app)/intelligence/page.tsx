@@ -1,4 +1,4 @@
-import { Wallet, TrendingUp, Target, Briefcase, AlertTriangle, Sparkles, Coins } from "lucide-react";
+import { Wallet, TrendingUp, Target, Briefcase, AlertTriangle, Sparkles, Coins, Ban } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { BarList } from "@/components/dashboard/bar-list";
 import { RevenueLineChart } from "@/components/dashboard/revenue-line-chart";
@@ -11,6 +11,7 @@ import {
   getPipelineConsolidado,
   getPipelineTotalPorCategoria,
   getTotalVagasPorCategoria,
+  getValorVagasPerdidasPorCategoria,
   getMediaPorVagaRecrutamento,
   getCapacidadeAlocacao,
   getConcentracaoReceita,
@@ -40,6 +41,7 @@ export default async function IntelligencePage() {
     pipeline,
     pipelinePorCategoria,
     vagasPorCategoria,
+    valorVagasPerdidasPorCategoria,
     mediaPorVaga,
     capacidade,
     concentracao,
@@ -56,6 +58,7 @@ export default async function IntelligencePage() {
     getPipelineConsolidado(),
     getPipelineTotalPorCategoria(),
     getTotalVagasPorCategoria(),
+    getValorVagasPerdidasPorCategoria(),
     getMediaPorVagaRecrutamento(),
     getCapacidadeAlocacao(),
     getConcentracaoReceita(5),
@@ -113,12 +116,25 @@ export default async function IntelligencePage() {
           hint="20% do pipeline aberto"
           tooltip="Estimativa fixa: 20% do valor total do pipeline em aberto (CRM + Vagas) da unidade de negócio selecionada."
         />
+        <KpiCard
+          label="Pipeline ponderado — Total"
+          value={currency.format(pipeline.pipelineTotal * PONDERADO_PERCENT)}
+          hint="20% do pipeline total (todas as verticais)"
+          icon={Target}
+        />
         <CategoriaToggleCard
           labelPrefix="Vagas"
           icon={<Briefcase className="size-3.5" />}
           values={vagasPorCategoria}
           format="numero"
           hint="vagas no total"
+        />
+        <CategoriaToggleCard
+          labelPrefix="Vagas $$$ (valor)"
+          icon={<Ban className="size-3.5" />}
+          values={valorVagasPerdidasPorCategoria}
+          format="moeda"
+          hint="valor de vagas canceladas"
         />
         <KpiCard
           label="Média por vaga (R&S)"

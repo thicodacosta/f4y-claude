@@ -405,6 +405,26 @@ export async function getTotalVagasPorCategoria() {
   return totais;
 }
 
+/** Valor total (R$) de vagas perdidas/canceladas por categoria de negócio —
+ * base do card "Vagas $$$ (valor)" em /intelligence: quanto se perdeu em
+ * valor de mandato por cancelamento, separado por unidade de negócio (mesmo
+ * padrão de toggle do card "Vagas", que conta quantidade em vez de valor). */
+export async function getValorVagasPerdidasPorCategoria() {
+  await requirePapel(PAPEIS_GESTAO);
+
+  const vagasPerdidas = await prisma.vaga.findMany({
+    where: { status: "perdida" },
+    select: { valor: true, vertical: true, executiveSearch: true },
+  });
+
+  const totais: Record<CategoriaVertical, number> = { alocacao: 0, recrutamento: 0, executive_search: 0 };
+  for (const v of vagasPerdidas) {
+    totais[categoriaDeVerticalNegocio(v.vertical, v.executiveSearch)] += v.valor ? Number(v.valor) : 0;
+  }
+
+  return totais;
+}
+
 /** Média por vaga fechada de Recrutamento & Seleção = soma de Vaga.valor
  * (preenchido no fechamento, ver fecharVaga) dividido pela contagem de
  * vagas fechadas dessa categoria — substituiu Margem Estimada no Executive
