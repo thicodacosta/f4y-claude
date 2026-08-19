@@ -242,6 +242,25 @@ export async function atualizarVaga(input: AtualizarVagaFormInput) {
   revalidatePath(`/vagas/${vagaId}`);
 }
 
+/** Exclui a vaga inteira — VagaCandidato cascateia (onDelete: Cascade), mas
+ * ContratoAlocacao bloqueia (onDelete: Restrict): uma vaga de Alocação com
+ * contrato ativo não pode ser excluída, só encerrada via o contrato. */
+export async function excluirVaga(vagaId: string) {
+  const usuario = await requirePapel(PAPEIS_ATS);
+  await assertPodeAcessarVaga(usuario.papel, vagaId);
+
+  try {
+    await prisma.vaga.delete({ where: { id: vagaId } });
+  } catch (err) {
+    if (err && typeof err === "object" && "code" in err && err.code === "P2003") {
+      throw new Error("Não é possível excluir: esta vaga tem contrato de alocação vinculado.");
+    }
+    throw err;
+  }
+
+  revalidateAts();
+}
+
 /** Busca sob demanda (dialog de adicionar candidato, client-side) — mesma
  * leitura de modules/ats/queries.ts#getCandidatos, exposta como Server Action. */
 export async function buscarCandidatos(busca: string) {

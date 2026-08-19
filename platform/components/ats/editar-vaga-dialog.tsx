@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -33,7 +34,7 @@ import {
   senioridadeLabel,
   type AtualizarVagaFormInput,
 } from "@/modules/ats/schemas";
-import { atualizarVaga } from "@/modules/ats/actions";
+import { atualizarVaga, excluirVaga } from "@/modules/ats/actions";
 import type { VagaClient } from "@/modules/ats/serialize";
 import { GerarJdButton } from "@/components/ats/gerar-jd-button";
 
@@ -84,6 +85,8 @@ export function EditarVagaDialog({
     },
   });
 
+  const [excluindo, setExcluindo] = useState(false);
+
   async function onSubmit(values: AtualizarVagaFormInput) {
     try {
       await atualizarVaga(values);
@@ -91,6 +94,21 @@ export function EditarVagaDialog({
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Não foi possível atualizar a vaga.");
+    }
+  }
+
+  async function handleExcluir() {
+    if (!window.confirm(`Excluir a vaga "${vaga.cargo}" (${vaga.empresaNome})? Essa ação não pode ser desfeita.`)) {
+      return;
+    }
+    setExcluindo(true);
+    try {
+      await excluirVaga(vaga.id);
+      toast.success("Vaga excluída.");
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível excluir a vaga.");
+      setExcluindo(false);
     }
   }
 
@@ -358,14 +376,25 @@ export function EditarVagaDialog({
             />
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+          <DialogFooter className="sm:justify-between">
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleExcluir}
+              disabled={excluindo || isSubmitting}
+            >
+              {excluindo && <Loader2 className="animate-spin" />}
+              Excluir
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="animate-spin" />}
-              Salvar
-            </Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmitting || excluindo}>
+                {isSubmitting && <Loader2 className="animate-spin" />}
+                Salvar
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
