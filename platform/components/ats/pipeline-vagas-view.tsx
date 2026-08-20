@@ -1,17 +1,20 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VagaKanbanView } from "@/components/ats/vaga-kanban-view";
 import { NovaVagaDialog } from "@/components/ats/nova-vaga-dialog";
 import { FecharVagaDialog, type ContatoClient } from "@/components/ats/fechar-vaga-dialog";
 import { EditarVagaDialog } from "@/components/ats/editar-vaga-dialog";
 import { moverVaga } from "@/modules/ats/actions";
 import type { VagaClient, PipelineEtapaClient } from "@/modules/ats/serialize";
+
+const TODOS_OS_CLIENTES = "__todos__";
 
 export function PipelineVagasView({
   etapas,
@@ -39,7 +42,19 @@ export function PipelineVagasView({
   const [novaAberta, setNovaAberta] = useState(false);
   const [fecharAlvo, setFecharAlvo] = useState<{ vaga: VagaClient; novaEtapaId: string } | null>(null);
   const [editarAlvo, setEditarAlvo] = useState<VagaClient | null>(null);
+  const [clienteFiltro, setClienteFiltro] = useState("");
   const [, startTransition] = useTransition();
+
+  // Só clientes que têm vaga no pipeline agora — filtrar por um prospect sem
+  // vaga nenhuma não faz sentido aqui (diferente do Select de "Nova vaga",
+  // que precisa listar toda a base de empresas).
+  const clientesComVaga = useMemo(() => {
+    const porId = new Map<string, string>();
+    for (const v of items) porId.set(v.empresaId, v.empresaNome);
+    return [...porId.entries()].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
+  }, [items]);
+
+  const itemsFiltrados = clienteFiltro ? items.filter((v) => v.empresaId === clienteFiltro) : items;
 
   function handleMove(vagaId: string, novaEtapaId: string) {
     const anterior = items;
@@ -62,7 +77,27 @@ export function PipelineVagasView({
 
   return (
     <div className="flex flex-1 flex-col gap-3 overflow-hidden">
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Select
+          items={{
+            [TODOS_OS_CLIENTES]: "Todos os clientes",
+            ...Object.fromEntries(clientesComVaga.map(([id, nome]) => [id, nome])),
+          }}
+          value={clienteFiltro || TODOS_OS_CLIENTES}
+          onValueChange={(v) => setClienteFiltro(!v || v === TODOS_OS_CLIENTES ? "" : v)}
+        >
+          <SelectTrigger className="w-56">
+            <SelectValue placeholder="Cliente" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS_OS_CLIENTES}>Todos os clientes</SelectItem>
+            {clientesComVaga.map(([id, nome]) => (
+              <SelectItem key={id} value={id}>
+                {nome}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button onClick={() => setNovaAberta(true)}>
           <Plus />
           Nova vaga
@@ -71,7 +106,7 @@ export function PipelineVagasView({
 
       <VagaKanbanView
         etapas={etapas}
-        items={items}
+        items={itemsFiltrados}
         onCardClick={(v) => setEditarAlvo(v)}
         onMove={handleMove}
         onFechar={(vaga, novaEtapaId) => setFecharAlvo({ vaga, novaEtapaId })}
