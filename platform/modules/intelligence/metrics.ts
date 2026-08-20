@@ -200,20 +200,21 @@ export async function getConcentracaoReceita(topN = 5) {
   if (porEmpresa.length === 0) return null;
 
   const total = porEmpresa.reduce((acc, e) => acc + Number(e._sum.valor ?? 0), 0);
-  const top = porEmpresa.slice(0, topN);
+  const somaTop = porEmpresa.slice(0, topN).reduce((acc, e) => acc + Number(e._sum.valor ?? 0), 0);
   const empresas = await prisma.empresa.findMany({
-    where: { id: { in: top.map((e) => e.empresaId) } },
+    where: { id: { in: porEmpresa.map((e) => e.empresaId) } },
     select: { id: true, nome: true },
   });
   const nomePorId = new Map(empresas.map((e) => [e.id, e.nome]));
-  const somaTop = top.reduce((acc, e) => acc + Number(e._sum.valor ?? 0), 0);
 
   return {
     total,
     topN,
     somaTop,
     percentual: total > 0 ? (somaTop / total) * 100 : 0,
-    clientes: top.map((e) => ({ nome: nomePorId.get(e.empresaId) ?? "—", valor: Number(e._sum.valor ?? 0) })),
+    /** Todos os clientes, não só o topN — a UI mostra os top N por padrão e
+     * expande pro resto sob demanda (ver components/intelligence/bar-list-expansivel.tsx). */
+    clientes: porEmpresa.map((e) => ({ nome: nomePorId.get(e.empresaId) ?? "—", valor: Number(e._sum.valor ?? 0) })),
   };
 }
 
@@ -233,20 +234,21 @@ export async function getConcentracaoVagasFechadas(topN = 5) {
   if (porEmpresa.length === 0) return null;
 
   const total = porEmpresa.reduce((acc, e) => acc + e._count, 0);
-  const top = porEmpresa.slice(0, topN);
+  const somaTop = porEmpresa.slice(0, topN).reduce((acc, e) => acc + e._count, 0);
   const empresas = await prisma.empresa.findMany({
-    where: { id: { in: top.map((e) => e.empresaId) } },
+    where: { id: { in: porEmpresa.map((e) => e.empresaId) } },
     select: { id: true, nome: true },
   });
   const nomePorId = new Map(empresas.map((e) => [e.id, e.nome]));
-  const somaTop = top.reduce((acc, e) => acc + e._count, 0);
 
   return {
     total,
     topN,
     somaTop,
     percentual: total > 0 ? (somaTop / total) * 100 : 0,
-    clientes: top.map((e) => ({ nome: nomePorId.get(e.empresaId) ?? "—", quantidade: e._count })),
+    /** Todos os clientes, não só o topN — a UI mostra os top N por padrão e
+     * expande pro resto sob demanda (ver components/intelligence/bar-list-expansivel.tsx). */
+    clientes: porEmpresa.map((e) => ({ nome: nomePorId.get(e.empresaId) ?? "—", quantidade: e._count })),
   };
 }
 

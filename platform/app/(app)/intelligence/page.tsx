@@ -4,6 +4,7 @@ import { BarList } from "@/components/dashboard/bar-list";
 import { RevenueLineChart } from "@/components/dashboard/revenue-line-chart";
 import { ForecastView } from "@/components/intelligence/forecast-view";
 import { ToggleCard } from "@/components/intelligence/toggle-card";
+import { BarListExpansivel } from "@/components/intelligence/bar-list-expansivel";
 import {
   getReceitaConsolidada,
   getReceitaMensalConsolidada,
@@ -289,9 +290,12 @@ export default async function IntelligencePage() {
               <p className="text-sm text-muted-foreground">
                 Os {concentracao.topN} maiores clientes representam <strong className="text-foreground">{percent(concentracao.percentual)}</strong> da receita faturada.
               </p>
-              <BarList
-                items={concentracao.clientes.map((c, i) => ({ id: `${i}-${c.nome}`, label: c.nome, value: c.valor }))}
-                formatValue={(v) => currency.format(v)}
+              <BarListExpansivel
+                itemsTop={concentracao.clientes
+                  .slice(0, concentracao.topN)
+                  .map((c, i) => ({ id: `${i}-${c.nome}`, label: c.nome, value: c.valor }))}
+                itemsTodos={concentracao.clientes.map((c, i) => ({ id: `${i}-${c.nome}`, label: c.nome, value: c.valor }))}
+                format="moeda"
               />
             </>
           )}
@@ -315,9 +319,12 @@ export default async function IntelligencePage() {
                 Os {concentracaoVagas.topN} maiores clientes representam{" "}
                 <strong className="text-foreground">{percent(concentracaoVagas.percentual)}</strong> das vagas fechadas.
               </p>
-              <BarList
-                items={concentracaoVagas.clientes.map((c, i) => ({ id: `${i}-${c.nome}`, label: c.nome, value: c.quantidade }))}
-                formatValue={(v) => `${v} vaga${v === 1 ? "" : "s"}`}
+              <BarListExpansivel
+                itemsTop={concentracaoVagas.clientes
+                  .slice(0, concentracaoVagas.topN)
+                  .map((c, i) => ({ id: `${i}-${c.nome}`, label: c.nome, value: c.quantidade }))}
+                itemsTodos={concentracaoVagas.clientes.map((c, i) => ({ id: `${i}-${c.nome}`, label: c.nome, value: c.quantidade }))}
+                format="vaga"
               />
             </>
           )}
