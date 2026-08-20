@@ -9,7 +9,7 @@ import {
   getReceitaMensalConsolidada,
   calcularCrescimentoMoM,
   getPipelineConsolidado,
-  getPipelineTotalPorCategoria,
+  getPipelinePonderadoPorCategoria,
   getTotalVagasPorCategoria,
   getValorVagasPerdidasPorCategoria,
   getMediaPorVagaRecrutamento,
@@ -39,7 +39,7 @@ export default async function IntelligencePage() {
     receita,
     receitaMensal,
     pipeline,
-    pipelinePorCategoria,
+    pipelinePonderadoPorCategoria,
     vagasPorCategoria,
     valorVagasPerdidasPorCategoria,
     mediaPorVaga,
@@ -57,7 +57,7 @@ export default async function IntelligencePage() {
     getReceitaConsolidada(),
     getReceitaMensalConsolidada(6),
     getPipelineConsolidado(),
-    getPipelineTotalPorCategoria(),
+    getPipelinePonderadoPorCategoria(),
     getTotalVagasPorCategoria(),
     getValorVagasPerdidasPorCategoria(),
     getMediaPorVagaRecrutamento(),
@@ -72,22 +72,7 @@ export default async function IntelligencePage() {
     Promise.all(categoriaMetaValues.map((categoria) => getGapToGoal(categoria))),
     getMetaAnoEMes(),
   ]);
-  const PONDERADO_PERCENT = 0.2;
   const gapsValidos = gapsForecast.filter((g): g is NonNullable<typeof g> => g != null);
-
-  // Pipeline ponderado — Total é sempre 20% do pipeline total da empresa
-  // (inclui Executive Search). O toggle R&S/Alocação não tem opção de
-  // Executive Search, então em vez de mostrar 20% do pipeline de cada
-  // unidade isoladamente (o que nunca soma o Total, já que sobra a fatia de
-  // Executive Search), distribui os mesmos 20% do total proporcionalmente
-  // ao volume de pipeline aberto de cada unidade — a soma das duas sempre
-  // bate com o card Total.
-  const pipelineTotalPonderado = pipeline.pipelineTotal * PONDERADO_PERCENT;
-  const baseRSAlocacao = pipelinePorCategoria.recrutamento + pipelinePorCategoria.alocacao;
-  const pipelinePonderadoPorCategoria = {
-    recrutamento: baseRSAlocacao > 0 ? pipelineTotalPonderado * (pipelinePorCategoria.recrutamento / baseRSAlocacao) : 0,
-    alocacao: baseRSAlocacao > 0 ? pipelineTotalPonderado * (pipelinePorCategoria.alocacao / baseRSAlocacao) : 0,
-  };
 
   const crescimentoMoM = calcularCrescimentoMoM(receitaMensal);
   const alertaCritico = alertas.find((a) => a.severidade === "critico") ?? null;
@@ -173,7 +158,7 @@ export default async function IntelligencePage() {
         />
         <KpiCard
           label="Pipeline ponderado — Total"
-          value={currency.format(pipelineTotalPonderado)}
+          value={currency.format(pipelinePonderadoPorCategoria.total)}
           hint="20% do pipeline total (todas as verticais)"
           icon={Target}
         />

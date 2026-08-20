@@ -182,13 +182,18 @@ export async function getCapacidadeAlocacao() {
   };
 }
 
-/** Concentração de receita — top N clientes por Faturamento.valor. Base
- * direta da regra 21 do pedido (dependência excessiva de cliente). */
+/** Concentração de receita — top N clientes por Vaga.valor nas etapas de
+ * Ganho (mesma fonte de getReceitaConsolidada) — sem isso, vaga removida do
+ * Pipeline de Vagas mas ainda com lançamento solto em Faturamento (ex.:
+ * histórico sem card) inflava o cliente aqui mesmo sumindo do resto da
+ * página. Base direta da regra 21 do pedido (dependência excessiva de
+ * cliente). */
 export async function getConcentracaoReceita(topN = 5) {
   await requirePapel(PAPEIS_GESTAO);
 
-  const porEmpresa = await prisma.faturamento.groupBy({
+  const porEmpresa = await prisma.vaga.groupBy({
     by: ["empresaId"],
+    where: { etapa: { isGanho: true } },
     _sum: { valor: true },
     orderBy: { _sum: { valor: "desc" } },
   });
@@ -398,6 +403,31 @@ export async function getPipelineTotalPorCategoria() {
   }
 
   return totais;
+}
+
+const PONDERADO_PERCENT = 0.2;
+
+/** Pipeline ponderado — 20% do pipeline total (Comercial + Vagas), distribuído
+ * entre Recrutamento & Seleção e Alocação proporcionalmente ao volume de
+ * pipeline aberto de cada unidade (Executive Search não tem card dedicado,
+ * mas conta no total). Única fonte pros cards de Pipeline ponderado em
+ * /intelligence E pro "Forecast do mês" do Gap-to-Goal — evita ter dois
+ * números de "pipeline ponderado" diferentes pra R&S/Alocação na mesma
+ * página (ver pedido de alinhamento com Gap-to-Goal). */
+export async function getPipelinePonderadoPorCategoria() {
+  const [pipeline, pipelinePorCategoria] = await Promise.all([
+    getPipelineConsolidado(),
+    getPipelineTotalPorCategoria(),
+  ]);
+
+  const total = pipeline.pipelineTotal * PONDERADO_PERCENT;
+  const baseRSAlocacao = pipelinePorCategoria.recrutamento + pipelinePorCategoria.alocacao;
+
+  return {
+    total,
+    recrutamento: baseRSAlocacao > 0 ? total * (pipelinePorCategoria.recrutamento / baseRSAlocacao) : 0,
+    alocacao: baseRSAlocacao > 0 ? total * (pipelinePorCategoria.alocacao / baseRSAlocacao) : 0,
+  };
 }
 
 /** Total de vagas por categoria de negócio (todos os status) — base do
