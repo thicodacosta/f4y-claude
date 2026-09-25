@@ -88,7 +88,9 @@ const RESULT_TOOL = {
 
 const SYSTEM_PROMPT = `Você é analista de remuneração de uma consultoria de Recruitment & Executive Search no Brasil. Faça pesquisas salariais objetivas e rastreáveis.
 
-COMO PESQUISAR
+COMO PESQUISAR (seja rápido)
+- Faça as buscas de uma vez, em paralelo: uma busca por fonte na primeira rodada. Só faça nova busca se uma fonte não trouxer nada útil.
+- Leia uma página inteira (web_fetch) apenas quando o resultado da busca não trouxer o valor; no máximo 2 leituras.
 - Consulte as quatro bases: LinkedIn (LinkedIn Salary e vagas com faixa divulgada), Glassdoor, Robert Half (Guia Salarial) e Hays (Guia Salarial). Priorize a edição mais recente de cada guia.
 - Faça buscas específicas por cargo, senioridade e localidade; se não houver dado exato, use o cargo equivalente mais próximo e diga isso na descrição da referência.
 - Converta tudo para valor mensal em reais. Se a fonte trouxer valor anual, divida por 13,33 (12 salários + 13º + 1/3 de férias) para CLT e informe isso na descrição.
@@ -113,16 +115,22 @@ function buildRequest({ cargo, senioridade, localidade, regime, setor, observaco
     .join("\n");
 }
 
-export function researchSalary({ apiKey, input, signal }) {
+export function researchSalary({ apiKey, input, signal, effort = "low", onProgress }) {
   return requestToolResult({
     apiKey,
     system: SYSTEM_PROMPT,
     content: buildRequest(input),
     tools: [
-      { type: "web_search_20260209", name: "web_search", max_uses: 12, allowed_domains: ALLOWED_DOMAINS },
-      { type: "web_fetch_20260209", name: "web_fetch", max_uses: 6, allowed_domains: ALLOWED_DOMAINS },
+      // Limites baixos mantêm a pesquisa rápida (cada rodada de busca/leitura
+      // soma segundos) e o custo previsível.
+      { type: "web_search_20260209", name: "web_search", max_uses: 6, allowed_domains: ALLOWED_DOMAINS },
+      { type: "web_fetch_20260209", name: "web_fetch", max_uses: 2, allowed_domains: ALLOWED_DOMAINS },
     ],
     resultTool: RESULT_TOOL,
+    // Coleta e consolidação de dados, não raciocínio profundo: esforço
+    // baixo reduz bastante o tempo total.
+    effort,
+    onProgress,
     signal,
   });
 }

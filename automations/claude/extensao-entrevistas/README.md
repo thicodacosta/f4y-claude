@@ -74,7 +74,7 @@ obrigatórios pesam 2, desejáveis 1). Assim a nota é transparente e
 reproduzível. As regras de equidade proíbem considerar nome, idade, gênero e
 outras características pessoais. O resultado traz ranking, matriz
 requisito × candidato, pontos fortes, lacunas e perguntas sugeridas para
-a entrevista, e pode ser copiado ou baixado em Markdown. Leva de 30 a 90s.
+a entrevista, e pode ser copiado ou baixado em Markdown. Esforço baixo e respostas enxutas: cerca de 30s para 2 CVs.
 
 ## Pesquisa salarial (aba "Salários")
 
@@ -83,7 +83,7 @@ domínios** do LinkedIn, Glassdoor, Robert Half e Hays
 (`src/salary/research.js`). Devolve referências por fonte (com link),
 faixa CLT consolidada, estimativa PJ, fatores de variação e as fontes em
 que não achou dado público. Os guias da Hays, por exemplo, exigem
-cadastro. Nenhum número é aceito sem fonte. Leva de 1 a 4 minutos.
+cadastro. Nenhum número é aceito sem fonte. Esforço baixo, até 6 buscas e 2 leituras de página, com as buscas das fontes em paralelo. O painel mostra o que está sendo pesquisado.
 
 Requer a busca na web habilitada na organização da Anthropic (Console →
 Settings → Privacy). Cada pesquisa usa até 12 buscas e 6 leituras de
@@ -129,25 +129,40 @@ sem acento e tolerante a plural e gênero, e filtro por categoria.
 | `src/offscreen.js` | Motor da gravação: captura, transcrição e geração do registro |
 | `src/sidepanel.js`, `src/render.js` | Painel lateral, exibição e exportação do registro |
 | `src/options.js`, `src/permission.js` | Configurações (chaves) e aba de permissão do microfone |
-| `extension/background.js` | Coordena painel e offscreen; guarda o estado em `chrome.storage.session` |
+| `src/background.js` | Coordena painel e offscreen; guarda o estado em `chrome.storage.session` |
+| `src/keys.js` | Chaves efetivas: as do navegador ou as embutidas pelo build |
 | `extension/` | Pasta carregada no Chrome (manifest, HTML, CSS, ícones, `dist/` gerado) |
 
 ## Instalação
 
 ```bash
+cp .env.example .env.local   # preencha as chaves (opcional, ver abaixo)
 npm install
 npm run build
 ```
 
 1. Abra `chrome://extensions` e ative o **Modo do desenvolvedor**.
 2. Clique em **Carregar sem compactação** e selecione a pasta `extension/`.
-3. Na tela de configurações, que abre sozinha, cole as chaves:
-   - **Anthropic** (console.anthropic.com → API Keys): gera o registro.
-   - **Groq** (console.groq.com → API Keys): transcreve a gravação. Não é
-     necessária para colar transcrição.
-4. Abra a reunião e clique no ícone da extensão **com a aba da reunião
+3. Abra a reunião e clique no ícone da extensão **com a aba da reunião
    ativa**: o Chrome só libera o áudio da aba em que a extensão foi aberta.
-5. Na primeira gravação, uma aba pede a permissão do microfone.
+4. Na primeira gravação, uma aba pede a permissão do microfone.
+
+### Chaves embutidas ou por usuário
+
+- **Com `.env.local` preenchido** (ANTHROPIC_API_KEY e GROQ_API_KEY), o build
+  embute as chaves no pacote. A equipe só instala e usa; em Configurações
+  aparece "já vêm configuradas" e o formulário fica recolhido (quem cadastrar
+  uma chave própria passa a usá-la no lugar da embutida).
+- **Sem `.env.local`**, cada usuário informa as chaves em Configurações.
+
+`.env.local` e `extension/dist/` não vão para o git. Qualquer pessoa com o
+pacote gerado consegue extrair as chaves embutidas: distribua só para a
+equipe, use chaves dedicadas com limite de gasto e troque a chave se o
+pacote vazar. Para eliminar esse risco, o caminho é um servidor
+intermediário que guarde as chaves.
+
+Para distribuir, gere o `.zip` da pasta `extension/` (sem os `.map`) depois
+do build.
 
 Após alterar algo em `src/`, rode `npm run build` (ou `npm run watch`) e
 clique em recarregar no card da extensão em `chrome://extensions`.

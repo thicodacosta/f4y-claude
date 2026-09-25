@@ -1,4 +1,14 @@
+import { hasEmbeddedKeys } from "./keys.js";
+
 const $ = (id) => document.getElementById(id);
+
+// Pacote com chaves embutidas: a equipe não precisa cadastrar nada; o
+// formulário fica recolhido, só para quem quiser usar outras chaves.
+if (hasEmbeddedKeys) {
+  $("keys-managed").hidden = false;
+  $("keys-summary").hidden = false;
+  $("keys-details").open = false;
+}
 
 // Campo do formulário → chave em chrome.storage.local, com o prefixo esperado.
 const KEYS = [

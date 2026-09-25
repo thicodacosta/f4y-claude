@@ -4,6 +4,7 @@ import { initCvArea } from "./cv/panel.js";
 import { initPromptsArea } from "./prompts/panel.js";
 import { initSalaryArea } from "./salary/panel.js";
 import { initTurnoverArea } from "./turnover/panel.js";
+import { loadKeys as resolveKeys } from "./keys.js";
 import { renderAnalysis, toMarkdown } from "./render.js";
 
 const FIELDS = ["candidato", "vagaTitulo", "vagaRequisitos", "transcricao"];
@@ -105,7 +106,7 @@ function updateBanner() {
 }
 
 async function loadKeys() {
-  keys = await chrome.storage.local.get(["apiKey", "groqKey"]);
+  keys = await resolveKeys();
   updateBanner();
   cvArea?.refresh();
 }

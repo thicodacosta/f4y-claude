@@ -1264,3 +1264,27 @@ input[type="search"] {
 .prompt-item__actions .btn {
   width: auto;
 }
+
+.calc__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.calc__header h2 {
+  margin: 0;
+}
+
+#keys-details summary {
+  cursor: pointer;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary-ink);
+}
+
+.keys-intro {
+  margin: 0 0 12px;
+}

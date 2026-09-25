@@ -8,6 +8,8 @@
  * analyzing → (registro salvo em `result`) | error.
  */
 
+import { hasEmbeddedKeys, loadKeys } from "./keys.js";
+
 const OFFSCREEN_URL = "offscreen.html";
 
 // Abrir o painel a partir do clique no ícone amarra a invocação àquela
@@ -18,6 +20,8 @@ chrome.action.onClicked.addListener((tab) => {
 
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   if (reason !== "install") return;
+  // Com chaves embutidas no pacote, não há nada a configurar na instalação.
+  if (hasEmbeddedKeys) return;
   const { apiKey } = await chrome.storage.local.get("apiKey");
   if (!apiKey) chrome.runtime.openOptionsPage();
 });
@@ -61,7 +65,7 @@ async function start({ tabId, meta }) {
   const { capture } = await chrome.storage.session.get("capture");
   if (capture && capture.phase !== "error") throw new Error("Já existe uma gravação em andamento.");
 
-  const { apiKey, groqKey } = await chrome.storage.local.get(["apiKey", "groqKey"]);
+  const { apiKey, groqKey } = await loadKeys();
   if (!apiKey || !groqKey) {
     throw new Error("Cadastre as chaves da Anthropic e da Groq em Configurações antes de gravar.");
   }

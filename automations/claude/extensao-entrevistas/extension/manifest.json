@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Find4You · Ferramentas de RH",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Entrevistas gravadas e transcritas, currículos padronizados com a sua marca, comparativo de candidatos, pesquisa salarial, calculadora de turnover e prompts para RH.",
   "icons": {
     "16": "icons/icon-16.png",
@@ -21,7 +21,8 @@
   },
   "options_page": "options.html",
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "dist/background.js",
+    "type": "module"
   },
   "permissions": [
     "storage",

@@ -122,6 +122,23 @@ function toText(r) {
   return lines.join("\n");
 }
 
+const SOURCE_BY_DOMAIN = [
+  [/glassdoor/i, "Glassdoor"],
+  [/roberthalf/i, "Robert Half"],
+  [/hays/i, "Hays"],
+  [/linkedin/i, "LinkedIn"],
+];
+
+/** Mostra o passo atual da pesquisa: busca feita ou página lida. */
+function showProgress({ tool, input }) {
+  const text = input?.query ?? input?.url ?? "";
+  const source = SOURCE_BY_DOMAIN.find(([pattern]) => pattern.test(text))?.[1];
+  $("sal-progress").textContent =
+    tool === "web_fetch"
+      ? `Lendo página${source ? ` do ${source}` : ""}…`
+      : `Buscando${source ? ` no ${source}` : ""}: “${text.replace(/site:\S+/g, "").trim()}”`;
+}
+
 async function submit(event) {
   event.preventDefault();
   showError("sal-error", null);
@@ -134,10 +151,11 @@ async function submit(event) {
   }
 
   abort = new AbortController();
+  $("sal-progress").textContent = "Iniciando a busca.";
   show("loading");
   const stop = startElapsed("sal-elapsed");
   try {
-    result = await researchSalary({ apiKey, input, signal: abort.signal });
+    result = await researchSalary({ apiKey, input, signal: abort.signal, onProgress: showProgress });
     await chrome.storage.session.set({ salarios: result });
     renderResult(result);
     show("result");

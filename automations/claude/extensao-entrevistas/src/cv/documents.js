@@ -119,7 +119,7 @@ export async function buildCvPdf(cv, branding) {
     header: () => ({
       margin: [48, 28, 48, 0],
       stack: [
-        { columns: [logo, { text: "CURRÍCULO", style: "headerLabel", width: "auto", margin: [0, 14, 0, 0] }] },
+        logo,
         { canvas: [{ type: "line", x1: 0, y1: 10, x2: 499, y2: 10, lineWidth: 1.5, lineColor: accent }] },
       ],
     }),
@@ -141,7 +141,6 @@ export async function buildCvPdf(cv, branding) {
       itemSubtitle: { fontSize: 9.5, margin: [0, 1, 0, 0] },
       period: { fontSize: 9, color: MUTED },
       body: { fontSize: 9.5 },
-      headerLabel: { fontSize: 8, color: MUTED, characterSpacing: 1.5 },
       footer: { fontSize: 7.5, color: MUTED },
     },
   };
@@ -226,7 +225,6 @@ export async function buildCvDocx(cv, branding) {
       }),
     );
   }
-  headerChildren.push(run("\tCURRÍCULO", { size: 16, color: muted, characterSpacing: 30 }));
 
   const doc = new Document({
     creator: branding.empresa || "Registro de Entrevistas",
@@ -244,7 +242,6 @@ export async function buildCvDocx(cv, branding) {
           default: new Header({
             children: [
               new Paragraph({
-                tabStops: rightTab,
                 border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: accent, space: 6 } },
                 children: headerChildren,
               }),

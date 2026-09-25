@@ -64,7 +64,7 @@ const MAX_CONTINUATIONS = 5;
  * Saída estruturada (`output_config.format`) não combina com as citações da
  * busca web, por isso o resultado chega como argumento de uma ferramenta.
  */
-export async function requestToolResult({ apiKey, system, content, tools, resultTool, effort = "high", signal }) {
+export async function requestToolResult({ apiKey, system, content, tools, resultTool, effort = "high", onProgress, signal }) {
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
   const messages = [{ role: "user", content }];
   const allTools = [...tools, { ...resultTool, strict: true, eager_input_streaming: true }];
@@ -86,6 +86,12 @@ export async function requestToolResult({ apiKey, system, content, tools, result
         },
         { signal },
       );
+      // Avisa o que está sendo pesquisado, para a espera não parecer travada.
+      if (onProgress) {
+        stream.on("contentBlock", (block) => {
+          if (block.type === "server_tool_use") onProgress({ tool: block.name, input: block.input });
+        });
+      }
       message = await stream.finalMessage();
     } catch (error) {
       throw toClaudeError(error);
@@ -112,6 +118,12 @@ export async function requestToolResult({ apiKey, system, content, tools, result
 }
 
 function toClaudeError(error) {
+  // Erros que chegam no meio do streaming vêm sem status HTTP; o tipo e a
+  // mensagem ficam no corpo do erro.
+  const apiMessage = error?.error?.error?.message ?? "";
+  if (/credit balance/i.test(apiMessage)) {
+    return new ClaudeError("Os créditos da API da Anthropic acabaram. Recarregue em console.anthropic.com → Plans & Billing.");
+  }
   if (error instanceof Anthropic.APIUserAbortError) {
     return new ClaudeError("Operação cancelada.");
   }

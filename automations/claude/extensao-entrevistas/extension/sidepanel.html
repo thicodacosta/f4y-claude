@@ -229,7 +229,7 @@
         <div id="cmp-loading" class="loading" hidden aria-live="polite">
           <div class="spinner" aria-hidden="true"></div>
           <p class="loading__title">Analisando os currículos…</p>
-          <p class="hint">Costuma levar de 30 a 90 segundos. <span id="cmp-elapsed"></span></p>
+          <p class="hint">Costuma levar de 20 a 60 segundos. <span id="cmp-elapsed"></span></p>
           <button type="button" id="cmp-cancel" class="btn btn--ghost">Cancelar</button>
         </div>
 
@@ -299,7 +299,8 @@
         <div id="sal-loading" class="loading" hidden aria-live="polite">
           <div class="spinner" aria-hidden="true"></div>
           <p class="loading__title">Pesquisando nas fontes…</p>
-          <p class="hint">A busca na web costuma levar de 1 a 4 minutos. <span id="sal-elapsed"></span></p>
+          <p id="sal-progress" class="hint" aria-live="polite">Iniciando a busca.</p>
+          <p class="hint">Costuma levar de 30 segundos a 2 minutos. <span id="sal-elapsed"></span></p>
           <button type="button" id="sal-cancel" class="btn btn--ghost">Cancelar</button>
         </div>
 
@@ -321,7 +322,10 @@
         <p class="lead">Cálculo simplificado para CLT e PJ. Os valores se atualizam enquanto você digita.</p>
 
         <section class="card calc" aria-labelledby="tov-rate-title">
-          <h2 id="tov-rate-title">Taxa de turnover do período</h2>
+          <div class="calc__header">
+            <h2 id="tov-rate-title">Taxa de turnover do período</h2>
+            <button type="button" id="tov-rate-clear" class="btn-link">Limpar</button>
+          </div>
           <div class="field-grid">
             <div class="field"><label for="tov-hc-ini">Headcount no início</label><input id="tov-hc-ini" type="number" min="0" inputmode="numeric" /></div>
             <div class="field"><label for="tov-hc-fim">Headcount no fim</label><input id="tov-hc-fim" type="number" min="0" inputmode="numeric" /></div>
@@ -332,7 +336,10 @@
         </section>
 
         <section class="card calc" aria-labelledby="tov-cost-title">
-          <h2 id="tov-cost-title">Custo de um desligamento</h2>
+          <div class="calc__header">
+            <h2 id="tov-cost-title">Custo de um desligamento</h2>
+            <button type="button" id="tov-cost-clear" class="btn-link">Limpar</button>
+          </div>
           <fieldset class="segmented">
             <legend class="visually-hidden">Regime</legend>
             <label class="segmented__option"><input type="radio" name="tov-regime" value="clt" checked /><span>CLT</span></label>

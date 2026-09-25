@@ -171,7 +171,39 @@ function calculate() {
   summary = lines.join("\n");
 }
 
+const RATE_FIELDS = ["tov-hc-ini", "tov-hc-fim", "tov-adm", "tov-desl"];
+// Valores iniciais dos campos de custo ao limpar.
+const COST_DEFAULTS = {
+  "tov-salario": "",
+  "tov-admissao": "",
+  "tov-valor-pj": "",
+  "tov-aviso-pj": "30",
+  "tov-multa-pj": "0",
+  "tov-recrut": "0",
+  "tov-trein": "0",
+  "tov-vaga": "30",
+  "tov-rampa": "3",
+};
+
+function clearRate() {
+  for (const id of RATE_FIELDS) $(id).value = "";
+  $("tov-copy-status").textContent = "";
+  calculate();
+  $("tov-hc-ini").focus();
+}
+
+function clearCost() {
+  for (const [id, value] of Object.entries(COST_DEFAULTS)) $(id).value = value;
+  $("tov-deslig").value = new Date().toISOString().slice(0, 10);
+  $("tov-aviso-indenizado").checked = true;
+  $("tov-copy-status").textContent = "";
+  calculate();
+  (regime() === "clt" ? $("tov-salario") : $("tov-valor-pj")).focus();
+}
+
 export function initTurnoverArea() {
+  $("tov-rate-clear").addEventListener("click", clearRate);
+  $("tov-cost-clear").addEventListener("click", clearCost);
   for (const id of FIELDS) $(id).addEventListener("input", calculate);
   $("tov-aviso-indenizado").addEventListener("change", calculate);
   for (const radio of document.querySelectorAll('input[name="tov-regime"]')) radio.addEventListener("change", calculate);
