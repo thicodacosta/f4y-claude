@@ -3,7 +3,12 @@
 import * as esbuild from "esbuild";
 
 const options = {
-  entryPoints: { sidepanel: "src/sidepanel.js", options: "src/options.js" },
+  entryPoints: {
+    sidepanel: "src/sidepanel.js",
+    options: "src/options.js",
+    offscreen: "src/offscreen.js",
+    permission: "src/permission.js",
+  },
   outdir: "extension/dist",
   bundle: true,
   format: "esm",

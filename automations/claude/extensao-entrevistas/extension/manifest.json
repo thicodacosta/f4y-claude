@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Find4You · Registro de Entrevistas",
-  "version": "1.0.0",
-  "description": "Estrutura o registro de entrevistas transcritas como apoio à documentação do recrutador. Não avalia, não pontua, não decide.",
+  "version": "1.1.0",
+  "description": "Grava e transcreve a entrevista no Meet, Teams ou Zoom e estrutura o registro para o dossiê. Não avalia, não pontua, não decide.",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",
@@ -23,6 +23,15 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["storage", "sidePanel"],
-  "host_permissions": ["https://api.anthropic.com/*"]
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "tabCapture",
+    "offscreen",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://api.anthropic.com/*",
+    "https://api.groq.com/*"
+  ]
 }

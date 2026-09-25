@@ -4,34 +4,106 @@ import { renderAnalysis, toMarkdown } from "./render.js";
 const FIELDS = ["candidato", "vagaTitulo", "vagaRequisitos", "transcricao"];
 // Abaixo disso não há conversa suficiente para um registro útil.
 const MIN_TRANSCRIPT_CHARS = 200;
+// Depois disso sem nenhuma fala captada numa trilha, vale avisar.
+const SILENCE_WARNING_MS = 60_000;
+
+const CONSENT_TEXT = {
+  gravar: "Informei o candidato e ele autorizou a gravação e a transcrição desta entrevista.",
+  colar: "Confirmo que o candidato foi informado e autorizou o registro desta entrevista.",
+};
+const SUBMIT_TEXT = { gravar: "Iniciar gravação", colar: "Gerar registro" };
 
 const $ = (id) => document.getElementById(id);
-const views = { form: $("view-form"), loading: $("view-loading"), result: $("view-result") };
+const views = {
+  form: $("view-form"),
+  recording: $("view-recording"),
+  loading: $("view-loading"),
+  result: $("view-result"),
+};
 
-let apiKey = null;
-let current = null; // { data, meta } do último registro exibido
-let abortController = null;
+let keys = {};
+let current = null; // registro exibido: { data, meta, transcricao }
+let capture = null; // estado da gravação (espelho de storage.session.capture)
+let pasteAbort = null; // análise de transcrição colada em andamento
+let tickTimer = null;
 
 function showView(name) {
   for (const [key, node] of Object.entries(views)) node.hidden = key !== name;
   window.scrollTo(0, 0);
 }
 
+function mode() {
+  return document.querySelector('input[name="modo"]:checked').value;
+}
+
 function readForm() {
   return Object.fromEntries(FIELDS.map((f) => [f, $(f).value]));
 }
 
-function showFormError(message) {
-  const node = $("form-error");
-  node.textContent = message ?? "";
-  node.hidden = !message;
+function showError(id, message) {
+  $(id).textContent = message ?? "";
+  $(id).hidden = !message;
 }
 
-function updateCharCount() {
-  $("char-count").textContent = $("transcricao").value.length.toLocaleString("pt-BR");
+const showFormError = (message) => showError("form-error", message);
+
+function formatDuration(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
+  const s = String(total % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${m}:${s}` : `${m}:${s}`;
 }
 
-// ---- Persistência -------------------------------------------------------
+function toBackground(message) {
+  return chrome.runtime.sendMessage({ target: "background", ...message });
+}
+
+// ---- Modo e configuração -------------------------------------------------
+
+function applyMode() {
+  const m = mode();
+  $("paste-fields").hidden = m !== "colar";
+  $("record-help").hidden = m !== "gravar";
+  $("consent-text").textContent = CONSENT_TEXT[m];
+  $("submit-btn").textContent = SUBMIT_TEXT[m];
+  updateBanner();
+}
+
+function setMode(m) {
+  document.querySelector(`input[name="modo"][value="${m}"]`).checked = true;
+  applyMode();
+}
+
+for (const radio of document.querySelectorAll('input[name="modo"]')) {
+  radio.addEventListener("change", () => {
+    applyMode();
+    showFormError(null);
+    chrome.storage.session.set({ modo: mode() });
+  });
+}
+
+function updateBanner() {
+  const missing = [];
+  if (!keys.apiKey) missing.push("Anthropic");
+  if (mode() === "gravar" && !keys.groqKey) missing.push("Groq");
+  const banner = $("setup-banner");
+  banner.hidden = missing.length === 0;
+  if (missing.length) {
+    banner.replaceChildren(
+      `Para começar, cadastre a chave da ${missing.join(" e da ")} em `,
+      Object.assign(document.createElement("a"), { href: "options.html", target: "_blank", textContent: "Configurações" }),
+      ".",
+    );
+  }
+}
+
+async function loadKeys() {
+  keys = await chrome.storage.local.get(["apiKey", "groqKey"]);
+  updateBanner();
+}
+
+// ---- Rascunho --------------------------------------------------------------
 // Transcrições têm dados pessoais: rascunho e resultado ficam em
 // storage.session (memória), que o Chrome apaga ao ser fechado.
 
@@ -41,23 +113,14 @@ function saveDraftSoon() {
   draftTimer = setTimeout(() => chrome.storage.session.set({ draft: readForm() }), 300);
 }
 
-async function restore() {
-  const { draft, result } = await chrome.storage.session.get(["draft", "result"]);
-  for (const f of FIELDS) $(f).value = draft?.[f] ?? "";
-  updateCharCount();
-  if (result) showResult(result);
+function updateCharCount() {
+  $("char-count").textContent = $("transcricao").value.length.toLocaleString("pt-BR");
 }
 
-async function loadApiKey() {
-  ({ apiKey } = await chrome.storage.local.get("apiKey"));
-  $("setup-banner").hidden = Boolean(apiKey);
-}
+for (const f of FIELDS) $(f).addEventListener("input", saveDraftSoon);
+$("transcricao").addEventListener("input", updateCharCount);
 
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && "apiKey" in changes) loadApiKey();
-});
-
-// ---- Importação de arquivo ---------------------------------------------
+// ---- Importação de arquivo -----------------------------------------------
 
 /** Remove cabeçalho, numeração e marcações de tempo de legendas .vtt/.srt. */
 function cleanSubtitles(text) {
@@ -83,60 +146,214 @@ $("import-file").addEventListener("change", async (event) => {
   showFormError(null);
 });
 
-// ---- Análise -------------------------------------------------------------
-
-for (const f of FIELDS) $(f).addEventListener("input", saveDraftSoon);
-$("transcricao").addEventListener("input", updateCharCount);
+// ---- Envio do formulário -------------------------------------------------
 
 $("form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const input = readForm();
+  const m = mode();
 
-  if (!apiKey) return showFormError("Cadastre sua chave de API em Configurações antes de gerar o registro.");
-  if (input.transcricao.trim().length < MIN_TRANSCRIPT_CHARS) {
+  if (!keys.apiKey || (m === "gravar" && !keys.groqKey)) {
+    return showFormError("Cadastre as chaves de API em Configurações antes de continuar.");
+  }
+  if (m === "colar" && input.transcricao.trim().length < MIN_TRANSCRIPT_CHARS) {
     $("transcricao").focus();
     return showFormError("A transcrição está vazia ou curta demais para gerar um registro.");
   }
   if (!$("consent").checked) {
     $("consent").focus();
-    return showFormError("Confirme que o candidato autorizou o registro da entrevista.");
+    return showFormError(
+      m === "gravar"
+        ? "Confirme que o candidato autorizou a gravação antes de iniciar."
+        : "Confirme que o candidato autorizou o registro da entrevista.",
+    );
   }
   showFormError(null);
 
-  abortController = new AbortController();
+  if (m === "gravar") await startRecording(input);
+  else await analyzePasted(input);
+});
+
+async function startRecording(input) {
+  // O aviso de permissão do microfone só aparece de forma confiável numa aba
+  // comum. Se o usuário já negou, a gravação segue só com o áudio da reunião.
+  const permission = await navigator.permissions.query({ name: "microphone" }).catch(() => null);
+  if (permission?.state === "prompt") {
+    await chrome.tabs.create({ url: chrome.runtime.getURL("permission.html") });
+    return showFormError("Libere o microfone na aba que abriu e depois clique em “Iniciar gravação” de novo.");
+  }
+
+  const submit = $("submit-btn");
+  submit.disabled = true;
+  submit.textContent = "Iniciando…";
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const meta = { candidato: input.candidato, vagaTitulo: input.vagaTitulo, vagaRequisitos: input.vagaRequisitos };
+    const response = await toBackground({ type: "START", tabId: tab?.id, meta });
+    if (!response?.ok) showFormError(response?.error ?? "Não foi possível iniciar a gravação.");
+  } finally {
+    submit.disabled = false;
+    submit.textContent = SUBMIT_TEXT[mode()];
+  }
+}
+
+async function analyzePasted(input) {
+  pasteAbort = new AbortController();
   const startedAt = Date.now();
-  $("elapsed").textContent = "0s";
+  showLoading("Estruturando o registro…", "Costuma levar entre 20 e 60 segundos.");
   const timer = setInterval(() => {
     $("elapsed").textContent = `${Math.round((Date.now() - startedAt) / 1000)}s`;
   }, 1000);
-  showView("loading");
-  $("cancel-btn").focus();
 
   try {
-    const data = await analyzeInterview({ apiKey, input, signal: abortController.signal });
-    const result = {
-      data,
-      meta: {
-        candidato: input.candidato.trim(),
-        vagaTitulo: input.vagaTitulo.trim(),
-        data: new Date().toLocaleDateString("pt-BR"),
+    const data = await analyzeInterview({ apiKey: keys.apiKey, input, signal: pasteAbort.signal });
+    await chrome.storage.session.set({
+      result: {
+        data,
+        transcricao: input.transcricao.trim(),
+        meta: {
+          candidato: input.candidato.trim(),
+          vagaTitulo: input.vagaTitulo.trim(),
+          data: new Date().toLocaleDateString("pt-BR"),
+        },
       },
-    };
-    await chrome.storage.session.set({ result });
-    showResult(result);
+    });
+    // a exibição vem do listener de storage
   } catch (error) {
     console.error(error);
     showView("form");
     showFormError(error instanceof AnalysisError ? error.message : "Erro inesperado ao gerar o registro. Tente novamente.");
   } finally {
     clearInterval(timer);
-    abortController = null;
+    pasteAbort = null;
   }
+}
+
+// ---- Processando ------------------------------------------------------------
+
+function showLoading(title, hint) {
+  $("loading-title").textContent = title;
+  $("loading-hint").textContent = hint;
+  $("elapsed").textContent = "";
+  showView("loading");
+}
+
+$("cancel-btn").addEventListener("click", async () => {
+  if (pasteAbort) return pasteAbort.abort();
+  if (!confirm("Cancelar descarta a gravação e a transcrição desta entrevista. Continuar?")) return;
+  await toBackground({ type: "CANCEL" });
 });
 
-$("cancel-btn").addEventListener("click", () => abortController?.abort());
+// ---- Gravação ---------------------------------------------------------------
 
-// ---- Resultado -----------------------------------------------------------
+function elapsedMs(c) {
+  return (c.pausedAt ?? Date.now()) - c.startedAt - c.pausedMs;
+}
+
+function healthLine(id, label, count, available, elapsed) {
+  const node = $(id);
+  if (!available) {
+    node.className = "warn";
+    node.textContent = `${label}: indisponível`;
+  } else if (count > 0) {
+    node.className = "ok";
+    node.textContent = `${label}: captando falas`;
+  } else if (elapsed > SILENCE_WARNING_MS) {
+    node.className = "warn";
+    node.textContent = `${label}: nenhuma fala captada até agora`;
+  } else {
+    node.className = "";
+    node.textContent = `${label}: aguardando falas`;
+  }
+}
+
+function renderRecording() {
+  const c = capture;
+  const elapsed = elapsedMs(c);
+  const paused = c.phase === "paused";
+  $("recording-title").textContent = c.meta.candidato?.trim() || "Candidato não informado";
+  $("recording-meta").textContent = c.meta.vagaTitulo?.trim() ?? "";
+  $("recording-status").classList.toggle("is-paused", paused);
+  $("recording-label").textContent = paused ? "Pausado" : "Gravando";
+  $("recording-timer").textContent = formatDuration(elapsed);
+  $("pause-btn").textContent = paused ? "Retomar" : "Pausar";
+  healthLine("health-candidato", "Áudio da reunião", c.stats.candidato, true, elapsed);
+  healthLine("health-recrutador", "Seu microfone", c.stats.recrutador, c.hasMic, elapsed);
+
+  const warnings = [...c.warnings];
+  if (c.stats.falhas > 0) {
+    warnings.push(`${c.stats.falhas} trecho(s) de áudio não puderam ser transcritos e ficarão marcados no registro.`);
+  }
+  $("recording-warnings").replaceChildren(...warnings.map((w) => Object.assign(document.createElement("li"), { textContent: w })));
+}
+
+function stopTicking() {
+  clearInterval(tickTimer);
+  tickTimer = null;
+}
+
+async function recordingAction(type, button) {
+  button.disabled = true;
+  showError("recording-error", null);
+  try {
+    const response = await toBackground({ type });
+    if (!response?.ok) showError("recording-error", response?.error ?? "Não foi possível concluir a ação.");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+$("pause-btn").addEventListener("click", (e) =>
+  recordingAction(capture?.phase === "paused" ? "RESUME" : "PAUSE", e.currentTarget),
+);
+$("finish-btn").addEventListener("click", (e) => recordingAction("STOP", e.currentTarget));
+$("discard-btn").addEventListener("click", (e) => {
+  if (confirm("Descartar a gravação? Nada desta entrevista será guardado.")) recordingAction("CANCEL", e.currentTarget);
+});
+
+/** Reflete o estado da gravação guardado pelo background. */
+async function applyCapture(next) {
+  capture = next;
+  stopTicking();
+  if (!capture) return;
+
+  switch (capture.phase) {
+    case "recording":
+    case "paused":
+      renderRecording();
+      showView("recording");
+      tickTimer = setInterval(renderRecording, 1000);
+      return;
+    case "finishing":
+      showLoading("Concluindo a transcrição…", "Transcrevendo os últimos trechos de áudio.");
+      return;
+    case "analyzing":
+      showLoading("Estruturando o registro…", "Costuma levar entre 20 e 60 segundos.");
+      return;
+    case "error": {
+      // A transcrição captada não se perde: volta no modo "colar" para
+      // tentar gerar o registro de novo.
+      const { transcricao, meta, error } = capture;
+      await chrome.storage.session.remove("capture");
+      capture = null;
+      for (const f of ["candidato", "vagaTitulo", "vagaRequisitos"]) $(f).value = meta[f] ?? "";
+      if (transcricao) {
+        $("transcricao").value = transcricao;
+        setMode("colar");
+        $("consent").checked = true;
+      }
+      updateCharCount();
+      saveDraftSoon();
+      showView("form");
+      showFormError(
+        transcricao ? `${error} A transcrição foi preservada abaixo: clique em “Gerar registro” para tentar de novo.` : error,
+      );
+      return;
+    }
+  }
+}
+
+// ---- Resultado ---------------------------------------------------------------
 
 function showResult(result) {
   current = result;
@@ -145,6 +362,9 @@ function showResult(result) {
   $("result-meta").textContent = [meta.vagaTitulo, meta.data].filter(Boolean).join(" · ");
   $("copy-status").textContent = "";
   renderAnalysis($("result"), result.data);
+  $("transcript-details").hidden = !result.transcricao;
+  $("transcript-details").open = false;
+  $("transcript-text").textContent = result.transcricao ?? "";
   showView("result");
 }
 
@@ -179,10 +399,24 @@ $("download-md-btn").addEventListener("click", () =>
 );
 
 $("download-json-btn").addEventListener("click", () =>
-  download(JSON.stringify({ ...current.meta, registro: current.data }, null, 2), `${fileBaseName()}.json`, "application/json"),
+  download(
+    JSON.stringify({ ...current.meta, registro: current.data, transcricao: current.transcricao ?? null }, null, 2),
+    `${fileBaseName()}.json`,
+    "application/json",
+  ),
+);
+
+$("download-txt-btn").addEventListener("click", () =>
+  download(current.transcricao ?? "", `${fileBaseName()}-transcricao.txt`, "text/plain;charset=utf-8"),
 );
 
 $("edit-btn").addEventListener("click", () => {
+  if (current?.transcricao && !$("transcricao").value.trim()) {
+    $("transcricao").value = current.transcricao;
+    updateCharCount();
+    saveDraftSoon();
+  }
+  setMode("colar");
   showView("form");
   $("transcricao").focus();
 });
@@ -191,11 +425,42 @@ $("new-btn").addEventListener("click", async () => {
   await chrome.storage.session.remove(["draft", "result"]);
   current = null;
   $("form").reset();
+  setMode("gravar");
   updateCharCount();
   showFormError(null);
   showView("form");
   $("candidato").focus();
 });
 
-await loadApiKey();
-await restore();
+// ---- Sincronização com o storage ------------------------------------------
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && ("apiKey" in changes || "groqKey" in changes)) loadKeys();
+  if (area !== "session") return;
+  if ("result" in changes) {
+    if (changes.result.newValue) showResult(changes.result.newValue);
+    else current = null; // limpo ao iniciar uma nova gravação
+  }
+  if ("capture" in changes && changes.capture.newValue) applyCapture(changes.capture.newValue);
+  else if ("capture" in changes && capture) {
+    // Gravação encerrada: o background salva o registro antes de limpar o
+    // estado; sem registro, ela foi descartada.
+    capture = null;
+    stopTicking();
+    showView(current ? "result" : "form");
+  }
+});
+
+async function init() {
+  await loadKeys();
+  const stored = await chrome.storage.session.get(["draft", "result", "capture", "modo"]);
+  for (const f of FIELDS) $(f).value = stored.draft?.[f] ?? "";
+  updateCharCount();
+  setMode(stored.modo ?? "gravar");
+
+  if (stored.capture) await applyCapture(stored.capture);
+  else if (stored.result) showResult(stored.result);
+  else showView("form");
+}
+
+await init();

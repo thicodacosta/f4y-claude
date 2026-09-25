@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Plus+Jakarta+Sans:wght@700&display=swap"
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -19,21 +19,27 @@
     </header>
 
     <main>
-      <div id="setup-banner" class="banner" role="status" hidden>
-        Para começar, cadastre sua chave de API da Anthropic em
-        <a href="options.html" target="_blank">Configurações</a>.
-      </div>
+      <div id="setup-banner" class="banner" role="status" hidden></div>
 
       <!-- Formulário -->
       <section id="view-form" aria-labelledby="form-title">
         <p class="eyebrow">Registro de entrevista</p>
         <h1 id="form-title" class="title">Estruture a entrevista para o dossiê</h1>
-        <p class="lead">
-          Cole a transcrição e os dados da vaga. O registro documenta o que foi dito; a avaliação continua
-          sendo sua.
-        </p>
+        <p class="lead">O registro documenta o que foi dito; a avaliação continua sendo sua.</p>
 
         <form id="form" novalidate>
+          <fieldset class="segmented">
+            <legend class="visually-hidden">Origem da transcrição</legend>
+            <label class="segmented__option">
+              <input type="radio" name="modo" value="gravar" checked />
+              <span>Gravar a entrevista</span>
+            </label>
+            <label class="segmented__option">
+              <input type="radio" name="modo" value="colar" />
+              <span>Colar transcrição</span>
+            </label>
+          </fieldset>
+
           <div class="field">
             <label for="candidato">Candidato</label>
             <input id="candidato" name="candidato" type="text" autocomplete="off" placeholder="Nome completo" />
@@ -52,32 +58,67 @@
             </div>
           </fieldset>
 
-          <div class="field">
+          <div id="record-help" class="note">
+            <p class="note__title">Antes de iniciar</p>
+            <ul class="list">
+              <li>Deixe a reunião (Meet, Teams ou Zoom no navegador) aberta na aba atual.</li>
+              <li>Use fones de ouvido: assim sua fala e a do candidato ficam em trilhas separadas.</li>
+              <li>Depois de iniciar, pode trocar de aba ou fechar este painel; a gravação continua.</li>
+            </ul>
+          </div>
+
+          <div id="paste-fields" class="field" hidden>
             <div class="field__row">
               <label for="transcricao">Transcrição</label>
               <button type="button" id="import-btn" class="btn-link">Importar arquivo</button>
               <input id="import-file" type="file" accept=".txt,.vtt,.srt,.md,text/plain" hidden />
             </div>
-            <textarea id="transcricao" name="transcricao" rows="12" required aria-describedby="transcricao-hint" placeholder="Cole aqui a transcrição completa da entrevista"></textarea>
+            <textarea id="transcricao" name="transcricao" rows="12" aria-describedby="transcricao-hint" placeholder="Cole aqui a transcrição completa da entrevista"></textarea>
             <p id="transcricao-hint" class="hint"><span id="char-count">0</span> caracteres · aceita .txt, .vtt, .srt e .md</p>
           </div>
 
           <label class="consent">
-            <input type="checkbox" id="consent" required />
-            <span>Confirmo que o candidato foi informado e autorizou o registro desta entrevista.</span>
+            <input type="checkbox" id="consent" />
+            <span id="consent-text"></span>
           </label>
 
           <p id="form-error" class="error" role="alert" hidden></p>
 
-          <button type="submit" id="submit-btn" class="btn btn--primary">Gerar registro</button>
+          <button type="submit" id="submit-btn" class="btn btn--primary"></button>
         </form>
+      </section>
+
+      <!-- Gravando -->
+      <section id="view-recording" hidden aria-labelledby="recording-title">
+        <p class="eyebrow">Registro de entrevista</p>
+        <h1 id="recording-title" class="title"></h1>
+        <p id="recording-meta" class="lead"></p>
+
+        <div class="recorder card">
+          <p id="recording-status" class="recorder__status"><span class="dot" aria-hidden="true"></span><span id="recording-label">Gravando</span></p>
+          <p id="recording-timer" class="recorder__timer" aria-live="off">00:00</p>
+          <ul class="health" aria-label="Captação de áudio">
+            <li id="health-candidato"></li>
+            <li id="health-recrutador"></li>
+          </ul>
+          <p class="hint">A transcrição acontece em segundo plano e o registro aparece aqui ao finalizar.</p>
+        </div>
+
+        <ul id="recording-warnings" class="warnings" role="status"></ul>
+
+        <button type="button" id="finish-btn" class="btn btn--primary">Finalizar e gerar registro</button>
+        <div class="actions actions--split">
+          <button type="button" id="pause-btn" class="btn btn--ghost">Pausar</button>
+          <button type="button" id="discard-btn" class="btn btn--ghost btn--danger">Descartar</button>
+        </div>
+        <p id="recording-error" class="error" role="alert" hidden></p>
       </section>
 
       <!-- Processando -->
       <section id="view-loading" class="loading" hidden aria-live="polite">
         <div class="spinner" aria-hidden="true"></div>
-        <p class="loading__title">Estruturando o registro…</p>
-        <p class="hint">Costuma levar entre 20 e 60 segundos. <span id="elapsed">0s</span></p>
+        <p id="loading-title" class="loading__title">Estruturando o registro…</p>
+        <p class="hint"><span id="loading-hint">Costuma levar entre 20 e 60 segundos.</span> <span id="elapsed"></span></p>
         <button type="button" id="cancel-btn" class="btn btn--ghost">Cancelar</button>
       </section>
 
@@ -95,6 +136,12 @@
         <p id="copy-status" class="hint" role="status"></p>
 
         <div id="result"></div>
+
+        <details id="transcript-details" class="card transcript">
+          <summary>Transcrição completa</summary>
+          <pre id="transcript-text"></pre>
+          <button type="button" id="download-txt-btn" class="btn btn--ghost">Baixar transcrição .txt</button>
+        </details>
 
         <p class="disclaimer">
           Registro de apoio gerado por IA a partir da transcrição. Não é avaliação, nota ou decisão; revise antes de

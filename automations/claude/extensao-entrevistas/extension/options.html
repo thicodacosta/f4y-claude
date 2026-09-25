@@ -19,32 +19,35 @@
 
     <main>
       <p class="eyebrow">Configurações</p>
-      <h1 class="title">Chave de API da Anthropic</h1>
+      <h1 class="title">Chaves de API</h1>
       <p class="lead">
-        A extensão usa sua chave para enviar a transcrição ao Claude. A chave fica salva apenas neste navegador e só
-        é enviada para <code>api.anthropic.com</code>.
+        As chaves ficam salvas apenas neste navegador e só são enviadas aos respectivos serviços. Use chaves dedicadas a
+        esta extensão, com limite de gasto definido no painel de cada serviço.
       </p>
 
       <form id="form" novalidate>
         <div class="field">
-          <label for="apiKey">Chave de API</label>
+          <label for="apiKey">Anthropic (Claude): gera o registro</label>
           <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" aria-describedby="apiKey-hint" />
-          <p id="apiKey-hint" class="hint">
-            Gere uma chave em console.anthropic.com → API Keys. Recomendamos uma chave dedicada a esta extensão, com
-            limite de gasto definido no Console.
-          </p>
+          <p id="apiKey-hint" class="hint">console.anthropic.com → API Keys. Obrigatória.</p>
+        </div>
+        <div class="field">
+          <label for="groqKey">Groq (Whisper): transcreve o áudio da gravação</label>
+          <input id="groqKey" type="password" autocomplete="off" spellcheck="false" placeholder="gsk_…" aria-describedby="groqKey-hint" />
+          <p id="groqKey-hint" class="hint">console.groq.com → API Keys. Necessária só para gravar; colar transcrição não usa.</p>
         </div>
         <p id="status" class="hint" role="status"></p>
         <div class="actions">
           <button type="submit" class="btn btn--primary">Salvar</button>
-          <button type="button" id="clear-btn" class="btn btn--ghost">Remover chave</button>
+          <button type="button" id="clear-btn" class="btn btn--ghost">Remover chaves</button>
         </div>
       </form>
 
       <section class="group" aria-labelledby="privacy-title">
         <h2 id="privacy-title" class="subtitle">Privacidade</h2>
         <ul class="list">
-          <li>A transcrição é enviada à API da Anthropic apenas quando você clica em "Gerar registro".</li>
+          <li>Na gravação, o áudio fica em memória só até ser transcrito pela Groq, em trechos de 20 segundos, e nunca é salvo.</li>
+          <li>A transcrição é enviada à Anthropic para gerar o registro.</li>
           <li>O rascunho e o último registro ficam guardados só nesta sessão do navegador e são apagados quando o Chrome é fechado.</li>
           <li>Nada é salvo em servidores da Find4You.</li>
         </ul>

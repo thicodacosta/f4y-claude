@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Liberar microfone · Registro de entrevistas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700&display=swap"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="page">
+    <header class="topbar">
+      <img src="icons/wordmark.png" alt="Find4You" class="topbar__logo" width="120" height="47" />
+    </header>
+    <main>
+      <p class="eyebrow">Permissão</p>
+      <h1 class="title">Liberar o microfone</h1>
+      <p class="lead">
+        A extensão transcreve a sua fala pelo microfone e a do candidato pelo áudio da reunião. Clique em
+        <strong>Permitir</strong> no aviso do Chrome.
+      </p>
+      <p id="status" class="banner" role="status">Aguardando a sua permissão…</p>
+    </main>
+    <script type="module" src="dist/permission.js"></script>
+  </body>
+</html>
