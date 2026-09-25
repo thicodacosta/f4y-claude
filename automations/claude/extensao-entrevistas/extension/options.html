@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Configurações · Registro de entrevistas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700&display=swap"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="page">
+    <header class="topbar">
+      <img src="icons/wordmark.png" alt="Find4You" class="topbar__logo" width="120" height="47" />
+    </header>
+
+    <main>
+      <p class="eyebrow">Configurações</p>
+      <h1 class="title">Chave de API da Anthropic</h1>
+      <p class="lead">
+        A extensão usa sua chave para enviar a transcrição ao Claude. A chave fica salva apenas neste navegador e só
+        é enviada para <code>api.anthropic.com</code>.
+      </p>
+
+      <form id="form" novalidate>
+        <div class="field">
+          <label for="apiKey">Chave de API</label>
+          <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" aria-describedby="apiKey-hint" />
+          <p id="apiKey-hint" class="hint">
+            Gere uma chave em console.anthropic.com → API Keys. Recomendamos uma chave dedicada a esta extensão, com
+            limite de gasto definido no Console.
+          </p>
+        </div>
+        <p id="status" class="hint" role="status"></p>
+        <div class="actions">
+          <button type="submit" class="btn btn--primary">Salvar</button>
+          <button type="button" id="clear-btn" class="btn btn--ghost">Remover chave</button>
+        </div>
+      </form>
+
+      <section class="group" aria-labelledby="privacy-title">
+        <h2 id="privacy-title" class="subtitle">Privacidade</h2>
+        <ul class="list">
+          <li>A transcrição é enviada à API da Anthropic apenas quando você clica em "Gerar registro".</li>
+          <li>O rascunho e o último registro ficam guardados só nesta sessão do navegador e são apagados quando o Chrome é fechado.</li>
+          <li>Nada é salvo em servidores da Find4You.</li>
+        </ul>
+      </section>
+    </main>
+
+    <script type="module" src="dist/options.js"></script>
+  </body>
+</html>

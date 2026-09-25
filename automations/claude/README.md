@@ -1,8 +1,9 @@
 # Automation — Claude
 
-Escopo não definido. Não está claro neste workspace o que esta pasta deveria
-automatizar além do próprio Claude Code (que já opera todo o workspace via
-`.claude/skills/`) — pode se sobrepor ao que já existe.
+Integrações que chamam a API do Claude (Anthropic) diretamente, fora do
+Claude Code. O Claude Code em si opera o workspace via `.claude/skills/` e
+não mora aqui.
 
-`[TODO] Definir com Thiago` — objetivo específico desta automação antes de
-criar qualquer conteúdo aqui, para não duplicar o que as skills já cobrem.
+| Pasta | O que é | Skill dona do procedimento |
+|---|---|---|
+| `extensao-entrevistas/` | Extensão Chrome que estrutura o registro de entrevistas transcritas (schema `analyze_interview`) | `recrutamento` |

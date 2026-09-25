@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Registro de entrevista</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700&display=swap"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <img src="icons/wordmark.png" alt="Find4You" class="topbar__logo" width="120" height="47" />
+      <a href="options.html" target="_blank" class="topbar__link">Configurações</a>
+    </header>
+
+    <main>
+      <div id="setup-banner" class="banner" role="status" hidden>
+        Para começar, cadastre sua chave de API da Anthropic em
+        <a href="options.html" target="_blank">Configurações</a>.
+      </div>
+
+      <!-- Formulário -->
+      <section id="view-form" aria-labelledby="form-title">
+        <p class="eyebrow">Registro de entrevista</p>
+        <h1 id="form-title" class="title">Estruture a entrevista para o dossiê</h1>
+        <p class="lead">
+          Cole a transcrição e os dados da vaga. O registro documenta o que foi dito; a avaliação continua
+          sendo sua.
+        </p>
+
+        <form id="form" novalidate>
+          <div class="field">
+            <label for="candidato">Candidato</label>
+            <input id="candidato" name="candidato" type="text" autocomplete="off" placeholder="Nome completo" />
+          </div>
+
+          <fieldset class="group">
+            <legend>Vaga <span class="optional">opcional</span></legend>
+            <div class="field">
+              <label for="vagaTitulo">Título da vaga</label>
+              <input id="vagaTitulo" name="vagaTitulo" type="text" autocomplete="off" placeholder="Ex.: Gerente Financeiro" />
+            </div>
+            <div class="field">
+              <label for="vagaRequisitos">Descrição e requisitos</label>
+              <textarea id="vagaRequisitos" name="vagaRequisitos" rows="5" placeholder="Cole a descrição ou os requisitos da vaga"></textarea>
+              <p class="hint">Sem esses dados, o registro não compara com requisitos.</p>
+            </div>
+          </fieldset>
+
+          <div class="field">
+            <div class="field__row">
+              <label for="transcricao">Transcrição</label>
+              <button type="button" id="import-btn" class="btn-link">Importar arquivo</button>
+              <input id="import-file" type="file" accept=".txt,.vtt,.srt,.md,text/plain" hidden />
+            </div>
+            <textarea id="transcricao" name="transcricao" rows="12" required aria-describedby="transcricao-hint" placeholder="Cole aqui a transcrição completa da entrevista"></textarea>
+            <p id="transcricao-hint" class="hint"><span id="char-count">0</span> caracteres · aceita .txt, .vtt, .srt e .md</p>
+          </div>
+
+          <label class="consent">
+            <input type="checkbox" id="consent" required />
+            <span>Confirmo que o candidato foi informado e autorizou o registro desta entrevista.</span>
+          </label>
+
+          <p id="form-error" class="error" role="alert" hidden></p>
+
+          <button type="submit" id="submit-btn" class="btn btn--primary">Gerar registro</button>
+        </form>
+      </section>
+
+      <!-- Processando -->
+      <section id="view-loading" class="loading" hidden aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <p class="loading__title">Estruturando o registro…</p>
+        <p class="hint">Costuma levar entre 20 e 60 segundos. <span id="elapsed">0s</span></p>
+        <button type="button" id="cancel-btn" class="btn btn--ghost">Cancelar</button>
+      </section>
+
+      <!-- Resultado -->
+      <section id="view-result" hidden aria-labelledby="result-title">
+        <p class="eyebrow">Registro de entrevista</p>
+        <h1 id="result-title" class="title"></h1>
+        <p id="result-meta" class="lead"></p>
+
+        <div class="actions">
+          <button type="button" id="copy-btn" class="btn btn--primary">Copiar</button>
+          <button type="button" id="download-md-btn" class="btn btn--ghost">Baixar .md</button>
+          <button type="button" id="download-json-btn" class="btn btn--ghost">Baixar .json</button>
+        </div>
+        <p id="copy-status" class="hint" role="status"></p>
+
+        <div id="result"></div>
+
+        <p class="disclaimer">
+          Registro de apoio gerado por IA a partir da transcrição. Não é avaliação, nota ou decisão; revise antes de
+          compartilhar.
+        </p>
+        <div class="actions">
+          <button type="button" id="edit-btn" class="btn btn--ghost">Voltar e editar</button>
+          <button type="button" id="new-btn" class="btn btn--ghost">Nova entrevista</button>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="dist/sidepanel.js"></script>
+  </body>
+</html>
