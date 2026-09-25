@@ -1,5 +1,9 @@
 import { analyzeInterview, AnalysisError } from "./analyze.js";
+import { initCompareArea } from "./compare/panel.js";
 import { initCvArea } from "./cv/panel.js";
+import { initPromptsArea } from "./prompts/panel.js";
+import { initSalaryArea } from "./salary/panel.js";
+import { initTurnoverArea } from "./turnover/panel.js";
 import { renderAnalysis, toMarkdown } from "./render.js";
 
 const FIELDS = ["candidato", "vagaTitulo", "vagaRequisitos", "transcricao"];
@@ -456,7 +460,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 // ---- Abas do painel -------------------------------------------------------
 
-const TABS = { entrevistas: $("tab-entrevistas"), curriculos: $("tab-curriculos") };
+const TABS = Object.fromEntries(
+  ["entrevistas", "curriculos", "comparativo", "salarios", "turnover", "prompts"].map((name) => [name, $(`tab-${name}`)]),
+);
 
 function selectTab(name) {
   for (const [key, tab] of Object.entries(TABS)) {
@@ -471,10 +477,15 @@ for (const [name, tab] of Object.entries(TABS)) tab.addEventListener("click", ()
 
 async function init() {
   await loadKeys();
-  cvArea = await initCvArea({ apiKeyGetter: () => keys.apiKey });
+  const apiKeyGetter = () => keys.apiKey;
+  cvArea = await initCvArea({ apiKeyGetter });
+  await initCompareArea({ apiKeyGetter });
+  await initSalaryArea({ apiKeyGetter });
+  initTurnoverArea();
+  initPromptsArea();
   const stored = await chrome.storage.session.get(["draft", "result", "capture", "modo", "aba"]);
   // Uma gravação em andamento sempre traz a aba de entrevistas para frente.
-  selectTab(stored.capture ? "entrevistas" : (stored.aba ?? "entrevistas"));
+  selectTab(stored.capture || !TABS[stored.aba] ? "entrevistas" : stored.aba);
   for (const f of FIELDS) $(f).value = stored.draft?.[f] ?? "";
   updateCharCount();
   setMode(stored.modo ?? "gravar");

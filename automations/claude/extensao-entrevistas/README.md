@@ -1,7 +1,8 @@
-# Find4You · Entrevistas e Currículos (extensão Chrome)
+# Find4You · Ferramentas de RH (extensão Chrome)
 
-Painel lateral do Chrome com duas ferramentas: registro de entrevistas e
-construtor de currículos padronizados.
+Painel lateral do Chrome com seis ferramentas: registro de entrevistas,
+construtor de currículos padronizados, comparativo de candidatos, pesquisa
+salarial, calculadora de turnover e biblioteca de prompts para RH.
 
 A aba "Entrevistas" grava e transcreve a entrevista feita no Google
 Meet, Teams ou Zoom (no navegador) e, ao final, entrega um registro
@@ -59,6 +60,55 @@ também para os currículos já processados. Formato `.doc` antigo não é
 suportado: salve como `.docx` ou PDF. O painel precisa ficar aberto
 enquanto os arquivos são processados.
 
+## Comparativo de candidatos (aba "Comparativo")
+
+A JD (colada ou importada em PDF, .docx ou .txt) e de 2 a 5 currículos (PDF
+ou .docx) vão numa única chamada ao Claude, para que todos sejam avaliados
+com o mesmo critério. O Claude extrai de 6 a 12 requisitos da JD
+(obrigatórios e desejáveis) e classifica cada candidato em cada requisito
+como atende, parcial ou não evidenciado, sempre com a evidência.
+
+A compatibilidade de 0% a 100% **não é dada pelo modelo**: é calculada em
+`src/compare/evaluate.js` (atende = 1, parcial = 0,5, não evidenciado = 0;
+obrigatórios pesam 2, desejáveis 1). Assim a nota é transparente e
+reproduzível. As regras de equidade proíbem considerar nome, idade, gênero e
+outras características pessoais. O resultado traz ranking, matriz
+requisito × candidato, pontos fortes, lacunas e perguntas sugeridas para
+a entrevista, e pode ser copiado ou baixado em Markdown. Leva de 30 a 90s.
+
+## Pesquisa salarial (aba "Salários")
+
+O Claude pesquisa na web com busca e leitura de páginas **restritas aos
+domínios** do LinkedIn, Glassdoor, Robert Half e Hays
+(`src/salary/research.js`). Devolve referências por fonte (com link),
+faixa CLT consolidada, estimativa PJ, fatores de variação e as fontes em
+que não achou dado público. Os guias da Hays, por exemplo, exigem
+cadastro. Nenhum número é aceito sem fonte. Leva de 1 a 4 minutos.
+
+Requer a busca na web habilitada na organização da Anthropic (Console →
+Settings → Privacy). Cada pesquisa usa até 12 buscas e 6 leituras de
+página, cobradas à parte pela Anthropic.
+
+## Calculadora de turnover (aba "Turnover")
+
+Cálculo local, sem IA (`src/turnover/calc.js`):
+
+- **Taxa do período:** ((admissões + desligamentos) / 2) / headcount médio, e
+  taxa de desligamento.
+- **Custo de um desligamento CLT** (dispensa sem justa causa, aviso
+  indenizado, sem férias vencidas): aviso prévio (30 dias + 3 por ano, até
+  90), férias proporcionais + 1/3, 13º proporcional, multa de 40% do FGTS
+  sobre saldo estimado (8% × salário × meses) e FGTS sobre aviso e 13º.
+- **Custo PJ:** aviso contratual indenizado e multa contratual informados.
+- **Reposição (ambos):** recrutamento, treinamento, vaga em aberto e rampa
+  do substituto, com 50% de produtividade perdida sobre o custo mensal (CLT:
+  salário × 1,7).
+
+## Biblioteca de prompts (aba "Prompts")
+
+50 prompts em 10 categorias (5 cada) em `src/prompts/library.js`, com busca
+sem acento e tolerante a plural e gênero, e filtro por categoria.
+
 ## O que existe aqui
 
 | Caminho | Conteúdo |
@@ -68,6 +118,11 @@ enquanto os arquivos são processados.
 | `src/claude.js` | Chamada comum ao Claude (`claude-opus-5`, saída estruturada, raciocínio adaptativo, streaming, fallback em recusa) |
 | `src/analyze.js` | Registro de entrevista a partir da transcrição |
 | `src/cv/` | Construtor de currículos: schema, leitura e padronização, geração de PDF/Word e a aba do painel |
+| `src/compare/` | Comparativo de candidatos: avaliação pelo Claude, cálculo da compatibilidade e a aba do painel |
+| `src/salary/` | Pesquisa salarial com busca web restrita às fontes e a aba do painel |
+| `src/turnover/` | Cálculos de taxa e custo de turnover e a aba do painel |
+| `src/prompts/` | Biblioteca de 50 prompts e a aba de busca |
+| `src/ui.js` | Utilitários de interface compartilhados |
 | `src/audio.js` | Captura PCM, reamostragem e montagem dos blocos WAV |
 | `src/transcribe.js` | Transcrição de um bloco via Groq (Whisper), com novas tentativas e filtro de alucinação |
 | `src/transcript.js` | Montagem da transcrição final com rótulos e horários |

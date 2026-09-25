@@ -6,4 +6,4 @@ não mora aqui.
 
 | Pasta | O que é | Skill dona do procedimento |
 |---|---|---|
-| `extensao-entrevistas/` | Extensão Chrome que estrutura o registro de entrevistas transcritas (schema `analyze_interview`) | `recrutamento` |
+| `extensao-entrevistas/` | Extensão Chrome de ferramentas de RH: registro de entrevistas, currículos padronizados, comparativo de candidatos, pesquisa salarial, turnover e prompts | `recrutamento` |

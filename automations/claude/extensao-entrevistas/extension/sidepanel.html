@@ -21,6 +21,10 @@
     <nav class="tabs" aria-label="Ferramentas">
       <button type="button" class="tabs__tab" id="tab-entrevistas" aria-controls="area-entrevistas" aria-selected="true">Entrevistas</button>
       <button type="button" class="tabs__tab" id="tab-curriculos" aria-controls="area-curriculos" aria-selected="false">Currículos</button>
+      <button type="button" class="tabs__tab" id="tab-comparativo" aria-controls="area-comparativo" aria-selected="false">Comparativo</button>
+      <button type="button" class="tabs__tab" id="tab-salarios" aria-controls="area-salarios" aria-selected="false">Salários</button>
+      <button type="button" class="tabs__tab" id="tab-turnover" aria-controls="area-turnover" aria-selected="false">Turnover</button>
+      <button type="button" class="tabs__tab" id="tab-prompts" aria-controls="area-prompts" aria-selected="false">Prompts</button>
     </nav>
 
     <main>
@@ -189,6 +193,200 @@
           Dados pessoais sensíveis (idade, estado civil, documentos, endereço, pretensão salarial) são removidos. Revise
           cada currículo antes de enviar ao cliente. Mantenha este painel aberto enquanto os arquivos são processados.
         </p>
+      </section>
+
+      <!-- Comparativo de candidatos -->
+      <section id="area-comparativo" hidden aria-labelledby="cmp-title">
+        <p class="eyebrow">Comparativo de candidatos</p>
+        <h1 id="cmp-title" class="title">Compare currículos com a vaga</h1>
+        <p class="lead">Envie a descrição da vaga e de 2 a 5 currículos. Cada candidato recebe uma compatibilidade de 0% a 100%, com evidências por requisito.</p>
+
+        <form id="cmp-form" novalidate>
+          <div class="field">
+            <div class="field__row">
+              <label for="cmp-jd">Descrição da vaga (JD)</label>
+              <button type="button" id="cmp-jd-import" class="btn-link">Importar arquivo</button>
+              <input id="cmp-jd-file" type="file" accept=".pdf,.docx,.txt,.md" hidden />
+            </div>
+            <textarea id="cmp-jd" rows="8" placeholder="Cole a JD completa: responsabilidades, requisitos obrigatórios e desejáveis"></textarea>
+            <p id="cmp-jd-attached" class="attached" hidden></p>
+          </div>
+
+          <div class="field">
+            <span class="label">Currículos <span class="optional">2 a 5 · PDF ou Word</span></span>
+            <label class="dropzone dropzone--compact" id="cmp-drop">
+              <input id="cmp-files" type="file" multiple accept=".pdf,.docx" class="visually-hidden" />
+              <span class="dropzone__title">Adicionar currículos</span>
+              <span class="hint">Arraste aqui ou clique para selecionar</span>
+            </label>
+            <ul id="cmp-file-list" class="file-list"></ul>
+          </div>
+
+          <p id="cmp-error" class="error" role="alert" hidden></p>
+          <button type="submit" id="cmp-submit" class="btn btn--primary">Comparar candidatos</button>
+        </form>
+
+        <div id="cmp-loading" class="loading" hidden aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <p class="loading__title">Analisando os currículos…</p>
+          <p class="hint">Costuma levar de 30 a 90 segundos. <span id="cmp-elapsed"></span></p>
+          <button type="button" id="cmp-cancel" class="btn btn--ghost">Cancelar</button>
+        </div>
+
+        <div id="cmp-result" hidden>
+          <div class="actions">
+            <button type="button" id="cmp-copy" class="btn btn--primary">Copiar relatório</button>
+            <button type="button" id="cmp-download" class="btn btn--ghost">Baixar .md</button>
+            <button type="button" id="cmp-new" class="btn btn--ghost">Nova comparação</button>
+          </div>
+          <p id="cmp-copy-status" class="hint" role="status"></p>
+          <div id="cmp-output"></div>
+          <p class="disclaimer">Análise de apoio gerada por IA com base apenas nos documentos enviados. A compatibilidade mede evidências no currículo, não o potencial do candidato. A decisão é sempre do recrutador.</p>
+        </div>
+      </section>
+
+      <!-- Pesquisa salarial -->
+      <section id="area-salarios" hidden aria-labelledby="sal-title">
+        <p class="eyebrow">Pesquisa salarial</p>
+        <h1 id="sal-title" class="title">Referências de mercado para o cargo</h1>
+        <p class="lead">Consulta LinkedIn, Glassdoor e os guias salariais da Robert Half e da Hays, com link para cada fonte.</p>
+
+        <form id="sal-form" novalidate>
+          <div class="field">
+            <label for="sal-cargo">Cargo</label>
+            <input id="sal-cargo" type="text" autocomplete="off" placeholder="Ex.: Gerente Financeiro" />
+          </div>
+          <div class="field-grid">
+            <div class="field">
+              <label for="sal-senioridade">Senioridade</label>
+              <select id="sal-senioridade">
+                <option value="">Não informada</option>
+                <option>Júnior</option>
+                <option>Pleno</option>
+                <option>Sênior</option>
+                <option>Especialista</option>
+                <option>Coordenação</option>
+                <option>Gerência</option>
+                <option>Diretoria</option>
+                <option>C-level</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="sal-regime">Regime</label>
+              <select id="sal-regime">
+                <option>CLT e PJ</option>
+                <option>CLT</option>
+                <option>PJ</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="sal-local">Localidade</label>
+            <input id="sal-local" type="text" autocomplete="off" placeholder="Ex.: São Paulo, SP (vazio = Brasil)" />
+          </div>
+          <div class="field">
+            <label for="sal-setor">Setor ou porte da empresa <span class="optional">opcional</span></label>
+            <input id="sal-setor" type="text" autocomplete="off" placeholder="Ex.: indústria, grande porte" />
+          </div>
+          <div class="field">
+            <label for="sal-obs">Observações <span class="optional">opcional</span></label>
+            <textarea id="sal-obs" rows="2" placeholder="Ex.: posição com inglês fluente e gestão de 10 pessoas"></textarea>
+          </div>
+          <p id="sal-error" class="error" role="alert" hidden></p>
+          <button type="submit" id="sal-submit" class="btn btn--primary">Pesquisar salários</button>
+        </form>
+
+        <div id="sal-loading" class="loading" hidden aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <p class="loading__title">Pesquisando nas fontes…</p>
+          <p class="hint">A busca na web costuma levar de 1 a 4 minutos. <span id="sal-elapsed"></span></p>
+          <button type="button" id="sal-cancel" class="btn btn--ghost">Cancelar</button>
+        </div>
+
+        <div id="sal-result" hidden>
+          <div class="actions">
+            <button type="button" id="sal-copy" class="btn btn--primary">Copiar pesquisa</button>
+            <button type="button" id="sal-new" class="btn btn--ghost">Nova pesquisa</button>
+          </div>
+          <p id="sal-copy-status" class="hint" role="status"></p>
+          <div id="sal-output"></div>
+          <p class="disclaimer">Referências públicas coletadas por IA na data da pesquisa. Valores variam por empresa, escopo e negociação; confira os links antes de usar em propostas.</p>
+        </div>
+      </section>
+
+      <!-- Calculadora de turnover -->
+      <section id="area-turnover" hidden aria-labelledby="tov-title">
+        <p class="eyebrow">Calculadora de turnover</p>
+        <h1 id="tov-title" class="title">Taxa e custo do turnover</h1>
+        <p class="lead">Cálculo simplificado para CLT e PJ. Os valores se atualizam enquanto você digita.</p>
+
+        <section class="card calc" aria-labelledby="tov-rate-title">
+          <h2 id="tov-rate-title">Taxa de turnover do período</h2>
+          <div class="field-grid">
+            <div class="field"><label for="tov-hc-ini">Headcount no início</label><input id="tov-hc-ini" type="number" min="0" inputmode="numeric" /></div>
+            <div class="field"><label for="tov-hc-fim">Headcount no fim</label><input id="tov-hc-fim" type="number" min="0" inputmode="numeric" /></div>
+            <div class="field"><label for="tov-adm">Admissões</label><input id="tov-adm" type="number" min="0" inputmode="numeric" /></div>
+            <div class="field"><label for="tov-desl">Desligamentos</label><input id="tov-desl" type="number" min="0" inputmode="numeric" /></div>
+          </div>
+          <div id="tov-rate-out" class="metrics" aria-live="polite"></div>
+        </section>
+
+        <section class="card calc" aria-labelledby="tov-cost-title">
+          <h2 id="tov-cost-title">Custo de um desligamento</h2>
+          <fieldset class="segmented">
+            <legend class="visually-hidden">Regime</legend>
+            <label class="segmented__option"><input type="radio" name="tov-regime" value="clt" checked /><span>CLT</span></label>
+            <label class="segmented__option"><input type="radio" name="tov-regime" value="pj" /><span>PJ</span></label>
+          </fieldset>
+
+          <div id="tov-clt">
+            <div class="field"><label for="tov-salario">Salário mensal (R$)</label><input id="tov-salario" type="number" min="0" step="0.01" inputmode="decimal" /></div>
+            <div class="field-grid">
+              <div class="field"><label for="tov-admissao">Admissão</label><input id="tov-admissao" type="date" /></div>
+              <div class="field"><label for="tov-deslig">Desligamento</label><input id="tov-deslig" type="date" /></div>
+            </div>
+            <p class="hint">Dispensa sem justa causa, aviso prévio indenizado e sem férias vencidas.</p>
+          </div>
+
+          <div id="tov-pj" hidden>
+            <div class="field"><label for="tov-valor-pj">Valor mensal do contrato (R$)</label><input id="tov-valor-pj" type="number" min="0" step="0.01" inputmode="decimal" /></div>
+            <div class="field-grid">
+              <div class="field"><label for="tov-aviso-pj">Aviso contratual (dias)</label><input id="tov-aviso-pj" type="number" min="0" value="30" inputmode="numeric" /></div>
+              <div class="field"><label for="tov-multa-pj">Multa contratual (R$)</label><input id="tov-multa-pj" type="number" min="0" step="0.01" value="0" inputmode="decimal" /></div>
+            </div>
+            <label class="consent"><input type="checkbox" id="tov-aviso-indenizado" checked /><span>Aviso indenizado (sem cumprimento)</span></label>
+          </div>
+
+          <h3 class="calc__subtitle">Custos de reposição</h3>
+          <div class="field-grid">
+            <div class="field"><label for="tov-recrut">Recrutamento e seleção (R$)</label><input id="tov-recrut" type="number" min="0" step="0.01" value="0" inputmode="decimal" /></div>
+            <div class="field"><label for="tov-trein">Integração e treinamento (R$)</label><input id="tov-trein" type="number" min="0" step="0.01" value="0" inputmode="decimal" /></div>
+            <div class="field"><label for="tov-vaga">Vaga em aberto (dias)</label><input id="tov-vaga" type="number" min="0" value="30" inputmode="numeric" /></div>
+            <div class="field"><label for="tov-rampa">Rampa do substituto (meses)</label><input id="tov-rampa" type="number" min="0" step="0.5" value="3" inputmode="decimal" /></div>
+          </div>
+          <p id="tov-assumption" class="hint"></p>
+
+          <div id="tov-cost-out" aria-live="polite"></div>
+          <div class="actions">
+            <button type="button" id="tov-copy" class="btn btn--ghost">Copiar resumo</button>
+          </div>
+          <p id="tov-copy-status" class="hint" role="status"></p>
+        </section>
+        <p class="disclaimer">Estimativa simplificada para apoio à decisão. Não substitui o cálculo trabalhista, contábil ou a análise do contrato.</p>
+      </section>
+
+      <!-- Biblioteca de prompts -->
+      <section id="area-prompts" hidden aria-labelledby="pr-title">
+        <p class="eyebrow">Biblioteca de prompts</p>
+        <h1 id="pr-title" class="title">Prompts para RH</h1>
+        <p class="lead">50 prompts prontos. Copie, troque os campos entre [colchetes] e use no Claude ou em outro assistente.</p>
+        <div class="field">
+          <label for="pr-search" class="visually-hidden">Buscar prompts</label>
+          <input id="pr-search" type="search" autocomplete="off" placeholder="Buscar por tema, ex.: feedback, onboarding, salário" />
+        </div>
+        <div id="pr-cats" class="chips" role="group" aria-label="Filtrar por categoria"></div>
+        <p id="pr-count" class="hint" role="status"></p>
+        <ul id="pr-list" class="prompt-list"></ul>
       </section>
     </main>
 

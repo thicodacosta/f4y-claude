@@ -24,22 +24,31 @@ function bytesToBase64(buffer) {
   return btoa(binary);
 }
 
-/** Converte o arquivo no conteúdo da mensagem ao Claude. */
-async function fileToContent(file) {
+/**
+ * Converte um arquivo PDF ou Word em blocos de conteúdo para o Claude.
+ * `label` identifica o documento quando há vários na mesma mensagem.
+ */
+export async function fileToBlocks(file, label = "curriculo") {
   const name = file.name.toLowerCase();
-  const instruction = { type: "text", text: "Padronize este currículo no formato estruturado solicitado." };
 
   if (name.endsWith(".pdf") || file.type === "application/pdf") {
     if (file.size > MAX_PDF_BYTES) throw new ClaudeError("O PDF passa de 30 MB. Reduza o arquivo e tente de novo.");
     // O Claude lê o PDF diretamente, inclusive páginas escaneadas.
     const data = bytesToBase64(await file.arrayBuffer());
-    return [{ type: "document", source: { type: "base64", media_type: "application/pdf", data } }, instruction];
+    return [
+      { type: "text", text: `[${label}: arquivo "${file.name}", em PDF logo a seguir]` },
+      { type: "document", source: { type: "base64", media_type: "application/pdf", data } },
+    ];
   }
 
   if (name.endsWith(".docx")) {
     const { value } = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
     if (!value.trim()) throw new ClaudeError("Não foi encontrado texto neste arquivo Word.");
-    return [{ type: "text", text: `<curriculo arquivo="${file.name}">\n${value.trim()}\n</curriculo>` }, instruction];
+    return [{ type: "text", text: `<${label} arquivo="${file.name}">\n${value.trim()}\n</${label}>` }];
+  }
+
+  if (name.endsWith(".txt") || name.endsWith(".md")) {
+    return [{ type: "text", text: `<${label} arquivo="${file.name}">\n${(await file.text()).trim()}\n</${label}>` }];
   }
 
   if (name.endsWith(".doc")) {
@@ -50,7 +59,10 @@ async function fileToContent(file) {
 
 /** Lê um currículo (PDF ou .docx) e devolve os dados padronizados. */
 export async function structureCv({ apiKey, file, signal }) {
-  const content = await fileToContent(file);
+  const content = [
+    ...(await fileToBlocks(file)),
+    { type: "text", text: "Padronize este currículo no formato estruturado solicitado." },
+  ];
   return requestStructured({
     apiKey,
     system: SYSTEM_PROMPT,
