@@ -132,7 +132,7 @@ export const ANALYZE_INTERVIEW_TOOL = {
  * fecha com `additionalProperties: false`, e `type: [X, "null"]` vira
  * `anyOf`, que é a forma aceita para campos anuláveis.
  */
-function toStructuredSchema(node) {
+export function toStructuredSchema(node) {
   if (Array.isArray(node)) return node.map(toStructuredSchema);
   if (!node || typeof node !== "object") return node;
 

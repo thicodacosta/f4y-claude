@@ -1,6 +1,9 @@
-# Find4You · Registro de Entrevistas (extensão Chrome)
+# Find4You · Entrevistas e Currículos (extensão Chrome)
 
-Painel lateral do Chrome que grava e transcreve a entrevista feita no Google
+Painel lateral do Chrome com duas ferramentas: registro de entrevistas e
+construtor de currículos padronizados.
+
+A aba "Entrevistas" grava e transcreve a entrevista feita no Google
 Meet, Teams ou Zoom (no navegador) e, ao final, entrega um registro
 estruturado nas 11 seções do schema `analyze_interview`: resumo executivo,
 experiências, aderência a requisitos, competências, motivação,
@@ -34,13 +37,37 @@ A gravação continua com o painel fechado ou em outra aba. Durante a
 gravação o painel mostra só o tempo, pausa e se cada trilha está captando
 fala, não o texto. A transcrição completa aparece junto do registro.
 
+## Construtor de currículos (aba "Currículos")
+
+O recrutador configura uma vez, em Configurações, o logo (PNG/JPG até
+1 MB), o nome da empresa, a cor de destaque e se os contatos do candidato
+devem ser ocultados (padrão: sim). Depois, arrasta um ou vários currículos
+em PDF ou Word (.docx) para o painel. Cada um é:
+
+1. lido: PDF vai direto ao Claude, que lê inclusive PDFs escaneados; Word
+   tem o texto extraído com o mammoth;
+2. padronizado pelo Claude em uma estrutura única (resumo, experiências,
+   formação, idiomas, competências, certificações), sem inventar nada e
+   sem dados sensíveis (idade, estado civil, documentos, endereço,
+   pretensão salarial);
+3. gerado sob demanda em PDF (pdfmake) e Word (docx), com o logo no
+   cabeçalho, a cor da empresa e "Apresentado por …" no rodapé.
+
+Até 3 currículos são processados ao mesmo tempo, com cerca de 15s cada. A
+identidade é aplicada no momento do download, então trocar o logo vale
+também para os currículos já processados. Formato `.doc` antigo não é
+suportado: salve como `.docx` ou PDF. O painel precisa ficar aberto
+enquanto os arquivos são processados.
+
 ## O que existe aqui
 
 | Caminho | Conteúdo |
 |---|---|
 | `src/schema.js` | Definição canônica `analyze_interview` e conversão para saída estruturada |
 | `src/prompt.js` | Regras do registro (system prompt) e montagem da mensagem |
-| `src/analyze.js` | Chamada ao Claude (`claude-opus-5`, raciocínio adaptativo, streaming, fallback em recusa) |
+| `src/claude.js` | Chamada comum ao Claude (`claude-opus-5`, saída estruturada, raciocínio adaptativo, streaming, fallback em recusa) |
+| `src/analyze.js` | Registro de entrevista a partir da transcrição |
+| `src/cv/` | Construtor de currículos: schema, leitura e padronização, geração de PDF/Word e a aba do painel |
 | `src/audio.js` | Captura PCM, reamostragem e montagem dos blocos WAV |
 | `src/transcribe.js` | Transcrição de um bloco via Groq (Whisper), com novas tentativas e filtro de alucinação |
 | `src/transcript.js` | Montagem da transcrição final com rótulos e horários |

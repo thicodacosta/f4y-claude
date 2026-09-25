@@ -12,6 +12,9 @@ const options = {
   outdir: "extension/dist",
   bundle: true,
   format: "esm",
+  // Separa em arquivos próprios o que é carregado sob demanda (import()).
+  splitting: true,
+  chunkNames: "chunks/[name]-[hash]",
   target: "chrome120",
   minify: true,
   sourcemap: true,

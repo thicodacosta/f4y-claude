@@ -1,4 +1,5 @@
 import { analyzeInterview, AnalysisError } from "./analyze.js";
+import { initCvArea } from "./cv/panel.js";
 import { renderAnalysis, toMarkdown } from "./render.js";
 
 const FIELDS = ["candidato", "vagaTitulo", "vagaRequisitos", "transcricao"];
@@ -26,6 +27,7 @@ let current = null; // registro exibido: { data, meta, transcricao }
 let capture = null; // estado da gravação (espelho de storage.session.capture)
 let pasteAbort = null; // análise de transcrição colada em andamento
 let tickTimer = null;
+let cvArea = null;
 
 function showView(name) {
   for (const [key, node] of Object.entries(views)) node.hidden = key !== name;
@@ -101,6 +103,7 @@ function updateBanner() {
 async function loadKeys() {
   keys = await chrome.storage.local.get(["apiKey", "groqKey"]);
   updateBanner();
+  cvArea?.refresh();
 }
 
 // ---- Rascunho --------------------------------------------------------------
@@ -451,9 +454,27 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
+// ---- Abas do painel -------------------------------------------------------
+
+const TABS = { entrevistas: $("tab-entrevistas"), curriculos: $("tab-curriculos") };
+
+function selectTab(name) {
+  for (const [key, tab] of Object.entries(TABS)) {
+    const selected = key === name;
+    tab.setAttribute("aria-selected", String(selected));
+    $(`area-${key}`).hidden = !selected;
+  }
+  chrome.storage.session.set({ aba: name });
+}
+
+for (const [name, tab] of Object.entries(TABS)) tab.addEventListener("click", () => selectTab(name));
+
 async function init() {
   await loadKeys();
-  const stored = await chrome.storage.session.get(["draft", "result", "capture", "modo"]);
+  cvArea = await initCvArea({ apiKeyGetter: () => keys.apiKey });
+  const stored = await chrome.storage.session.get(["draft", "result", "capture", "modo", "aba"]);
+  // Uma gravação em andamento sempre traz a aba de entrevistas para frente.
+  selectTab(stored.capture ? "entrevistas" : (stored.aba ?? "entrevistas"));
   for (const f of FIELDS) $(f).value = stored.draft?.[f] ?? "";
   updateCharCount();
   setMode(stored.modo ?? "gravar");

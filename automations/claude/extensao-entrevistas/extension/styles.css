@@ -647,3 +647,258 @@ textarea:focus {
   white-space: pre-wrap;
   font: 400 13px/20px var(--font-body);
 }
+
+/* Configurações: identidade dos currículos */
+.label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.branding-intro {
+  margin: -4px 0 16px;
+}
+
+.logo-picker {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.logo-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 200px;
+  height: 72px;
+  padding: 8px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.logo-preview img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.logo-picker__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+input[type="color"] {
+  width: 44px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+/* Abas do painel */
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs__tab {
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: 600 13px/20px var(--font-body);
+  cursor: pointer;
+}
+
+.tabs__tab[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--primary);
+}
+
+.tabs__tab:hover {
+  color: var(--ink);
+}
+
+/* Currículos */
+.brand-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.brand-strip img {
+  max-width: 96px;
+  max-height: 32px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.brand-strip__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-strip__edit {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 16px;
+  padding: 28px 16px;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  font-weight: 400;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.dropzone:hover,
+.dropzone.is-dragging {
+  border-color: var(--primary);
+  background: rgba(40, 170, 240, 0.06);
+}
+
+.dropzone:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.dropzone__title {
+  font: 700 15px/22px var(--font-display);
+}
+
+.cv-list-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.cv-list-header .hint {
+  margin: 0;
+}
+
+.cv-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cv-item {
+  margin-bottom: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.cv-item__top {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cv-item__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.cv-item__name {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.cv-item__status {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.cv-item__status.is-error {
+  color: var(--danger);
+}
+
+.cv-item__status.is-working::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  vertical-align: -1px;
+  animation: spin 0.9s linear infinite;
+}
+
+.cv-item__remove {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cv-item__remove:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.cv-item__actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.cv-item__actions .btn {
+  width: auto;
+}
+
+.btn--sm {
+  min-height: 32px;
+  padding: 5px 12px;
+  font-size: 13px;
+}

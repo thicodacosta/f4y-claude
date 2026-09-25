@@ -18,7 +18,13 @@
       <a href="options.html" target="_blank" class="topbar__link">Configurações</a>
     </header>
 
+    <nav class="tabs" aria-label="Ferramentas">
+      <button type="button" class="tabs__tab" id="tab-entrevistas" aria-controls="area-entrevistas" aria-selected="true">Entrevistas</button>
+      <button type="button" class="tabs__tab" id="tab-curriculos" aria-controls="area-curriculos" aria-selected="false">Currículos</button>
+    </nav>
+
     <main>
+      <div id="area-entrevistas">
       <div id="setup-banner" class="banner" role="status" hidden></div>
 
       <!-- Formulário -->
@@ -151,6 +157,38 @@
           <button type="button" id="edit-btn" class="btn btn--ghost">Voltar e editar</button>
           <button type="button" id="new-btn" class="btn btn--ghost">Nova entrevista</button>
         </div>
+      </section>
+      </div>
+
+      <!-- Currículos -->
+      <section id="area-curriculos" hidden aria-labelledby="cv-title">
+        <p class="eyebrow">Currículos</p>
+        <h1 id="cv-title" class="title">Padronize currículos com a sua marca</h1>
+        <p class="lead">Envie currículos em PDF ou Word. Cada um volta no padrão da sua empresa, pronto para baixar em PDF e Word.</p>
+
+        <div id="cv-banner" class="banner" role="status" hidden></div>
+
+        <div id="cv-brand" class="brand-strip" hidden>
+          <img id="cv-brand-logo" alt="" />
+          <span id="cv-brand-name" class="brand-strip__name"></span>
+          <a href="options.html#curriculos" target="_blank" class="brand-strip__edit">Editar identidade</a>
+        </div>
+
+        <label id="cv-drop" class="dropzone">
+          <input id="cv-files" type="file" multiple accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden" />
+          <span class="dropzone__title">Arraste os currículos aqui</span>
+          <span class="hint">ou clique para selecionar · PDF ou Word (.docx) · vários de uma vez</span>
+        </label>
+
+        <div class="cv-list-header" id="cv-list-header" hidden>
+          <p id="cv-summary" class="hint" role="status"></p>
+          <button type="button" id="cv-clear" class="btn-link">Limpar lista</button>
+        </div>
+        <ul id="cv-list" class="cv-list" aria-label="Currículos enviados"></ul>
+        <p class="disclaimer">
+          Dados pessoais sensíveis (idade, estado civil, documentos, endereço, pretensão salarial) são removidos. Revise
+          cada currículo antes de enviar ao cliente. Mantenha este painel aberto enquanto os arquivos são processados.
+        </p>
       </section>
     </main>
 
