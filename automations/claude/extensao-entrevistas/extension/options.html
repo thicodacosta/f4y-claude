@@ -21,14 +21,9 @@
       <p class="eyebrow">Find4You · Ferramentas de RH</p>
       <h1 class="title">Configurações</h1>
 
-      <section class="group" aria-labelledby="keys-title">
+      <section id="keys-section" class="group" aria-labelledby="keys-title">
         <h2 id="keys-title" class="subtitle">Chaves de API</h2>
-        <p id="keys-managed" class="note" hidden>
-          As chaves da Anthropic e da Groq já vêm configuradas nesta extensão. Não é preciso cadastrar nada.
-        </p>
-        <details id="keys-details" open>
-          <summary id="keys-summary" hidden>Usar outras chaves neste navegador (opcional)</summary>
-          <p class="hint keys-intro">
+        <p class="hint keys-intro">
             As chaves ficam salvas apenas neste navegador e só são enviadas aos respectivos serviços. Use chaves
             dedicadas, com limite de gasto definido no painel de cada serviço.
           </p>
@@ -36,12 +31,12 @@
             <div class="field">
               <label for="apiKey">Anthropic (Claude)</label>
               <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" aria-describedby="apiKey-hint" />
-              <p id="apiKey-hint" class="hint">console.anthropic.com → API Keys. Usada por todas as ferramentas com IA.</p>
+              <p id="apiKey-hint" class="hint">console.anthropic.com → API Keys. Usada no registro de entrevistas e no construtor de currículos.</p>
             </div>
             <div class="field">
               <label for="groqKey">Groq (Whisper): transcreve o áudio da gravação</label>
               <input id="groqKey" type="password" autocomplete="off" spellcheck="false" placeholder="gsk_…" aria-describedby="groqKey-hint" />
-              <p id="groqKey-hint" class="hint">console.groq.com → API Keys. Necessária só para gravar entrevistas.</p>
+              <p id="groqKey-hint" class="hint">console.groq.com → API Keys. Usada na gravação de entrevistas, no comparativo e na pesquisa salarial.</p>
             </div>
             <p id="status" class="hint" role="status"></p>
             <div class="actions">
@@ -49,7 +44,6 @@
               <button type="button" id="clear-btn" class="btn btn--ghost">Remover chaves</button>
             </div>
           </form>
-        </details>
       </section>
 
       <section class="group" aria-labelledby="branding-title">

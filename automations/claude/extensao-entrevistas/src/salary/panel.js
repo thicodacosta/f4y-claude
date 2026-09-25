@@ -1,5 +1,5 @@
 /** Aba "Salários": pesquisa de remuneração nas bases públicas. */
-import { ClaudeError } from "../claude.js";
+import { FriendlyError } from "../errors.js";
 import { $, copyText, el, formatBRL, showError, startElapsed } from "../ui.js";
 import { researchSalary } from "./research.js";
 
@@ -122,21 +122,8 @@ function toText(r) {
   return lines.join("\n");
 }
 
-const SOURCE_BY_DOMAIN = [
-  [/glassdoor/i, "Glassdoor"],
-  [/roberthalf/i, "Robert Half"],
-  [/hays/i, "Hays"],
-  [/linkedin/i, "LinkedIn"],
-];
-
-/** Mostra o passo atual da pesquisa: busca feita ou página lida. */
-function showProgress({ tool, input }) {
-  const text = input?.query ?? input?.url ?? "";
-  const source = SOURCE_BY_DOMAIN.find(([pattern]) => pattern.test(text))?.[1];
-  $("sal-progress").textContent =
-    tool === "web_fetch"
-      ? `Lendo página${source ? ` do ${source}` : ""}…`
-      : `Buscando${source ? ` no ${source}` : ""}: “${text.replace(/site:\S+/g, "").trim()}”`;
+function showProgress(text) {
+  $("sal-progress").textContent = text;
 }
 
 async function submit(event) {
@@ -144,7 +131,7 @@ async function submit(event) {
   showError("sal-error", null);
   const apiKey = getApiKey();
   const input = readForm();
-  if (!apiKey) return showError("sal-error", "Cadastre a chave da Anthropic em Configurações.");
+  if (!apiKey) return showError("sal-error", "Cadastre a chave da Groq em Configurações.");
   if (input.cargo.trim().length < 3) {
     $("sal-cargo").focus();
     return showError("sal-error", "Informe o cargo a pesquisar.");
@@ -162,14 +149,7 @@ async function submit(event) {
   } catch (error) {
     console.error(error);
     show("form");
-    const message = error instanceof ClaudeError ? error.message : "Não foi possível concluir a pesquisa.";
-    // Busca na web precisa estar liberada na organização da Anthropic.
-    showError(
-      "sal-error",
-      /web.?search|web.?fetch/i.test(message)
-        ? `${message} Verifique se a busca na web está habilitada no Console da Anthropic (Settings → Privacy).`
-        : message,
-    );
+    showError("sal-error", error instanceof FriendlyError ? error.message : "Não foi possível concluir a pesquisa.");
   } finally {
     stop();
     abort = null;

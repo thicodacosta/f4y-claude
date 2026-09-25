@@ -62,32 +62,39 @@ enquanto os arquivos são processados.
 
 ## Comparativo de candidatos (aba "Comparativo")
 
-A JD (colada ou importada em PDF, .docx ou .txt) e de 2 a 5 currículos (PDF
-ou .docx) vão numa única chamada ao Claude, para que todos sejam avaliados
-com o mesmo critério. O Claude extrai de 6 a 12 requisitos da JD
-(obrigatórios e desejáveis) e classifica cada candidato em cada requisito
-como atende, parcial ou não evidenciado, sempre com a evidência.
+Roda na **Groq** (`openai/gpt-oss-120b`, saída estruturada estrita), em
+cerca de 5 a 10s. A JD (colada ou importada em PDF, .docx ou .txt) e de 2 a 5
+currículos têm o texto extraído no próprio navegador (pdf.js para PDF,
+mammoth para Word) e vão numa única chamada, para que todos sejam avaliados
+com o mesmo critério. **PDFs escaneados (imagem) não funcionam**: a Groq não
+lê imagem, e a extensão avisa qual arquivo não tem texto.
 
-A compatibilidade de 0% a 100% **não é dada pelo modelo**: é calculada em
-`src/compare/evaluate.js` (atende = 1, parcial = 0,5, não evidenciado = 0;
-obrigatórios pesam 2, desejáveis 1). Assim a nota é transparente e
-reproduzível. As regras de equidade proíbem considerar nome, idade, gênero e
-outras características pessoais. O resultado traz ranking, matriz
-requisito × candidato, pontos fortes, lacunas e perguntas sugeridas para
-a entrevista, e pode ser copiado ou baixado em Markdown. Esforço baixo e respostas enxutas: cerca de 30s para 2 CVs.
+O modelo extrai de 6 a 10 requisitos da JD (obrigatórios e desejáveis) e
+classifica cada candidato em cada requisito como atende, parcial ou não
+evidenciado, sempre com a evidência. A compatibilidade de 0% a 100% **não é
+dada pelo modelo**: é calculada em `src/compare/evaluate.js` (atende = 1,
+parcial = 0,5, não evidenciado = 0; obrigatórios pesam 2, desejáveis 1). As
+regras de equidade proíbem considerar nome, idade, gênero e outras
+características pessoais. O resultado traz ranking, matriz requisito ×
+candidato, pontos fortes, lacunas e perguntas sugeridas, e pode ser copiado ou
+baixado em Markdown.
 
 ## Pesquisa salarial (aba "Salários")
 
-O Claude pesquisa na web com busca e leitura de páginas **restritas aos
-domínios** do LinkedIn, Glassdoor, Robert Half e Hays
-(`src/salary/research.js`). Devolve referências por fonte (com link),
-faixa CLT consolidada, estimativa PJ, fatores de variação e as fontes em
-que não achou dado público. Os guias da Hays, por exemplo, exigem
-cadastro. Nenhum número é aceito sem fonte. Esforço baixo, até 6 buscas e 2 leituras de página, com as buscas das fontes em paralelo. O painel mostra o que está sendo pesquisado.
+Roda na **Groq** em duas etapas (`src/salary/research.js`), porque a busca na
+web da Groq não aceita saída estruturada:
 
-Requer a busca na web habilitada na organização da Anthropic (Console →
-Settings → Privacy). Cada pesquisa usa até 12 buscas e 6 leituras de
-página, cobradas à parte pela Anthropic.
+1. `gpt-oss-120b` com a ferramenta `browser_search`: uma busca por fonte
+   (LinkedIn, Glassdoor, Robert Half e Hays, via `site:`), anotando valor e
+   URL;
+2. `gpt-oss-20b` organiza as notas no formato do painel (referências por
+   fonte, faixa CLT, estimativa PJ, fatores de variação e fontes sem dado),
+   descartando outras fontes e sem inventar números.
+
+A busca da Groq não restringe domínios pela API: a restrição vem do prompt e
+da segunda etapa. Leva de 40s a 1 min. **No plano gratuito da Groq**, o limite
+de 8.000 tokens por minuto do `gpt-oss-120b` faz a extensão esperar entre
+chamadas seguidas; o plano Dev Tier remove esse gargalo.
 
 ## Calculadora de turnover (aba "Turnover")
 
@@ -115,7 +122,9 @@ sem acento e tolerante a plural e gênero, e filtro por categoria.
 |---|---|
 | `src/schema.js` | Definição canônica `analyze_interview` e conversão para saída estruturada |
 | `src/prompt.js` | Regras do registro (system prompt) e montagem da mensagem |
-| `src/claude.js` | Chamada comum ao Claude (`claude-opus-5`, saída estruturada, raciocínio adaptativo, streaming, fallback em recusa) |
+| `src/claude.js` | Chamada comum ao Claude (`claude-opus-5`, saída estruturada, raciocínio adaptativo, streaming, fallback em recusa): registro de entrevista e currículos |
+| `src/groq.js` | Chamadas à Groq (saída estruturada e busca na web): comparativo e pesquisa salarial |
+| `src/text-extract.js` | Texto de PDF (pdf.js) e Word (mammoth) extraído no navegador |
 | `src/analyze.js` | Registro de entrevista a partir da transcrição |
 | `src/cv/` | Construtor de currículos: schema, leitura e padronização, geração de PDF/Word e a aba do painel |
 | `src/compare/` | Comparativo de candidatos: avaliação pelo Claude, cálculo da compatibilidade e a aba do painel |
@@ -150,9 +159,8 @@ npm run build
 ### Chaves embutidas ou por usuário
 
 - **Com `.env.local` preenchido** (ANTHROPIC_API_KEY e GROQ_API_KEY), o build
-  embute as chaves no pacote. A equipe só instala e usa; em Configurações
-  aparece "já vêm configuradas" e o formulário fica recolhido (quem cadastrar
-  uma chave própria passa a usá-la no lugar da embutida).
+  embute as chaves no pacote. A equipe só instala e usa, e a seção de chaves
+  não aparece em Configurações.
 - **Sem `.env.local`**, cada usuário informa as chaves em Configurações.
 
 `.env.local` e `extension/dist/` não vão para o git. Qualquer pessoa com o

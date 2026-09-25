@@ -479,9 +479,11 @@ for (const [name, tab] of Object.entries(TABS)) tab.addEventListener("click", ()
 async function init() {
   await loadKeys();
   const apiKeyGetter = () => keys.apiKey;
+  // Comparativo e pesquisa salarial rodam na Groq.
+  const groqKeyGetter = () => keys.groqKey;
   cvArea = await initCvArea({ apiKeyGetter });
-  await initCompareArea({ apiKeyGetter });
-  await initSalaryArea({ apiKeyGetter });
+  await initCompareArea({ apiKeyGetter: groqKeyGetter });
+  await initSalaryArea({ apiKeyGetter: groqKeyGetter });
   initTurnoverArea();
   initPromptsArea();
   const stored = await chrome.storage.session.get(["draft", "result", "capture", "modo", "aba"]);

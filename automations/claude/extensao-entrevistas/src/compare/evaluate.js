@@ -1,6 +1,6 @@
-import { requestStructured } from "../claude.js";
-import { fileToBlocks } from "../cv/structure.js";
+import { groqStructured } from "../groq.js";
 import { toStructuredSchema } from "../schema.js";
+import { fileToText } from "../text-extract.js";
 
 // A nota não é "chutada" pelo modelo: ele avalia cada requisito e a
 // compatibilidade é calculada aqui, de forma transparente e igual para todos.
@@ -110,31 +110,26 @@ export function scoreCandidate(candidate, requisitos) {
 }
 
 /**
- * Compara 2 a 5 currículos com a JD. `jd` é `{ text }` ou `{ file }`.
- * Devolve o resultado do Claude com `compatibilidade` calculada e os
- * candidatos ordenados do mais para o menos compatível.
+ * Compara 2 a 5 currículos com a JD, via Groq. `jd` é `{ text }` ou `{ file }`.
+ * O texto dos arquivos é extraído no navegador. Devolve o resultado com
+ * `compatibilidade` calculada e os candidatos do mais para o menos compatível.
  */
-export async function compareCandidates({ apiKey, jd, cvFiles, signal, effort = "low" }) {
-  const content = [];
-  if (jd.file) content.push(...(await fileToBlocks(jd.file, "descricao_da_vaga")));
-  else content.push({ type: "text", text: `<descricao_da_vaga>\n${jd.text.trim()}\n</descricao_da_vaga>` });
+export async function compareCandidates({ apiKey, jd, cvFiles, signal }) {
+  const jdText = jd.file ? await fileToText(jd.file) : jd.text.trim();
+  const cvTexts = await Promise.all(cvFiles.map(fileToText));
 
-  for (const [i, file] of cvFiles.entries()) {
-    content.push(...(await fileToBlocks(file, `candidato_${i + 1}`)));
-  }
-  content.push({
-    type: "text",
-    text: `Compare os ${cvFiles.length} candidatos acima com a vaga, no formato estruturado solicitado.`,
-  });
+  const user = [
+    `<descricao_da_vaga>\n${jdText}\n</descricao_da_vaga>`,
+    ...cvTexts.map((text, i) => `<candidato_${i + 1} arquivo="${cvFiles[i].name}">\n${text}\n</candidato_${i + 1}>`),
+    `Compare os ${cvFiles.length} candidatos acima com a vaga, no formato estruturado solicitado. Use ordem = número do candidato (1 a ${cvFiles.length}).`,
+  ].join("\n\n");
 
-  const result = await requestStructured({
+  const result = await groqStructured({
     apiKey,
     system: SYSTEM_PROMPT,
-    content,
-    format: { type: "json_schema", schema: SCHEMA },
-    // A avaliação é por requisito e com evidência explícita: esforço baixo
-    // mantém a qualidade e reduz bastante o tempo.
-    effort,
+    user,
+    name: "comparativo_candidatos",
+    schema: SCHEMA,
     signal,
   });
 

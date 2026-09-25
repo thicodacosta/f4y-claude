@@ -1,9 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { FriendlyError } from "./errors.js";
 
 export const MODEL = "claude-opus-5";
 
 /** Erro com mensagem já pronta para exibir ao usuário. */
-export class ClaudeError extends Error {}
+export class ClaudeError extends FriendlyError {}
 
 /**
  * Pede ao Claude uma resposta no formato JSON do `format` informado e devolve

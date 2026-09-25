@@ -1,26 +1,14 @@
-import { requestToolResult } from "../claude.js";
+import { GROQ_FAST_MODEL, groqStructured, groqWebResearch } from "../groq.js";
 import { toStructuredSchema } from "../schema.js";
 
-// Bases consultadas. A busca e a leitura de páginas ficam restritas a estes
-// domínios (subdomínios incluídos).
+// Bases consultadas. A busca da Groq não restringe domínios pela API: a
+// restrição vem do prompt (buscas com site:) e da etapa de organização, que
+// descarta dado de outras fontes.
 export const SOURCES = ["LinkedIn", "Glassdoor", "Robert Half", "Hays"];
-const ALLOWED_DOMAINS = [
-  "linkedin.com",
-  "glassdoor.com",
-  "glassdoor.com.br",
-  "roberthalf.com",
-  "roberthalf.com.br",
-  "hays.com",
-  "hays.com.br",
-];
 
 const money = (description) => ({ type: ["number", "null"], description });
 
-const RESULT_TOOL = {
-  name: "registrar_pesquisa_salarial",
-  description:
-    "Registra o resultado final da pesquisa salarial. Chame uma única vez, depois de concluir as buscas, só com dados encontrados nas fontes.",
-  input_schema: toStructuredSchema({
+const RESULT_SCHEMA = toStructuredSchema({
     type: "object",
     properties: {
       cargoPesquisado: { type: "string", description: "Cargo como foi pesquisado, com a senioridade." },
@@ -83,27 +71,42 @@ const RESULT_TOOL = {
       "fontesSemDado",
       "observacoes",
     ],
-  }),
-};
+});
 
-const SYSTEM_PROMPT = `Você é analista de remuneração de uma consultoria de Recruitment & Executive Search no Brasil. Faça pesquisas salariais objetivas e rastreáveis.
+const RESEARCH_PROMPT = `Você é analista de remuneração de uma consultoria de Recruitment & Executive Search no Brasil. Pesquise salários na web de forma rápida e rastreável.
 
-COMO PESQUISAR (seja rápido)
-- Faça as buscas de uma vez, em paralelo: uma busca por fonte na primeira rodada. Só faça nova busca se uma fonte não trouxer nada útil.
-- Leia uma página inteira (web_fetch) apenas quando o resultado da busca não trouxer o valor; no máximo 2 leituras.
-- Consulte as quatro bases: LinkedIn (LinkedIn Salary e vagas com faixa divulgada), Glassdoor, Robert Half (Guia Salarial) e Hays (Guia Salarial). Priorize a edição mais recente de cada guia.
-- Faça buscas específicas por cargo, senioridade e localidade; se não houver dado exato, use o cargo equivalente mais próximo e diga isso na descrição da referência.
-- Converta tudo para valor mensal em reais. Se a fonte trouxer valor anual, divida por 13,33 (12 salários + 13º + 1/3 de férias) para CLT e informe isso na descrição.
+FONTES PERMITIDAS: somente LinkedIn, Glassdoor, Robert Half (Guia Salarial) e Hays (Guia Salarial). Ignore qualquer outro site.
+
+BUSCAS: faça uma busca separada para cada uma das 4 fontes, com o operador site:
+1. site:glassdoor.com.br <cargo> salário <cidade>
+2. site:roberthalf.com <cargo> guia salarial
+3. site:hays.com.br <cargo> guia salarial
+4. site:linkedin.com <cargo> salário <cidade>
+Se a busca de uma fonte não trouxer valor, tente uma vez com um cargo equivalente (ex.: "Gerente de Tesouraria/Financeiro").
+
+COMO RESPONDER
+Para cada fonte, escreva um bloco:
+FONTE: <nome>
+URL: <endereço exato da página>
+DADO: <valores encontrados, exatamente como aparecem, com período (mensal/anual), regime (CLT/PJ), porte/setor e ano de referência>
+Se não encontrar dado de uma fonte, escreva "FONTE: <nome> — sem dado público encontrado".
+No fim, liste benefícios e fatores de variação citados pelas fontes.
+
+REGRAS: nunca invente números; copie os valores como aparecem; prefira as edições mais recentes dos guias.`;
+
+const ORGANIZE_PROMPT = `Você organiza notas de pesquisa salarial em um formato estruturado.
 
 REGRAS
-- Nunca invente números. Cada referência precisa vir de uma página consultada. Fonte sem dado vai para fontesSemDado.
-- O consolidado deve refletir as referências (ex.: mediana entre os valores médios). Se houver uma só referência, diga isso nas observações.
-- Para PJ, prefira dado de fonte; se derivar do CLT, use um fator entre 1,3 e 1,6 e explique na observação.
-- Ao terminar, chame registrar_pesquisa_salarial uma única vez. Não escreva o resultado em texto.`;
+- Use somente dados presentes nas notas. Nunca invente números nem URLs.
+- Aceite apenas referências de LinkedIn, Glassdoor, Robert Half e Hays. Descarte qualquer outra fonte.
+- Converta tudo para valor mensal em reais. Valor anual CLT: divida por 13,33 (12 salários + 13º + 1/3 de férias) e diga isso na descrição.
+- O consolidado CLT deve refletir as referências (ex.: mediana entre os valores médios). Com uma só referência, diga isso nas observações.
+- Para PJ, use dado de fonte quando houver; senão, derive do consolidado CLT com fator entre 1,3 e 1,6 e explique na observação.
+- Fonte sem dado vai para fontesSemDado.
+- Observações: 2 a 4 frases em tom consultivo, em português.`;
 
-function buildRequest({ cargo, senioridade, localidade, regime, setor, observacoes }) {
+function describeRequest({ cargo, senioridade, localidade, regime, setor, observacoes }) {
   return [
-    "Pesquise a remuneração para:",
     `- Cargo: ${cargo.trim()}`,
     `- Senioridade: ${senioridade || "não informada"}`,
     `- Localidade: ${localidade.trim() || "Brasil"}`,
@@ -115,22 +118,33 @@ function buildRequest({ cargo, senioridade, localidade, regime, setor, observaco
     .join("\n");
 }
 
-export function researchSalary({ apiKey, input, signal, effort = "low", onProgress }) {
-  return requestToolResult({
+/**
+ * Pesquisa salarial via Groq, em duas etapas: a busca na web (que não aceita
+ * saída estruturada) e a organização das notas no formato do painel.
+ */
+export async function researchSalary({ apiKey, input, signal, onProgress }) {
+  const request = describeRequest(input);
+
+  onProgress?.("Buscando no LinkedIn, Glassdoor, Robert Half e Hays…");
+  const research = await groqWebResearch({
     apiKey,
-    system: SYSTEM_PROMPT,
-    content: buildRequest(input),
-    tools: [
-      // Limites baixos mantêm a pesquisa rápida (cada rodada de busca/leitura
-      // soma segundos) e o custo previsível.
-      { type: "web_search_20260209", name: "web_search", max_uses: 6, allowed_domains: ALLOWED_DOMAINS },
-      { type: "web_fetch_20260209", name: "web_fetch", max_uses: 2, allowed_domains: ALLOWED_DOMAINS },
-    ],
-    resultTool: RESULT_TOOL,
-    // Coleta e consolidação de dados, não raciocínio profundo: esforço
-    // baixo reduz bastante o tempo total.
-    effort,
-    onProgress,
+    system: RESEARCH_PROMPT,
+    user: `Pesquise a remuneração para:\n${request}`,
+    signal,
+  });
+
+  onProgress?.("Organizando os resultados…");
+  const pages = research.pages.length
+    ? `\n\nPáginas consultadas:\n${research.pages.map((p) => `- ${p.title} ${p.url}`).join("\n")}`
+    : "";
+  return groqStructured({
+    apiKey,
+    system: ORGANIZE_PROMPT,
+    user: `Pesquisa solicitada:\n${request}\n\n<notas_da_pesquisa>\n${research.text}${pages}\n</notas_da_pesquisa>`,
+    name: "pesquisa_salarial",
+    schema: RESULT_SCHEMA,
+    model: GROQ_FAST_MODEL,
+    reasoningEffort: "low",
     signal,
   });
 }

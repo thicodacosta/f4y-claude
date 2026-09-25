@@ -1,6 +1,6 @@
 // Empacota src/ em extension/dist/. Extensões MV3 não podem carregar código
 // remoto, então o SDK da Anthropic precisa ir dentro do bundle.
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import * as esbuild from "esbuild";
 
 /**
@@ -56,3 +56,6 @@ if (process.argv.includes("--watch")) {
   rmSync(options.outdir, { recursive: true, force: true });
   await esbuild.build(options);
 }
+
+// O leitor de PDF (pdf.js) roda num worker próprio, que precisa estar no pacote.
+copyFileSync("node_modules/pdfjs-dist/build/pdf.worker.min.mjs", `${options.outdir}/pdf.worker.mjs`);

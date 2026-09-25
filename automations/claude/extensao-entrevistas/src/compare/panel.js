@@ -1,5 +1,5 @@
 /** Aba "Comparativo": JD + 2 a 5 currículos → compatibilidade por candidato. */
-import { ClaudeError } from "../claude.js";
+import { FriendlyError } from "../errors.js";
 import { $, copyText, el, saveBlob, showError, startElapsed } from "../ui.js";
 
 // A leitura de Word (mammoth) só carrega quando a comparação é usada.
@@ -180,7 +180,7 @@ async function submit(event) {
   showError("cmp-error", null);
   const apiKey = getApiKey();
   const jdText = $("cmp-jd").value.trim();
-  if (!apiKey) return showError("cmp-error", "Cadastre a chave da Anthropic em Configurações.");
+  if (!apiKey) return showError("cmp-error", "Cadastre a chave da Groq em Configurações.");
   if (!jdFile && jdText.length < 100) return showError("cmp-error", "Cole a descrição completa da vaga ou importe o arquivo.");
   if (cvFiles.length < MIN) return showError("cmp-error", `Envie pelo menos ${MIN} currículos.`);
 
@@ -201,7 +201,7 @@ async function submit(event) {
   } catch (error) {
     console.error(error);
     show("form");
-    showError("cmp-error", error instanceof ClaudeError ? error.message : "Não foi possível concluir a comparação.");
+    showError("cmp-error", error instanceof FriendlyError ? error.message : "Não foi possível concluir a comparação.");
   } finally {
     stop();
     abort = null;
