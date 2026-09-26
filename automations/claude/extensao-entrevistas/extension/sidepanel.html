@@ -11,11 +11,16 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Plus+Jakarta+Sans:wght@700&display=swap"
     />
     <link rel="stylesheet" href="styles.css" />
+    <script src="theme-init.js"></script>
   </head>
   <body>
     <header class="topbar">
-      <img src="icons/wordmark.png" alt="Find4You" class="topbar__logo" width="120" height="47" />
-      <a href="options.html" target="_blank" class="topbar__link">Configurações</a>
+      <img id="header-logo" alt="" class="topbar__logo" hidden />
+      <span id="header-name" class="topbar__brand" hidden></span>
+      <div class="topbar__actions">
+        <button type="button" id="theme-toggle" class="theme-toggle"></button>
+        <a href="options.html" target="_blank" class="topbar__link">Configurações</a>
+      </div>
     </header>
 
     <nav class="tabs" aria-label="Ferramentas">
@@ -28,6 +33,10 @@
     </nav>
 
     <main>
+      <div id="onboarding-banner" class="banner" role="status" hidden>
+        Configure a identidade da sua empresa (logo e nome) em
+        <a href="options.html" target="_blank">Configurações</a>. É feito uma única vez.
+      </div>
       <div id="area-entrevistas">
       <div id="setup-banner" class="banner" role="status" hidden></div>
 
@@ -144,6 +153,15 @@
           <button type="button" id="download-json-btn" class="btn btn--ghost">Baixar .json</button>
         </div>
         <p id="copy-status" class="hint" role="status"></p>
+
+        <p class="label lang-label" aria-hidden="true">Idioma do registro</p>
+        <fieldset class="segmented segmented--3 lang-switch" id="lang-switch">
+          <legend class="visually-hidden">Idioma do registro</legend>
+          <label class="segmented__option"><input type="radio" name="idioma" value="pt" checked /><span>Português</span></label>
+          <label class="segmented__option"><input type="radio" name="idioma" value="en" /><span>English</span></label>
+          <label class="segmented__option"><input type="radio" name="idioma" value="es" /><span>Español</span></label>
+        </fieldset>
+        <p id="lang-status" class="hint" role="status"></p>
 
         <div id="result"></div>
 

@@ -5,7 +5,11 @@ import { initPromptsArea } from "./prompts/panel.js";
 import { initSalaryArea } from "./salary/panel.js";
 import { initTurnoverArea } from "./turnover/panel.js";
 import { loadKeys as resolveKeys } from "./keys.js";
+import { initHeader } from "./header.js";
+import { initTheme } from "./theme.js";
+import { translateRecord } from "./translate.js";
 import { renderAnalysis, toMarkdown } from "./render.js";
+import { FriendlyError } from "./errors.js";
 
 const FIELDS = ["candidato", "vagaTitulo", "vagaRequisitos", "transcricao"];
 // Abaixo disso não há conversa suficiente para um registro útil.
@@ -363,17 +367,60 @@ async function applyCapture(next) {
 
 // ---- Resultado ---------------------------------------------------------------
 
+/** Idioma exibido no registro: "pt" (original), "en" ou "es". */
+function resultLang() {
+  return current?.idioma ?? "pt";
+}
+
+/** Dados no idioma exibido (o original ou a tradução já feita). */
+function resultData() {
+  const lang = resultLang();
+  return lang === "pt" ? current.data : current.traducoes?.[lang] ?? current.data;
+}
+
 function showResult(result) {
   current = result;
   const { meta } = result;
   $("result-title").textContent = meta.candidato || "Candidato não informado";
   $("result-meta").textContent = [meta.vagaTitulo, meta.data].filter(Boolean).join(" · ");
   $("copy-status").textContent = "";
-  renderAnalysis($("result"), result.data);
+  for (const radio of document.querySelectorAll('input[name="idioma"]')) radio.checked = radio.value === resultLang();
+  renderAnalysis($("result"), resultData(), resultLang());
   $("transcript-details").hidden = !result.transcricao;
   $("transcript-details").open = false;
   $("transcript-text").textContent = result.transcricao ?? "";
   showView("result");
+}
+
+async function changeLanguage(lang) {
+  const previous = resultLang();
+  if (lang === previous) return;
+  if (lang !== "pt" && !current.traducoes?.[lang]) {
+    if (!keys.groqKey) {
+      $("lang-status").textContent = "Cadastre a chave da Groq em Configurações para traduzir.";
+      return showResult(current);
+    }
+    $("lang-switch").disabled = true;
+    $("lang-status").textContent = lang === "en" ? "Traduzindo para inglês…" : "Traduzindo para espanhol…";
+    try {
+      const translated = await translateRecord({ apiKey: keys.groqKey, data: current.data, lang });
+      current = { ...current, traducoes: { ...current.traducoes, [lang]: translated } };
+    } catch (error) {
+      console.error(error);
+      $("lang-status").textContent =
+        error instanceof FriendlyError ? error.message : "Não foi possível traduzir agora. Tente novamente.";
+      return showResult(current);
+    } finally {
+      $("lang-switch").disabled = false;
+    }
+  }
+  $("lang-status").textContent = "";
+  // Salvar dispara o listener de storage, que reexibe no novo idioma.
+  await chrome.storage.session.set({ result: { ...current, idioma: lang } });
+}
+
+for (const radio of document.querySelectorAll('input[name="idioma"]')) {
+  radio.addEventListener("change", () => changeLanguage(radio.value));
 }
 
 function fileBaseName() {
@@ -383,7 +430,8 @@ function fileBaseName() {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-  return `registro-entrevista-${slug}-${new Date().toISOString().slice(0, 10)}`;
+  const suffix = resultLang() === "pt" ? "" : `-${resultLang()}`;
+  return `registro-entrevista-${slug}-${new Date().toISOString().slice(0, 10)}${suffix}`;
 }
 
 function download(content, filename, type) {
@@ -395,7 +443,7 @@ function download(content, filename, type) {
 
 $("copy-btn").addEventListener("click", async () => {
   try {
-    await navigator.clipboard.writeText(toMarkdown(current.data, current.meta));
+    await navigator.clipboard.writeText(toMarkdown(resultData(), current.meta, resultLang()));
     $("copy-status").textContent = "Registro copiado para a área de transferência.";
   } catch {
     $("copy-status").textContent = "Não foi possível copiar. Use “Baixar .md”.";
@@ -403,12 +451,16 @@ $("copy-btn").addEventListener("click", async () => {
 });
 
 $("download-md-btn").addEventListener("click", () =>
-  download(toMarkdown(current.data, current.meta), `${fileBaseName()}.md`, "text/markdown;charset=utf-8"),
+  download(toMarkdown(resultData(), current.meta, resultLang()), `${fileBaseName()}.md`, "text/markdown;charset=utf-8"),
 );
 
 $("download-json-btn").addEventListener("click", () =>
   download(
-    JSON.stringify({ ...current.meta, registro: current.data, transcricao: current.transcricao ?? null }, null, 2),
+    JSON.stringify(
+      { ...current.meta, idioma: resultLang(), registro: resultData(), transcricao: current.transcricao ?? null },
+      null,
+      2,
+    ),
     `${fileBaseName()}.json`,
     "application/json",
   ),
@@ -476,7 +528,29 @@ function selectTab(name) {
 
 for (const [name, tab] of Object.entries(TABS)) tab.addEventListener("click", () => selectTab(name));
 
+/**
+ * Enquanto a identidade da empresa não foi configurada: aviso no painel e,
+ * uma vez por sessão do navegador, abre Configurações direto.
+ */
+async function checkOnboarding() {
+  const { onboardingDone } = await chrome.storage.local.get("onboardingDone");
+  $("onboarding-banner").hidden = Boolean(onboardingDone);
+  if (onboardingDone) return;
+  const { onboardingOpened } = await chrome.storage.session.get("onboardingOpened");
+  if (!onboardingOpened) {
+    await chrome.storage.session.set({ onboardingOpened: true });
+    chrome.runtime.openOptionsPage();
+  }
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && "onboardingDone" in changes) $("onboarding-banner").hidden = Boolean(changes.onboardingDone.newValue);
+});
+
 async function init() {
+  await initTheme();
+  initHeader();
+  checkOnboarding();
   await loadKeys();
   const apiKeyGetter = () => keys.apiKey;
   // Comparativo e pesquisa salarial rodam na Groq.

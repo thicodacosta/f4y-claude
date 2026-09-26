@@ -11,15 +11,25 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700&display=swap"
     />
     <link rel="stylesheet" href="styles.css" />
+    <script src="theme-init.js"></script>
   </head>
   <body class="page">
     <header class="topbar">
-      <img src="icons/wordmark.png" alt="Find4You" class="topbar__logo" width="120" height="47" />
+      <img id="header-logo" alt="" class="topbar__logo" hidden />
+      <span id="header-name" class="topbar__brand" hidden></span>
     </header>
 
     <main>
       <p class="eyebrow">Find4You · Ferramentas de RH</p>
-      <h1 class="title">Configurações</h1>
+      <h1 id="page-title" class="title">Configurações</h1>
+      <div id="welcome" class="note welcome" hidden>
+        <p class="note__title">Boas-vindas!</p>
+        <p>Configure a identidade da sua empresa uma única vez. O logo escolhido aparece no topo do painel e em todos os currículos gerados. Você pode voltar aqui quando quiser, em "Configurações".</p>
+      </div>
+      <div id="welcome-done" class="note welcome" role="status" hidden>
+        <p class="note__title">Tudo pronto.</p>
+        <p>Clique no ícone da extensão, na barra do Chrome, para abrir o painel.</p>
+      </div>
 
       <section id="keys-section" class="group" aria-labelledby="keys-title">
         <h2 id="keys-title" class="subtitle">Chaves de API</h2>
@@ -86,6 +96,17 @@
             <button type="submit" class="btn btn--primary">Salvar identidade</button>
           </div>
         </form>
+      </section>
+
+      <section class="group" aria-labelledby="appearance-title">
+        <h2 id="appearance-title" class="subtitle">Aparência</h2>
+        <fieldset class="segmented segmented--3">
+          <legend class="visually-hidden">Tema</legend>
+          <label class="segmented__option"><input type="radio" name="tema" value="auto" /><span>Automático</span></label>
+          <label class="segmented__option"><input type="radio" name="tema" value="light" /><span>Claro</span></label>
+          <label class="segmented__option"><input type="radio" name="tema" value="dark" /><span>Escuro</span></label>
+        </fieldset>
+        <p class="hint">"Automático" acompanha o tema do sistema. Também dá para alternar pelo botão no topo do painel.</p>
       </section>
 
       <section class="group" aria-labelledby="privacy-title">

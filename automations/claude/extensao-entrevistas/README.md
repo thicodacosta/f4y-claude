@@ -116,6 +116,27 @@ Cálculo local, sem IA (`src/turnover/calc.js`):
 50 prompts em 10 categorias (5 cada) em `src/prompts/library.js`, com busca
 sem acento e tolerante a plural e gênero, e filtro por categoria.
 
+## Identidade, primeiro acesso, tema e idiomas
+
+- **Logo no topo do painel:** é o logo escolhido em Configurações (Currículos
+  padronizados), o mesmo usado nos currículos. Sem logo, aparece o nome da
+  empresa; sem nada configurado, a marca do produto. O ícone pequeno e o nome
+  "Find4You · Ferramentas de RH" no cabeçalho do Chrome vêm do manifest.
+- **Primeiro acesso:** na instalação, Configurações abre em modo de
+  boas-vindas ("Configure sua empresa"). Enquanto a identidade não é salva, o
+  painel mostra um aviso e abre Configurações uma vez por sessão. Ao salvar,
+  `onboardingDone` é gravado e o fluxo não aparece mais. Quando houver login e
+  compra de pacote, este gatilho passa a ser o primeiro login.
+- **Tema:** Automático (sistema), Claro ou Escuro, em Configurações →
+  Aparência, ou pelo botão no topo do painel. Fica em `chrome.storage.local`
+  e é espelhado em `localStorage` para o `theme-init.js` aplicar antes da
+  página pintar.
+- **Tradução do registro de entrevista:** no resultado, "Idioma do registro"
+  alterna entre português, inglês e espanhol. A tradução roda na Groq
+  (`src/translate.js`, cerca de 2s), mantém a estrutura, nomes, siglas e
+  valores, e fica guardada junto do registro. Copiar e baixar usam o idioma
+  exibido.
+
 ## O que existe aqui
 
 | Caminho | Conteúdo |
@@ -132,6 +153,9 @@ sem acento e tolerante a plural e gênero, e filtro por categoria.
 | `src/turnover/` | Cálculos de taxa e custo de turnover e a aba do painel |
 | `src/prompts/` | Biblioteca de 50 prompts e a aba de busca |
 | `src/ui.js` | Utilitários de interface compartilhados |
+| `src/theme.js`, `extension/theme-init.js` | Tema claro/escuro/automático |
+| `src/header.js` | Logo da empresa no cabeçalho |
+| `src/translate.js` | Tradução do registro para inglês e espanhol |
 | `src/audio.js` | Captura PCM, reamostragem e montagem dos blocos WAV |
 | `src/transcribe.js` | Transcrição de um bloco via Groq (Whisper), com novas tentativas e filtro de alucinação |
 | `src/transcript.js` | Montagem da transcrição final com rótulos e horários |

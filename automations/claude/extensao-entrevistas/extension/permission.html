@@ -11,10 +11,12 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700&display=swap"
     />
     <link rel="stylesheet" href="styles.css" />
+    <script src="theme-init.js"></script>
   </head>
   <body class="page">
     <header class="topbar">
-      <img src="icons/wordmark.png" alt="Find4You" class="topbar__logo" width="120" height="47" />
+      <img id="header-logo" alt="" class="topbar__logo" hidden />
+      <span id="header-name" class="topbar__brand" hidden></span>
     </header>
     <main>
       <p class="eyebrow">Permissão</p>

@@ -1,4 +1,6 @@
+import { initHeader } from "./header.js";
 import { hasEmbeddedKeys } from "./keys.js";
+import { getTheme, initTheme, setTheme } from "./theme.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -135,11 +137,44 @@ $("branding-form").addEventListener("submit", async (event) => {
     cor: $("cor").value,
     ocultarContatos: $("ocultarContatos").checked,
   };
-  await chrome.storage.local.set({ branding });
-  setBrandingStatus("Identidade salva. Os próximos currículos já sairão neste padrão.");
+  await chrome.storage.local.set({ branding, onboardingDone: true });
+  setBrandingStatus("Identidade salva. O painel e os próximos currículos já usam este padrão.");
+  if (!$("welcome").hidden) {
+    $("welcome").hidden = true;
+    $("welcome-done").hidden = false;
+    $("page-title").textContent = "Configurações";
+    $("welcome-done").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
 });
 
 renderBranding();
+
+// ---- Aparência ---------------------------------------------------------------
+
+await initTheme();
+initHeader();
+const temaAtual = await getTheme();
+for (const radio of document.querySelectorAll('input[name="tema"]')) {
+  radio.checked = radio.value === temaAtual;
+  radio.addEventListener("change", () => setTheme(radio.value));
+}
+// Alternado pelo botão do painel: mantém a opção marcada em sincronia.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !("tema" in changes)) return;
+  for (const radio of document.querySelectorAll('input[name="tema"]')) {
+    radio.checked = radio.value === (changes.tema.newValue ?? "auto");
+  }
+});
+
+// ---- Primeiro acesso ----------------------------------------------------------
+// Aberta na instalação (ou pelo painel) antes da identidade ser configurada:
+// modo de boas-vindas, direto no que precisa ser ajustado.
+
+const { onboardingDone } = await chrome.storage.local.get("onboardingDone");
+if (!onboardingDone) {
+  $("welcome").hidden = false;
+  $("page-title").textContent = "Configure sua empresa";
+}
 
 // Aberta pelo painel com #curriculos: rola direto até a identidade.
 if (location.hash === "#curriculos") $("branding-title").scrollIntoView();

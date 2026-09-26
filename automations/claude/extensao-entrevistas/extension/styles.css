@@ -23,8 +23,10 @@
   color-scheme: light;
 }
 
+/* Tema escuro: automático pelo sistema, ou forçado em Configurações
+   (data-theme="dark" | "light" no <html>, ver theme-init.js). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --primary-ink: #7cc9f5;
     --bg: #1b2030;
     --surface: #242a3c;
@@ -38,11 +40,21 @@
     --shadow: none;
     color-scheme: dark;
   }
-  .topbar__logo {
-    background: #fff;
-    border-radius: 6px;
-    padding: 4px 6px;
-  }
+}
+
+:root[data-theme="dark"] {
+  --primary-ink: #7cc9f5;
+  --bg: #1b2030;
+  --surface: #242a3c;
+  --ink: #e8eaf0;
+  --muted: #a7abb8;
+  --border: #343b50;
+  --border-strong: #454d65;
+  --warning-bg: #3a3020;
+  --warning-ink: #f5c77a;
+  --danger: #ff7b7f;
+  --shadow: none;
+  color-scheme: dark;
 }
 
 * {
@@ -101,9 +113,60 @@ code {
 }
 
 .topbar__logo {
-  height: 28px;
+  height: 32px;
   width: auto;
+  max-width: 180px;
+  object-fit: contain;
   display: block;
+}
+
+/* Logos de clientes costumam ser feitos para fundo branco. */
+:root[data-theme="dark"] .topbar__logo {
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .topbar__logo {
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: #fff;
+  }
+}
+
+.topbar__brand {
+  font: 700 16px/24px var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  border-color: var(--primary);
+}
+
+.theme-toggle svg {
+  width: 16px;
+  height: 16px;
 }
 
 .topbar__link {
@@ -1285,4 +1348,39 @@ input[type="search"] {
 .attached .btn-link {
   flex: none;
   white-space: nowrap;
+}
+
+.segmented--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.welcome {
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.welcome p {
+  margin: 0;
+}
+
+.welcome .note__title {
+  margin-bottom: 4px;
+}
+
+.topbar {
+  min-height: 57px;
+}
+
+.lang-label {
+  margin: 16px 0 6px;
+}
+
+.lang-switch {
+  margin: 0 0 4px;
+}
+
+.lang-switch:disabled .segmented__option {
+  cursor: progress;
+  opacity: 0.7;
 }

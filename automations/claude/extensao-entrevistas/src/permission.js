@@ -4,6 +4,11 @@
  * sempre aparece, e a permissão vale para toda a extensão depois.
  */
 import { getMicStream } from "./audio.js";
+import { initHeader } from "./header.js";
+import { initTheme } from "./theme.js";
+
+initTheme();
+initHeader();
 
 const status = document.getElementById("status");
 

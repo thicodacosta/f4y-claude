@@ -8,7 +8,7 @@
  * analyzing → (registro salvo em `result`) | error.
  */
 
-import { hasEmbeddedKeys, loadKeys } from "./keys.js";
+import { loadKeys } from "./keys.js";
 
 const OFFSCREEN_URL = "offscreen.html";
 
@@ -18,12 +18,13 @@ chrome.action.onClicked.addListener((tab) => {
   if (tab.id !== undefined) chrome.sidePanel.open({ tabId: tab.id }).catch(console.error);
 });
 
+// Primeiro acesso: abre direto em Configurações para a empresa configurar
+// logo e identidade uma única vez. (Quando houver login, este gatilho passa
+// a ser o primeiro login.)
 chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   if (reason !== "install") return;
-  // Com chaves embutidas no pacote, não há nada a configurar na instalação.
-  if (hasEmbeddedKeys) return;
-  const { apiKey } = await chrome.storage.local.get("apiKey");
-  if (!apiKey) chrome.runtime.openOptionsPage();
+  const { onboardingDone } = await chrome.storage.local.get("onboardingDone");
+  if (!onboardingDone) chrome.runtime.openOptionsPage();
 });
 
 // Mensagens chegam em paralelo (as duas trilhas transcrevem ao mesmo
