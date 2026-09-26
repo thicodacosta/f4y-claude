@@ -6,7 +6,7 @@
  * Chrome); o arquivo original fica só em memória, para permitir "tentar de
  * novo" enquanto o painel estiver aberto.
  */
-import { ClaudeError } from "../claude.js";
+import { FriendlyError } from "../errors.js";
 
 // Leitura de Word e geração de PDF/Word somam ~2,5 MB (bibliotecas e
 // fontes): só carregam quando a aba de currículos é usada.
@@ -23,6 +23,7 @@ let items = []; // { id, fileName, status: "fila"|"processando"|"pronto"|"erro",
 const files = new Map(); // id → File (só em memória)
 let branding = {};
 let getApiKey = () => null;
+let getGroqKey = () => null;
 let running = 0;
 
 function persist() {
@@ -138,22 +139,23 @@ function pump() {
     const next = items.find((i) => i.status === "fila");
     if (!next) return;
     const apiKey = getApiKey();
-    if (!apiKey) {
+    const groqKey = getGroqKey();
+    if (!apiKey && !groqKey) {
       for (const i of items.filter((x) => x.status === "fila")) {
-        update(i.id, { status: "erro", error: "Cadastre a chave da Anthropic em Configurações." });
+        update(i.id, { status: "erro", error: "Cadastre uma chave da Anthropic ou da Groq em Configurações." });
       }
       return;
     }
     running++;
     update(next.id, { status: "processando" });
     loadStructure()
-      .then(({ structureCv }) => structureCv({ apiKey, file: files.get(next.id) }))
+      .then(({ structureCv }) => structureCv({ apiKey, groqKey, file: files.get(next.id) }))
       .then((cv) => update(next.id, { status: "pronto", cv }))
       .catch((error) => {
         console.error(`Falha ao padronizar ${next.fileName}`, error);
         update(next.id, {
           status: "erro",
-          error: error instanceof ClaudeError ? error.message : "Não foi possível ler este arquivo.",
+          error: error instanceof FriendlyError ? error.message : "Não foi possível ler este arquivo.",
         });
       })
       .finally(() => {
@@ -205,7 +207,7 @@ function preview(item, buttonEl) {
 
 function renderBranding() {
   const banner = $("cv-banner");
-  const missingKey = !getApiKey();
+  const missingKey = !getApiKey() && !getGroqKey();
   const missingLogo = !branding.logoDataUrl;
   banner.hidden = !missingKey && !missingLogo;
   if (!banner.hidden) {
@@ -227,8 +229,9 @@ function renderBranding() {
   }
 }
 
-export async function initCvArea({ apiKeyGetter }) {
+export async function initCvArea({ apiKeyGetter, groqKeyGetter }) {
   getApiKey = apiKeyGetter;
+  getGroqKey = groqKeyGetter;
   ({ branding = {} } = await chrome.storage.local.get("branding"));
 
   // Itens que estavam em processamento quando o painel fechou não têm mais

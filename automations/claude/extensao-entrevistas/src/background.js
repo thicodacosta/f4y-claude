@@ -67,9 +67,8 @@ async function start({ tabId, meta }) {
   if (capture && capture.phase !== "error") throw new Error("Já existe uma gravação em andamento.");
 
   const { apiKey, groqKey } = await loadKeys();
-  if (!apiKey || !groqKey) {
-    throw new Error("Cadastre as chaves da Anthropic e da Groq em Configurações antes de gravar.");
-  }
+  // A Groq transcreve (obrigatória); o registro sai pelo Claude ou pela Groq.
+  if (!groqKey) throw new Error("Cadastre a chave da Groq em Configurações antes de gravar.");
   if (tabId === undefined) throw new Error("Não foi possível identificar a aba da reunião.");
 
   let streamId;

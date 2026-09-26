@@ -116,6 +116,23 @@ Cálculo local, sem IA (`src/turnover/calc.js`):
 50 prompts em 10 categorias (5 cada) em `src/prompts/library.js`, com busca
 sem acento e tolerante a plural e gênero, e filtro por categoria.
 
+## Provedores de IA e limites
+
+| Ferramenta | Provedor |
+|---|---|
+| Registro de entrevista | Claude; se a Anthropic estiver sem crédito, chave ou cota, **Groq automaticamente** (mesmo prompt e schema) |
+| Currículos padronizados | Claude (lê PDF escaneado); na falta, **Groq** com texto extraído no navegador |
+| Transcrição da gravação | Groq (Whisper) |
+| Comparativo, pesquisa salarial e tradução | Groq |
+
+Plano gratuito da Groq (limites da conta inteira, por modelo): **8.000 tokens
+por minuto** e **200.000 tokens por dia**. Na prática: currículos e
+comparativos cabem com folga; entrevistas de até ~15 minutos cabem numa
+chamada; entrevistas mais longas e uso diário por uma equipe pedem créditos
+na Anthropic ou o plano Dev Tier da Groq. Quando um limite é atingido, a
+extensão explica o motivo na hora (sem esperas longas) e, na gravação,
+preserva a transcrição para tentar de novo.
+
 ## Identidade, primeiro acesso, tema e idiomas
 
 - **Logo no topo do painel:** é o logo escolhido em Configurações (Currículos

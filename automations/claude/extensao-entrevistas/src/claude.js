@@ -3,8 +3,21 @@ import { FriendlyError } from "./errors.js";
 
 export const MODEL = "claude-opus-5";
 
-/** Erro com mensagem já pronta para exibir ao usuário. */
-export class ClaudeError extends FriendlyError {}
+/**
+ * Erro com mensagem já pronta para exibir ao usuário. `code` indica quando a
+ * Anthropic está indisponível para esta conta ("credits", "auth", "rate") e
+ * vale tentar outro provedor.
+ */
+export class ClaudeError extends FriendlyError {
+  constructor(message, code = null) {
+    super(message);
+    this.code = code;
+  }
+}
+
+/** A Anthropic não pode atender agora (sem crédito, chave ou cota)? */
+export const isClaudeUnavailable = (error) =>
+  error instanceof ClaudeError && ["credits", "auth", "rate"].includes(error.code);
 
 /**
  * Pede ao Claude uma resposta no formato JSON do `format` informado e devolve
@@ -123,16 +136,19 @@ function toClaudeError(error) {
   // mensagem ficam no corpo do erro.
   const apiMessage = error?.error?.error?.message ?? "";
   if (/credit balance/i.test(apiMessage)) {
-    return new ClaudeError("Os créditos da API da Anthropic acabaram. Recarregue em console.anthropic.com → Plans & Billing.");
+    return new ClaudeError(
+      "Os créditos da API da Anthropic acabaram. Recarregue em console.anthropic.com → Plans & Billing.",
+      "credits",
+    );
   }
   if (error instanceof Anthropic.APIUserAbortError) {
     return new ClaudeError("Operação cancelada.");
   }
   if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError) {
-    return new ClaudeError("Chave de API da Anthropic inválida ou sem permissão. Revise a chave nas configurações.");
+    return new ClaudeError("Chave de API da Anthropic inválida ou sem permissão. Revise a chave nas configurações.", "auth");
   }
   if (error instanceof Anthropic.RateLimitError) {
-    return new ClaudeError("Limite de uso da API atingido. Aguarde alguns instantes e tente novamente.");
+    return new ClaudeError("Limite de uso da API atingido. Aguarde alguns instantes e tente novamente.", "rate");
   }
   if (error instanceof Anthropic.BadRequestError) {
     return new ClaudeError(`A API rejeitou a requisição: ${error.message}`);

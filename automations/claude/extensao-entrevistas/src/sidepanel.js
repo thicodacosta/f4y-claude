@@ -96,7 +96,7 @@ for (const radio of document.querySelectorAll('input[name="modo"]')) {
 
 function updateBanner() {
   const missing = [];
-  if (!keys.apiKey) missing.push("Anthropic");
+  if (!keys.apiKey && !keys.groqKey) missing.push("Anthropic");
   if (mode() === "gravar" && !keys.groqKey) missing.push("Groq");
   const banner = $("setup-banner");
   banner.hidden = missing.length === 0;
@@ -165,7 +165,9 @@ $("form").addEventListener("submit", async (event) => {
   const input = readForm();
   const m = mode();
 
-  if (!keys.apiKey || (m === "gravar" && !keys.groqKey)) {
+  // O registro sai pelo Claude ou pela Groq; a gravação sempre precisa da
+  // Groq para transcrever.
+  if ((!keys.apiKey && !keys.groqKey) || (m === "gravar" && !keys.groqKey)) {
     return showFormError("Cadastre as chaves de API em Configurações antes de continuar.");
   }
   if (m === "colar" && input.transcricao.trim().length < MIN_TRANSCRIPT_CHARS) {
@@ -218,7 +220,7 @@ async function analyzePasted(input) {
   }, 1000);
 
   try {
-    const data = await analyzeInterview({ apiKey: keys.apiKey, input, signal: pasteAbort.signal });
+    const data = await analyzeInterview({ apiKey: keys.apiKey, groqKey: keys.groqKey, input, signal: pasteAbort.signal });
     await chrome.storage.session.set({
       result: {
         data,
@@ -555,7 +557,7 @@ async function init() {
   const apiKeyGetter = () => keys.apiKey;
   // Comparativo e pesquisa salarial rodam na Groq.
   const groqKeyGetter = () => keys.groqKey;
-  cvArea = await initCvArea({ apiKeyGetter });
+  cvArea = await initCvArea({ apiKeyGetter, groqKeyGetter });
   await initCompareArea({ apiKeyGetter: groqKeyGetter });
   await initSalaryArea({ apiKeyGetter: groqKeyGetter });
   initTurnoverArea();

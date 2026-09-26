@@ -159,6 +159,7 @@ async function finish() {
   try {
     const data = await analyzeInterview({
       apiKey: current.keys.anthropic,
+      groqKey: current.keys.groq,
       input: { ...current.meta, transcricao, origem: "gravacao" },
       signal: current.abort.signal,
     });
