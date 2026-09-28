@@ -60,31 +60,54 @@
 
   // ---- Busca de pessoas -----------------------------------------------------
 
-  /** Cartões de resultado: agrupa pelo link de perfil e sobe até o cartão. */
+  // Botão de ação de um cartão de resultado. Cada cartão tem um só.
+  const ACTION = /^(conectar|connect|seguir|follow|mensagem|enviar mensagem|message|pendente|pending)$/i;
+  const actionCount = (el) =>
+    [...el.querySelectorAll("button, a")].filter((b) => ACTION.test(clean(b.innerText || b.textContent))).length;
+
+  /**
+   * Cartão do resultado: sobe a partir do link do perfil enquanto o ancestral
+   * tiver no máximo um botão de ação. Não depende de tags nem classes, que
+   * mudam a cada versão do LinkedIn.
+   */
+  function cardFor(anchor, root) {
+    let el = anchor;
+    while (el.parentElement && el.parentElement !== root && actionCount(el.parentElement) <= 1) {
+      el = el.parentElement;
+    }
+    return el;
+  }
+
+  /** Cartões dos resultados da busca de pessoas, um por perfil. */
   async function readSearch() {
     const main = document.querySelector("main") ?? document.body;
+    // Espera os resultados aparecerem (a página mostra esqueletos antes).
+    await waitFor(() => main.querySelectorAll('a[href*="/in/"]').length >= 3, 12000);
     // Os resultados carregam aos poucos: rola até o fim para trazer todos.
     for (let i = 0; i < 4; i++) {
       window.scrollBy(0, window.innerHeight);
-      await sleep(600);
+      await sleep(700);
     }
     window.scrollTo(0, 0);
 
     const cards = new Map();
     for (const anchor of main.querySelectorAll('a[href*="/in/"]')) {
       const url = profileUrl(anchor.getAttribute("href"));
-      if (!url || cards.has(url)) continue;
-      const card = anchor.closest("li") ?? anchor.closest('[data-view-name*="search"]') ?? anchor.parentElement?.parentElement;
-      if (!card) continue;
-      const text = clean(card.innerText).slice(0, 600);
-      const name = clean(anchor.innerText).split(/ • | · |\n/)[0].replace(/^Ver perfil de /i, "");
-      if (!name || /membro do linkedin|linkedin member/i.test(name)) continue;
-      cards.set(url, {
-        url,
-        name,
-        text,
-        firstDegree: FIRST_DEGREE.test(text),
-      });
+      const name = clean(anchor.innerText)
+        .split(/ • | · |\n/)[0]
+        .replace(/^Ver perfil de /i, "")
+        .trim();
+      // Links sem nome (foto) ou de conexões em comum não abrem cartão novo.
+      if (!url || cards.has(url) || !name || name.length > 80) continue;
+      if (/membro do linkedin|linkedin member/i.test(name)) continue;
+      const card = cardFor(anchor, main);
+      // O dono do cartão é o primeiro perfil com nome; os demais links (ex.:
+      // "conexão em comum") não são candidatos.
+      const owner = [...card.querySelectorAll('a[href*="/in/"]')].find((a) => clean(a.innerText));
+      if (owner && profileUrl(owner.getAttribute("href")) !== url) continue;
+      const text = clean(card.innerText);
+      if (/^(promovido|promoted)\b/i.test(text)) continue;
+      cards.set(url, { url, name, text: text.slice(0, 600), firstDegree: FIRST_DEGREE.test(text) });
     }
     return [...cards.values()];
   }

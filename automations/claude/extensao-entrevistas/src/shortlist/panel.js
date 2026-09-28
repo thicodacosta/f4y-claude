@@ -51,8 +51,21 @@ function candidateItem(c) {
   return li;
 }
 
+let minScore = 70;
+
+/** Só os aderentes (e o perfil em análise) aparecem; os demais entram na contagem. */
+function isAdherent(c) {
+  return c.aderencia != null && c.aderencia >= minScore;
+}
+
 function renderList() {
-  $("sl-list").replaceChildren(...candidates.map(candidateItem));
+  const visible = candidates.filter((c) => c.status === "analisando" || isAdherent(c));
+  $("sl-list").replaceChildren(...visible.map(candidateItem));
+  const analyzed = candidates.filter((c) => c.status !== "analisando");
+  const below = analyzed.filter((c) => !isAdherent(c)).length;
+  $("sl-analyzed").textContent = analyzed.length
+    ? `Perfis analisados: ${analyzed.length} · abaixo de ${minScore}% ou indisponíveis (não listados): ${below}`
+    : "";
 }
 
 function upsert(candidate) {
@@ -64,19 +77,20 @@ function upsert(candidate) {
 
 function summaryText(result) {
   const invited = result.candidates.filter((c) => c.status === "enviado" || c.status === "simulado");
+  const adherent = result.candidates.filter(isAdherent);
   const lines = [
     `Shortlist: ${result.job.tituloVaga}${result.dryRun ? " (simulação)" : ""}`,
     `Data: ${new Date().toLocaleDateString("pt-BR")}`,
-    `${result.dryRun ? "Convites preparados" : "Convites enviados"}: ${invited.length} de ${result.limit} · perfis analisados: ${result.candidates.length}`,
+    `${result.dryRun ? "Convites preparados" : "Convites enviados"}: ${invited.length} de ${result.limit} · ` +
+      `perfis analisados: ${result.candidates.length} · aderentes (${minScore}% ou mais): ${adherent.length}`,
     "",
-    ...result.candidates.map(
+    ...adherent.map(
       (c, i) =>
         `${i + 1}. ${c.nome}${c.aderencia != null ? ` (${c.aderencia}%)` : ""}: ${statusLabel(c.status)}` +
         `${c.cargoAtual ? `\n   ${[c.cargoAtual, c.empresaAtual, c.local].filter(Boolean).join(" · ")}` : ""}\n   ${c.url}`,
     ),
   ];
-  const note = invited.find((c) => c.nota)?.nota;
-  if (note) lines.push("", `Nota usada (trocando o nome): "${note}"`);
+  for (const c of invited.filter((x) => x.nota)) lines.push("", `Nota para ${c.nome}: "${c.nota}"`);
   return lines.join("\n");
 }
 
@@ -107,6 +121,7 @@ export async function onShortlistShown() {
     );
   }
   $("sl-min").value = String(settings.aderenciaMinima);
+  if (!abort) minScore = settings.aderenciaMinima;
   if (openedThisSession || abort) return;
   openedThisSession = true;
   if (!(await findLinkedInTab())) await openLinkedIn();
@@ -165,6 +180,7 @@ async function start(event) {
 
   const settings = await loadLinkedInSettings();
   const quantidade = Math.min(Number($("sl-qtd").value), MAX_INVITES);
+  minScore = Number($("sl-min").value);
   const dryRun = $("sl-dry").checked;
   candidates = [];
   renderList();
@@ -182,7 +198,7 @@ async function start(event) {
       jd,
       job: jd === jobJd ? job : null,
       quantidade,
-      aderenciaMinima: Number($("sl-min").value),
+      aderenciaMinima: minScore,
       settings,
       dryRun,
       signal: abort.signal,
@@ -197,9 +213,9 @@ async function start(event) {
     });
     const done = lastResult.candidates.filter((c) => c.status === "enviado" || c.status === "simulado").length;
     $("sl-summary").textContent =
-      `${dryRun ? "Simulação concluída" : "Shortlist concluída"}: ${done} de ${quantidade} ${dryRun ? "convites preparados" : "convites enviados"}, ` +
-      `${lastResult.candidates.length} perfis analisados.` +
-      (done < quantidade ? " Não havia mais perfis aderentes nesta busca; ajuste a busca ou a aderência mínima." : "");
+      `${dryRun ? "Simulação concluída" : "Shortlist concluída"}: ${done} de ${quantidade} ${dryRun ? "convites preparados" : "convites enviados"}. ` +
+      `${lastResult.candidates.length} perfis analisados; ${lastResult.candidates.filter(isAdherent).length} com ${minScore}% ou mais.` +
+      (done < quantidade ? " Não havia mais perfis aderentes nesta busca: amplie a busca no LinkedIn (cargo, localidade) e rode de novo." : "");
     show("result");
   } catch (error) {
     console.error(error);
@@ -217,6 +233,15 @@ export function initShortlistArea({ groqKeyGetter }) {
   $("sl-form").addEventListener("submit", start);
   $("sl-suggest").addEventListener("click", suggestTerms);
   $("sl-open").addEventListener("click", () => openLinkedIn());
+  $("sl-clear").addEventListener("click", () => {
+    $("sl-jd").value = "";
+    job = null;
+    jobJd = "";
+    $("sl-terms").hidden = true;
+    $("sl-terms").replaceChildren();
+    showError("sl-error", null);
+    $("sl-jd").focus();
+  });
   $("sl-stop").addEventListener("click", () => {
     $("sl-status").textContent = "Parando após a ação atual…";
     abort?.abort();

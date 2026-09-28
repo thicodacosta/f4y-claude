@@ -7,6 +7,7 @@ export const DEFAULT_LINKEDIN_SETTINGS = {
   conectado: false,
   assinatura: "",
   incluirNota: true,
+  personalizarNota: true,
   modeloNota: DEFAULT_NOTE,
   aderenciaMinima: 70,
   enviarSemNota: false,

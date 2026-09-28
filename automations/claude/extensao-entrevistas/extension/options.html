@@ -112,10 +112,14 @@
           </div>
           <label class="consent">
             <input type="checkbox" id="li-incluir-nota" />
-            <span>Incluir nota personalizada no convite</span>
+            <span>Incluir nota no convite</span>
+          </label>
+          <label class="consent">
+            <input type="checkbox" id="li-personalizar" />
+            <span>Personalizar a nota para cada candidato com IA (cita a experiência da pessoa, até 200 caracteres). Desmarcado, usa o modelo abaixo trocando só o nome.</span>
           </label>
           <div class="field">
-            <label for="li-modelo">Modelo da nota</label>
+            <label for="li-modelo">Modelo da nota (usado quando a personalização com IA está desligada)</label>
             <textarea id="li-modelo" rows="4" maxlength="300" aria-describedby="li-modelo-hint"></textarea>
             <p id="li-modelo-hint" class="hint">
               <span id="li-modelo-count">0</span>/300 · Campos: {nome}, {perfil}, {local} e {assinatura}, preenchidos a partir da JD e do perfil. Contas gratuitas do LinkedIn aceitam 200 caracteres e poucas notas por mês.

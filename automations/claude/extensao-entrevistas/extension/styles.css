@@ -1473,3 +1473,14 @@ input[type="search"] {
 .cv-item__status.is-ok {
   color: var(--success);
 }
+
+.steps__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.steps__header .btn-link {
+  margin-top: 0;
+}

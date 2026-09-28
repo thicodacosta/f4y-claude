@@ -337,22 +337,8 @@
       <!-- Calculadora de turnover -->
       <section id="area-turnover" hidden aria-labelledby="tov-title">
         <p class="eyebrow">Calculadora de turnover</p>
-        <h1 id="tov-title" class="title">Taxa e custo do turnover</h1>
-        <p class="lead">Cálculo simplificado para CLT e PJ. Os valores se atualizam enquanto você digita.</p>
-
-        <section class="card calc" aria-labelledby="tov-rate-title">
-          <div class="calc__header">
-            <h2 id="tov-rate-title">Taxa de turnover do período</h2>
-            <button type="button" id="tov-rate-clear" class="btn-link">Limpar</button>
-          </div>
-          <div class="field-grid">
-            <div class="field"><label for="tov-hc-ini">Headcount no início</label><input id="tov-hc-ini" type="number" min="0" inputmode="numeric" /></div>
-            <div class="field"><label for="tov-hc-fim">Headcount no fim</label><input id="tov-hc-fim" type="number" min="0" inputmode="numeric" /></div>
-            <div class="field"><label for="tov-adm">Admissões</label><input id="tov-adm" type="number" min="0" inputmode="numeric" /></div>
-            <div class="field"><label for="tov-desl">Desligamentos</label><input id="tov-desl" type="number" min="0" inputmode="numeric" /></div>
-          </div>
-          <div id="tov-rate-out" class="metrics" aria-live="polite"></div>
-        </section>
+        <h1 id="tov-title" class="title">Custo do turnover</h1>
+        <p class="lead">Quanto custa um desligamento, em cálculo simplificado para CLT e PJ. Os valores se atualizam enquanto você digita.</p>
 
         <section class="card calc" aria-labelledby="tov-cost-title">
           <div class="calc__header">
@@ -426,7 +412,10 @@
         <form id="sl-form" novalidate>
           <ol class="steps">
             <li>
-              <p class="steps__title">Descrição da vaga (JD)</p>
+              <div class="steps__header">
+                <p class="steps__title">Descrição da vaga (JD)</p>
+                <button type="button" id="sl-clear" class="btn-link">Limpar</button>
+              </div>
               <textarea id="sl-jd" rows="7" aria-label="Descrição da vaga" placeholder="Cole a JD completa: responsabilidades, requisitos e localidade"></textarea>
               <button type="button" id="sl-suggest" class="btn-link">Sugerir termos de busca</button>
               <div id="sl-terms" class="chips" hidden></div>
@@ -467,6 +456,7 @@
             <p class="recorder__status"><span class="dot" aria-hidden="true"></span><span id="sl-mode">Shortlist em andamento</span></p>
             <p id="sl-progress" class="recorder__timer">0/5</p>
             <p id="sl-status" class="hint" aria-live="polite"></p>
+            <p id="sl-analyzed" class="hint"></p>
             <p class="hint">Não feche este painel nem use a aba do LinkedIn até terminar.</p>
           </div>
           <button type="button" id="sl-stop" class="btn btn--ghost btn--danger">Parar</button>
@@ -481,7 +471,7 @@
           <p id="sl-summary" class="lead"></p>
         </div>
 
-        <ul id="sl-list" class="cv-list" aria-label="Candidatos analisados"></ul>
+        <ul id="sl-list" class="cv-list" aria-label="Candidatos aderentes"></ul>
       </section>
     </main>
 

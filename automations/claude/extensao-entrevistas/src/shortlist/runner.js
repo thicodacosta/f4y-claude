@@ -6,14 +6,15 @@
  * Roda no painel lateral: fechar o painel interrompe a execução.
  */
 import { FriendlyError } from "../errors.js";
-import { analyzeJob, buildNote, evaluateProfile, screenCards } from "./ai.js";
+import { NOTE_MAX, analyzeJob, buildNote, evaluateProfile, screenCards } from "./ai.js";
 
 export const MAX_INVITES = 5;
-// Perfis abertos por convite pedido: limita a execução mesmo se poucos forem aderentes.
-const PROFILES_PER_INVITE = 3;
-const MAX_PAGES = 3;
+// Perfis abertos por convite pedido: limita a execução mesmo se poucos forem
+// aderentes (muitos ficam abaixo da aderência mínima).
+const PROFILES_PER_INVITE = 4;
+const MAX_PAGES = 5;
 // Relevância mínima na triagem dos cartões para valer abrir o perfil.
-const MIN_CARD_RELEVANCE = 35;
+const MIN_CARD_RELEVANCE = 40;
 const CONTENT_SCRIPT = "dist/linkedin-content.js";
 
 // Ritmo de uma pessoa: pausas entre abrir perfis e, mais longas, entre convites.
@@ -176,7 +177,13 @@ export async function runShortlist({ groqKey, tabId, jd, job, quantidade, aderen
       }
 
       say(`Avaliando ${card.name} frente à vaga…`);
-      const evaluation = await evaluateProfile({ apiKey: groqKey, job, profile, signal });
+      const evaluation = await evaluateProfile({
+        apiKey: groqKey,
+        job,
+        profile,
+        signature: settings.assinatura,
+        signal,
+      });
       Object.assign(candidate, {
         nome: evaluation.nome || card.name,
         cargoAtual: evaluation.cargoAtual,
@@ -193,14 +200,19 @@ export async function runShortlist({ groqKey, tabId, jd, job, quantidade, aderen
         continue;
       }
 
-      const note = settings.incluirNota
-        ? buildNote(settings.modeloNota, {
-            primeiroNome: evaluation.primeiroNome,
-            perfilBuscado: job.perfilBuscado,
-            localidade: job.localidade,
-            assinatura: settings.assinatura,
-          })
-        : "";
+      // Nota personalizada pela IA; se vier longa demais, usa o modelo.
+      const templateNote = buildNote(settings.modeloNota, {
+        primeiroNome: evaluation.primeiroNome,
+        perfilBuscado: job.perfilBuscado,
+        localidade: job.localidade,
+        assinatura: settings.assinatura,
+      });
+      const personalized = evaluation.notaConvite?.trim();
+      const note = !settings.incluirNota
+        ? ""
+        : settings.personalizarNota && personalized && personalized.length <= NOTE_MAX
+          ? personalized
+          : templateNote;
       say(dryRun ? `Simulando o convite para ${candidate.nome}…` : `Enviando convite para ${candidate.nome}…`);
       const result = await command(tabId, "connect", { note, allowNoNote: settings.enviarSemNota, dryRun });
       Object.assign(candidate, { status: result.status, nota: result.withNote ? note : null, detalhe: result.detail ?? null });

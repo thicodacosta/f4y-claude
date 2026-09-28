@@ -197,6 +197,7 @@ function renderNoteCount() {
 const liSettings = await loadLinkedInSettings();
 $("li-assinatura").value = liSettings.assinatura;
 $("li-incluir-nota").checked = liSettings.incluirNota;
+$("li-personalizar").checked = liSettings.personalizarNota;
 $("li-modelo").value = liSettings.modeloNota;
 $("li-aderencia").value = String(liSettings.aderenciaMinima);
 $("li-sem-nota").checked = liSettings.enviarSemNota;
@@ -214,6 +215,7 @@ $("li-form").addEventListener("submit", async (event) => {
   await saveLinkedInSettings({
     assinatura: $("li-assinatura").value.trim(),
     incluirNota: $("li-incluir-nota").checked,
+    personalizarNota: $("li-personalizar").checked,
     modeloNota: $("li-modelo").value.trim() || DEFAULT_NOTE,
     aderenciaMinima: Number($("li-aderencia").value),
     enviarSemNota: $("li-sem-nota").checked,

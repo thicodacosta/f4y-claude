@@ -1,5 +1,5 @@
 /**
- * Cálculos simplificados de turnover. Estimativas para apoio à decisão, não
+ * Cálculos simplificados do custo de turnover. Estimativas para apoio à decisão, não
  * substituem o cálculo trabalhista ou contábil.
  *
  * CLT: dispensa sem justa causa, aviso prévio indenizado, sem férias vencidas.
@@ -12,17 +12,6 @@ export const DEFAULT_CLT_COST_FACTOR = 1.7;
 // Produtividade perdida enquanto a vaga está aberta e durante a rampa do
 // substituto.
 export const LOST_PRODUCTIVITY = 0.5;
-
-/** Taxa de turnover do período (fórmula usual: média entre admissões e desligamentos). */
-export function turnoverRate({ headcountInicio, headcountFim, admissoes, desligamentos }) {
-  const headcountMedio = (headcountInicio + headcountFim) / 2;
-  if (!(headcountMedio > 0)) return null;
-  return {
-    headcountMedio,
-    taxaTurnover: (((admissoes + desligamentos) / 2) / headcountMedio) * 100,
-    taxaDesligamento: (desligamentos / headcountMedio) * 100,
-  };
-}
 
 /** Meses completos entre duas datas; a fração de 15 dias ou mais conta como mês. */
 function monthsBetween(start, end) {

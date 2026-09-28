@@ -7,14 +7,9 @@ import {
   pjTermination,
   replacementCosts,
   sum,
-  turnoverRate,
 } from "./calc.js";
 
 const FIELDS = [
-  "tov-hc-ini",
-  "tov-hc-fim",
-  "tov-adm",
-  "tov-desl",
   "tov-salario",
   "tov-admissao",
   "tov-deslig",
@@ -33,15 +28,8 @@ const num = (id) => {
 };
 const date = (id) => ($(id).value ? new Date(`${$(id).value}T12:00:00`) : null);
 const regime = () => document.querySelector('input[name="tov-regime"]:checked').value;
-const percent = (value) => `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 
 let summary = "";
-
-function metric(label, value) {
-  const box = el("div", "metric");
-  box.append(el("p", "metric__label", label), el("p", "metric__value", value));
-  return box;
-}
 
 function breakdownTable(groups, total) {
   const table = el("table", "breakdown");
@@ -72,26 +60,6 @@ function breakdownTable(groups, total) {
 
 function calculate() {
   const lines = [];
-
-  // Taxa do período
-  const rate = turnoverRate({
-    headcountInicio: num("tov-hc-ini"),
-    headcountFim: num("tov-hc-fim"),
-    admissoes: num("tov-adm"),
-    desligamentos: num("tov-desl"),
-  });
-  if (rate) {
-    $("tov-rate-out").replaceChildren(
-      metric("Turnover", percent(rate.taxaTurnover)),
-      metric("Desligamentos", percent(rate.taxaDesligamento)),
-      metric("Headcount médio", rate.headcountMedio.toLocaleString("pt-BR")),
-    );
-    lines.push(
-      `Turnover do período: ${percent(rate.taxaTurnover)} (desligamentos: ${percent(rate.taxaDesligamento)}; headcount médio: ${rate.headcountMedio.toLocaleString("pt-BR")})`,
-    );
-  } else {
-    $("tov-rate-out").replaceChildren(el("p", "hint", "Preencha o headcount para calcular a taxa."));
-  }
 
   // Custo de um desligamento
   const isClt = regime() === "clt";
@@ -153,25 +121,16 @@ function calculate() {
     ),
   ];
 
-  const desligamentos = num("tov-desl");
-  if (desligamentos > 0) {
-    const projection = el("div", "metrics");
-    projection.append(metric(`Custo de ${desligamentos} desligamento(s) no período`, formatBRL(total * desligamentos)));
-    nodes.push(projection);
-  }
   $("tov-cost-out").replaceChildren(...nodes);
 
   lines.push(
-    "",
     `Custo estimado de um desligamento (${isClt ? "CLT" : "PJ"}): ${formatBRL(total, { cents: true })}`,
     ...[...rescisao, ...reposicao].map((i) => `- ${i.rotulo}: ${formatBRL(i.valor, { cents: true })}`),
   );
-  if (desligamentos > 0) lines.push(`Projeção para ${desligamentos} desligamento(s): ${formatBRL(total * desligamentos)}`);
   lines.push("", "Estimativa simplificada; não substitui o cálculo trabalhista ou contábil.");
   summary = lines.join("\n");
 }
 
-const RATE_FIELDS = ["tov-hc-ini", "tov-hc-fim", "tov-adm", "tov-desl"];
 // Valores iniciais dos campos de custo ao limpar.
 const COST_DEFAULTS = {
   "tov-salario": "",
@@ -185,13 +144,6 @@ const COST_DEFAULTS = {
   "tov-rampa": "3",
 };
 
-function clearRate() {
-  for (const id of RATE_FIELDS) $(id).value = "";
-  $("tov-copy-status").textContent = "";
-  calculate();
-  $("tov-hc-ini").focus();
-}
-
 function clearCost() {
   for (const [id, value] of Object.entries(COST_DEFAULTS)) $(id).value = value;
   $("tov-deslig").value = new Date().toISOString().slice(0, 10);
@@ -202,7 +154,6 @@ function clearCost() {
 }
 
 export function initTurnoverArea() {
-  $("tov-rate-clear").addEventListener("click", clearRate);
   $("tov-cost-clear").addEventListener("click", clearCost);
   for (const id of FIELDS) $(id).addEventListener("input", calculate);
   $("tov-aviso-indenizado").addEventListener("change", calculate);

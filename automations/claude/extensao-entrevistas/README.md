@@ -98,10 +98,8 @@ chamadas seguidas; o plano Dev Tier remove esse gargalo.
 
 ## Calculadora de turnover (aba "Turnover")
 
-Cálculo local, sem IA (`src/turnover/calc.js`):
+Custo de um desligamento, em cálculo local, sem IA (`src/turnover/calc.js`):
 
-- **Taxa do período:** ((admissões + desligamentos) / 2) / headcount médio, e
-  taxa de desligamento.
 - **Custo de um desligamento CLT** (dispensa sem justa causa, aviso
   indenizado, sem férias vencidas): aviso prévio (30 dias + 3 por ano, até
   90), férias proporcionais + 1/3, 13º proporcional, multa de 40% do FGTS
@@ -168,15 +166,20 @@ preserva a transcrição para tentar de novo.
    resultados aberta.
 4. Escolhe quantos convites (1 a 5; para mais, recomeça) e a aderência mínima,
    e clica em **Iniciar Shortlist**.
-5. A extensão assume a aba do LinkedIn: lê os resultados, faz a triagem pelos
-   cartões, abre os perfis mais promissores, avalia cada um frente à JD
-   (mesma regra de aderência do Comparativo) e, nos aderentes, clica em
-   Conectar → Adicionar nota → Enviar, com a nota do modelo das
-   Configurações. Pula quem já é conexão, já tem convite pendente ou exige
-   e-mail. Pausas de 25 a 45s entre convites; no máximo 15 perfis abertos e 3
-   páginas por execução. Botão **Parar** a qualquer momento.
-6. Ao final, mostra o resumo (aderência e situação de cada perfil) e volta
-   para a busca.
+5. A extensão assume a aba do LinkedIn: lê os resultados (cada cartão é
+   identificado pelo seu único botão de ação, sem depender das classes do
+   LinkedIn), faz a triagem pelos cartões, abre os perfis mais promissores,
+   avalia cada um frente à JD (mesma regra de aderência do Comparativo, só com
+   requisitos verificáveis num perfil: formação, experiência, ferramentas,
+   certificações, idiomas e setor; nunca CNH, disponibilidade ou modelo de
+   trabalho) e, nos aderentes, clica em Conectar → Adicionar nota → Enviar
+   com uma **nota personalizada pela IA** (cita cargo, empresa ou experiência
+   da pessoa, até 200 caracteres). Pula quem já é conexão, já tem convite
+   pendente ou exige e-mail. Pausas de 25 a 45s entre convites; no máximo 20
+   perfis abertos e 5 páginas por execução. Botão **Parar** a qualquer momento.
+6. O painel lista **só os candidatos com a aderência mínima ou mais** (padrão
+   70%); os demais entram apenas na contagem de perfis analisados. Ao final,
+   mostra o resumo e volta para a busca.
 
 O modo **Simular** faz tudo, menos o clique final em Enviar: use-o para validar
 a busca e a nota antes do primeiro envio real. A IA roda na Groq
@@ -186,8 +189,10 @@ acessibilidade (português e inglês), não por classes internas do LinkedIn.
 
 **Configurações → Integração com o LinkedIn:** conectar (confirma o login na
 sessão do LinkedIn aberta no Chrome, porque não há API oficial para isso),
-assinatura, modelo da nota ({nome}, {perfil}, {local}, {assinatura}),
-aderência mínima padrão e envio sem nota quando o LinkedIn não permitir nota.
+assinatura, personalização da nota com IA (padrão ligado), modelo fixo da nota
+para quando a personalização estiver desligada ({nome}, {perfil}, {local},
+{assinatura}), aderência mínima padrão e envio sem nota quando o LinkedIn não
+permitir nota.
 
 **Risco:** automatizar ações vai contra os termos de uso do LinkedIn e pode
 levar à restrição da conta. Os limites acima reduzem esse risco, mas não o
