@@ -214,21 +214,23 @@ export async function runShortlist({ groqKey, tabId, jd, job, quantidade, aderen
           ? personalized
           : templateNote;
       say(dryRun ? `Simulando o convite para ${candidate.nome}…` : `Enviando convite para ${candidate.nome}…`);
-      let result = await command(tabId, "connect", { note, allowNoNote: settings.enviarSemNota, dryRun });
-      // Sem o botão na página (ex.: "Conectar" escondido ou só "Seguir"): abre
-      // direto a página de convite do LinkedIn para este perfil.
+      // Convite pela página de convite do LinkedIn, o mesmo destino do botão
+      // "Conectar" do cartão da busca (/preload/search-custom-invite/…). É mais
+      // confiável do que procurar o botão no perfil, que muda de lugar.
+      const vanity = candidate.url.match(/\/in\/([^/]+)/)?.[1];
+      const inviteUrl =
+        card.inviteUrl ?? (vanity ? `https://www.linkedin.com/preload/custom-invite/?vanityName=${vanity}` : null);
+      const connectOptions = { note, allowNoNote: settings.enviarSemNota, dryRun };
+      let result = { status: "sem_botao" };
+      if (inviteUrl) {
+        say(dryRun ? `Abrindo o convite de ${candidate.nome} (simulação)…` : `Abrindo o convite de ${candidate.nome}…`);
+        await navigate(tabId, inviteUrl);
+        result = await command(tabId, "connect", { ...connectOptions, dialogOnly: true });
+      }
+      // Sem diálogo de convite: tenta pelo botão do perfil (ex.: dentro de "Mais").
       if (result.status === "sem_botao") {
-        const vanity = candidate.url.match(/\/in\/([^/]+)/)?.[1];
-        if (vanity) {
-          say(`Abrindo o convite de ${candidate.nome} pela página de convite…`);
-          await navigate(tabId, `https://www.linkedin.com/preload/custom-invite/?vanityName=${vanity}`);
-          result = await command(tabId, "connect", {
-            note,
-            allowNoNote: settings.enviarSemNota,
-            dryRun,
-            dialogOnly: true,
-          });
-        }
+        await navigate(tabId, candidate.url);
+        result = await command(tabId, "connect", connectOptions);
       }
       Object.assign(candidate, { status: result.status, nota: result.withNote ? note : null, detalhe: result.detail ?? null });
       emit(candidate);

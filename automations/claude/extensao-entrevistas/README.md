@@ -203,10 +203,12 @@ preserva a transcrição para tentar de novo.
    trabalho) e, nos aderentes, clica em Conectar → Adicionar nota → Enviar
    com uma **nota personalizada pela IA** (cita cargo, empresa ou experiência
    da pessoa, até 200 caracteres). Pula quem já é conexão, já tem convite
-   pendente ou exige e-mail. Se o botão Conectar não estiver na página (ex.:
-   perfis só com "Seguir"), abre direto a página de convite do LinkedIn
-   (`/preload/custom-invite/?vanityName=…`). A nota é escrita tanto em campo de
-   texto comum quanto em editor rico. Pausas de 25 a 45s entre convites; no máximo 20
+   pendente ou exige e-mail. O convite é aberto pela **página de convite do
+   LinkedIn**, o mesmo destino do botão "Conectar" do cartão da busca
+   (`/preload/search-custom-invite/?vanityName=…`, capturado da página de
+   resultados; sem ele, `/preload/custom-invite/?vanityName=…`). Se não abrir,
+   tenta o botão do perfil (inclusive dentro de "Mais"). A nota é escrita em
+   campo comum ou editor rico. Pausas de 25 a 45s entre convites; no máximo 20
    perfis abertos e 5 páginas por execução. Botão **Parar** a qualquer momento.
 6. O painel lista **só os candidatos com a aderência mínima ou mais** (padrão
    70%); os demais entram apenas na contagem de perfis analisados. Ao final,

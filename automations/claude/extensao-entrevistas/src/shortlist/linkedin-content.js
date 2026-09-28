@@ -107,20 +107,35 @@
       if (owner && profileUrl(owner.getAttribute("href")) !== url) continue;
       const text = clean(card.innerText);
       if (/^(promovido|promoted)\b/i.test(text)) continue;
-      cards.set(url, { url, name, text: text.slice(0, 600), firstDegree: FIRST_DEGREE.test(text) });
+      // Link de convite do próprio cartão (LinkedIn 2026):
+      // <a aria-label="Convidar Fulano para se conectar" href="/preload/search-custom-invite/?vanityName=…">
+      const invite = card.querySelector('a[href*="custom-invite"]');
+      cards.set(url, {
+        url,
+        name,
+        text: text.slice(0, 600),
+        firstDegree: FIRST_DEGREE.test(text),
+        inviteUrl: invite ? new URL(invite.getAttribute("href"), location.origin).href : null,
+      });
     }
     return [...cards.values()];
   }
 
   // ---- Perfil -----------------------------------------------------------------
 
+  /**
+   * Topo do perfil (nome, título, botões). O LinkedIn atual não usa h1 no
+   * perfil: procura o h1 e, sem ele, a primeira seção do conteúdo principal.
+   */
   function topCard() {
-    const h1 = document.querySelector("main h1");
-    return h1?.closest("section") ?? document.querySelector("main") ?? document.body;
+    const main = document.querySelector("main") ?? document.body;
+    const h1 = main.querySelector("h1");
+    return h1?.closest("section") ?? main.querySelector("section") ?? main;
   }
 
   async function readProfile() {
-    await waitFor(() => document.querySelector("main h1"), 12000);
+    // Espera o conteúdo do perfil carregar (texto suficiente no conteúdo principal).
+    await waitFor(() => clean(document.querySelector("main")?.innerText).length > 400, 15000);
     // Carrega as seções de experiência, que aparecem ao rolar.
     for (let i = 0; i < 3; i++) {
       window.scrollBy(0, window.innerHeight);
@@ -131,7 +146,7 @@
     const cardText = clean(card.innerText);
     return {
       url: profileUrl(location.href),
-      name: clean(document.querySelector("main h1")?.innerText),
+      name: clean(document.querySelector("main h1, main h2")?.innerText),
       firstDegree: FIRST_DEGREE.test(cardText),
       pending: Boolean(findClickable(card, /^(pendente|pending)\b/i)),
       text: clean(document.querySelector("main")?.innerText).slice(0, 9000),
