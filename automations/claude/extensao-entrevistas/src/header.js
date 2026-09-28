@@ -1,9 +1,9 @@
 /**
  * Logo do cabeçalho: o da empresa do usuário (Configurações → Currículos
  * padronizados). Sem logo, mostra o nome da empresa; sem nada configurado,
- * a marca do produto.
+ * a marca da plataforma (JourneyLab).
  */
-const DEFAULT_LOGO = "icons/wordmark.png";
+const DEFAULT_LOGO = "icons/journeylab-logo.png";
 
 function render(branding = {}) {
   const img = document.getElementById("header-logo");
@@ -20,7 +20,7 @@ function render(branding = {}) {
     img.hidden = true;
   } else {
     img.src = DEFAULT_LOGO;
-    img.alt = "Find4You";
+    img.alt = "JourneyLab";
     img.hidden = false;
     name.hidden = true;
   }

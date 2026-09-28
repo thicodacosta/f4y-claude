@@ -1,4 +1,4 @@
-# Find4You · Ferramentas de RH (extensão Chrome)
+# JourneyLab · Ferramentas de RH (extensão Chrome)
 
 Painel lateral do Chrome com seis ferramentas: registro de entrevistas,
 construtor de currículos padronizados, comparativo de candidatos, pesquisa
@@ -135,10 +135,14 @@ preserva a transcrição para tentar de novo.
 
 ## Identidade, primeiro acesso, tema e idiomas
 
-- **Logo no topo do painel:** é o logo escolhido em Configurações (Currículos
-  padronizados), o mesmo usado nos currículos. Sem logo, aparece o nome da
-  empresa; sem nada configurado, a marca do produto. O ícone pequeno e o nome
-  "Find4You · Ferramentas de RH" no cabeçalho do Chrome vêm do manifest.
+- **Marca da plataforma:** JourneyLab. O ícone da extensão e o nome
+  "JourneyLab · Ferramentas de RH" (barra e cabeçalho do Chrome) vêm do
+  manifest; as cores seguem o logo: azul-marinho `#082043`, verde-água
+  `#12C2B4` (em texto, `#087A70` para contraste AA) e cinza `#5F6470`. Arquivos
+  em `design-system/assets/journeylab-logo.png` e `journeylab-symbol.png`.
+- **Logo no topo do painel:** é o logo da empresa do usuário, escolhido em
+  Configurações (Currículos padronizados), o mesmo usado nos currículos. Sem
+  logo, aparece o nome da empresa; sem nada configurado, o logo da JourneyLab.
 - **Primeiro acesso:** na instalação, Configurações abre em modo de
   boas-vindas ("Configure sua empresa"). Enquanto a identidade não é salva, o
   painel mostra um aviso e abre Configurações uma vez por sessão. Ao salvar,

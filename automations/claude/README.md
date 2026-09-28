@@ -6,4 +6,4 @@ não mora aqui.
 
 | Pasta | O que é | Skill dona do procedimento |
 |---|---|---|
-| `extensao-entrevistas/` | Extensão Chrome de ferramentas de RH: registro de entrevistas, currículos padronizados, comparativo de candidatos, pesquisa salarial, turnover e prompts | `recrutamento` |
+| `extensao-entrevistas/` | Extensão Chrome JourneyLab: registro de entrevistas, currículos padronizados, comparativo de candidatos, pesquisa salarial, turnover, prompts e Shortlist no LinkedIn | `recrutamento` |

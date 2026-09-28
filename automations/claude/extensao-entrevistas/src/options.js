@@ -59,7 +59,7 @@ $("clear-btn").addEventListener("click", async () => {
 // ---- Identidade dos currículos -------------------------------------------
 
 const MAX_LOGO_BYTES = 1024 * 1024;
-let branding = (await chrome.storage.local.get("branding")).branding ?? { cor: "#0b6fa6", ocultarContatos: true };
+let branding = (await chrome.storage.local.get("branding")).branding ?? { cor: "#082043", ocultarContatos: true };
 
 function setBrandingStatus(message) {
   $("branding-status").textContent = message;
@@ -78,7 +78,7 @@ function renderLogo() {
 
 function renderBranding() {
   $("empresa").value = branding.empresa ?? "";
-  $("cor").value = branding.cor ?? "#0b6fa6";
+  $("cor").value = branding.cor ?? "#082043";
   $("cor-value").textContent = $("cor").value.toUpperCase();
   $("ocultarContatos").checked = branding.ocultarContatos ?? true;
   renderLogo();

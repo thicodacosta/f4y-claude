@@ -24,7 +24,7 @@ pdfMake.addVirtualFileSystem(pdfFonts);
 const INK = "#2B2E3A";
 const MUTED = "#6B6F7B";
 const RULE = "#D9DCE1";
-const DEFAULT_ACCENT = "#0B6FA6";
+const DEFAULT_ACCENT = "#082043";
 // Área máxima do logo no cabeçalho, em pontos (PDF) / pixels (Word).
 const LOGO_BOX = { width: 150, height: 44 };
 
@@ -227,7 +227,7 @@ export async function buildCvDocx(cv, branding) {
   }
 
   const doc = new Document({
-    creator: branding.empresa || "Registro de Entrevistas",
+    creator: branding.empresa || "JourneyLab",
     title: `Currículo - ${cv.nome}`,
     styles: { default: { document: { run: { font: FONT, size: 19, color: hex(INK) } } } },
     sections: [
