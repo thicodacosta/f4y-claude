@@ -30,6 +30,7 @@
       <button type="button" class="tabs__tab" id="tab-salarios" aria-controls="area-salarios" aria-selected="false">Salários</button>
       <button type="button" class="tabs__tab" id="tab-turnover" aria-controls="area-turnover" aria-selected="false">Turnover</button>
       <button type="button" class="tabs__tab" id="tab-prompts" aria-controls="area-prompts" aria-selected="false">Prompts</button>
+      <button type="button" class="tabs__tab" id="tab-shortlist" aria-controls="area-shortlist" aria-selected="false">Shortlist</button>
     </nav>
 
     <main>
@@ -412,6 +413,75 @@
         <div id="pr-cats" class="chips" role="group" aria-label="Filtrar por categoria"></div>
         <p id="pr-count" class="hint" role="status"></p>
         <ul id="pr-list" class="prompt-list"></ul>
+      </section>
+
+      <!-- Shortlist no LinkedIn -->
+      <section id="area-shortlist" hidden aria-labelledby="sl-title">
+        <p class="eyebrow">Shortlist</p>
+        <h1 id="sl-title" class="title">Conecte-se aos candidatos aderentes</h1>
+        <p class="lead">Você faz a busca no LinkedIn; a extensão analisa os perfis e envia o convite aos aderentes à vaga, até 5 por vez.</p>
+
+        <div id="sl-setup" class="banner" role="status" hidden></div>
+
+        <form id="sl-form" novalidate>
+          <ol class="steps">
+            <li>
+              <p class="steps__title">Descrição da vaga (JD)</p>
+              <textarea id="sl-jd" rows="7" aria-label="Descrição da vaga" placeholder="Cole a JD completa: responsabilidades, requisitos e localidade"></textarea>
+              <button type="button" id="sl-suggest" class="btn-link">Sugerir termos de busca</button>
+              <div id="sl-terms" class="chips" hidden></div>
+            </li>
+            <li>
+              <p class="steps__title">Faça a busca de pessoas no LinkedIn</p>
+              <p class="hint">Na aba do LinkedIn, pesquise o cargo (use os termos sugeridos, se quiser), clique em <strong>Pessoas</strong> e aplique os filtros (localidade, conexões de 2º grau…). Deixe a página de resultados aberta e volte aqui.</p>
+              <button type="button" id="sl-open" class="btn btn--ghost btn--sm">Ir para o LinkedIn</button>
+            </li>
+            <li>
+              <p class="steps__title">Quantos candidatos conectar</p>
+              <div class="field-grid">
+                <div class="field">
+                  <label for="sl-qtd">Convites (máx. 5)</label>
+                  <select id="sl-qtd">
+                    <option>1</option><option>2</option><option>3</option><option>4</option><option selected>5</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="sl-min">Aderência mínima</label>
+                  <select id="sl-min">
+                    <option value="60">60%</option><option value="70">70%</option><option value="80">80%</option><option value="90">90%</option>
+                  </select>
+                </div>
+              </div>
+              <label class="consent">
+                <input type="checkbox" id="sl-dry" />
+                <span>Simular: avaliar e preparar os convites, sem enviar</span>
+              </label>
+            </li>
+          </ol>
+          <p id="sl-error" class="error" role="alert" hidden></p>
+          <button type="submit" id="sl-start" class="btn btn--primary">Iniciar Shortlist</button>
+        </form>
+
+        <div id="sl-running" hidden>
+          <div class="card recorder">
+            <p class="recorder__status"><span class="dot" aria-hidden="true"></span><span id="sl-mode">Shortlist em andamento</span></p>
+            <p id="sl-progress" class="recorder__timer">0/5</p>
+            <p id="sl-status" class="hint" aria-live="polite"></p>
+            <p class="hint">Não feche este painel nem use a aba do LinkedIn até terminar.</p>
+          </div>
+          <button type="button" id="sl-stop" class="btn btn--ghost btn--danger">Parar</button>
+        </div>
+
+        <div id="sl-result" hidden>
+          <div class="actions">
+            <button type="button" id="sl-copy" class="btn btn--primary">Copiar resumo</button>
+            <button type="button" id="sl-new" class="btn btn--ghost">Nova Shortlist</button>
+          </div>
+          <p id="sl-copy-status" class="hint" role="status"></p>
+          <p id="sl-summary" class="lead"></p>
+        </div>
+
+        <ul id="sl-list" class="cv-list" aria-label="Candidatos analisados"></ul>
       </section>
     </main>
 

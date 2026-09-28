@@ -1,6 +1,8 @@
 import { initHeader } from "./header.js";
 import { hasEmbeddedKeys } from "./keys.js";
 import { getTheme, initTheme, setTheme } from "./theme.js";
+import { DEFAULT_NOTE, loadLinkedInSettings, saveLinkedInSettings } from "./shortlist/settings.js";
+import { LINKEDIN_PEOPLE_SEARCH, findLinkedInTab, linkedInStatus } from "./shortlist/runner.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -178,3 +180,80 @@ if (!onboardingDone) {
 
 // Aberta pelo painel com #curriculos: rola direto até a identidade.
 if (location.hash === "#curriculos") $("branding-title").scrollIntoView();
+
+// ---- Integração com o LinkedIn ---------------------------------------------------
+
+function renderLinkedInStatus(settings) {
+  const node = $("li-status");
+  node.textContent = settings.conectado ? "Conectado ao LinkedIn neste Chrome." : "Não conectado.";
+  node.classList.toggle("is-ok", settings.conectado);
+  $("li-connect").textContent = settings.conectado ? "Verificar de novo" : "Conectar ao LinkedIn";
+}
+
+function renderNoteCount() {
+  $("li-modelo-count").textContent = $("li-modelo").value.length;
+}
+
+const liSettings = await loadLinkedInSettings();
+$("li-assinatura").value = liSettings.assinatura;
+$("li-incluir-nota").checked = liSettings.incluirNota;
+$("li-modelo").value = liSettings.modeloNota;
+$("li-aderencia").value = String(liSettings.aderenciaMinima);
+$("li-sem-nota").checked = liSettings.enviarSemNota;
+renderNoteCount();
+renderLinkedInStatus(liSettings);
+
+$("li-modelo").addEventListener("input", renderNoteCount);
+$("li-reset").addEventListener("click", () => {
+  $("li-modelo").value = DEFAULT_NOTE;
+  renderNoteCount();
+});
+
+$("li-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await saveLinkedInSettings({
+    assinatura: $("li-assinatura").value.trim(),
+    incluirNota: $("li-incluir-nota").checked,
+    modeloNota: $("li-modelo").value.trim() || DEFAULT_NOTE,
+    aderenciaMinima: Number($("li-aderencia").value),
+    enviarSemNota: $("li-sem-nota").checked,
+  });
+  $("li-form-status").textContent = "Configurações do LinkedIn salvas.";
+});
+
+/**
+ * "Conectar": não existe API oficial para isso; a integração usa a sessão do
+ * LinkedIn aberta neste Chrome. Abre o LinkedIn (se preciso) e confirma o login.
+ */
+$("li-connect").addEventListener("click", async () => {
+  const button = $("li-connect");
+  button.disabled = true;
+  $("li-status").textContent = "Verificando o LinkedIn…";
+  try {
+    let tab = await findLinkedInTab();
+    if (!tab) {
+      tab = await chrome.tabs.create({ url: LINKEDIN_PEOPLE_SEARCH, active: false });
+      await new Promise((resolve) => {
+        const listener = (id, info) => {
+          if (id === tab.id && info.status === "complete") {
+            chrome.tabs.onUpdated.removeListener(listener);
+            resolve();
+          }
+        };
+        chrome.tabs.onUpdated.addListener(listener);
+      });
+    }
+    const status = await linkedInStatus(tab.id);
+    await saveLinkedInSettings({ conectado: status.loggedIn });
+    renderLinkedInStatus({ conectado: status.loggedIn });
+    if (!status.loggedIn) {
+      $("li-status").textContent = "Faça login no LinkedIn na aba que abriu e clique em “Verificar de novo”.";
+      chrome.tabs.update(tab.id, { active: true });
+    }
+  } catch (error) {
+    console.error(error);
+    $("li-status").textContent = "Não foi possível verificar. Abra o LinkedIn, faça login e tente de novo.";
+  } finally {
+    button.disabled = false;
+  }
+});

@@ -3,6 +3,7 @@ import { initCompareArea } from "./compare/panel.js";
 import { initCvArea } from "./cv/panel.js";
 import { initPromptsArea } from "./prompts/panel.js";
 import { initSalaryArea } from "./salary/panel.js";
+import { initShortlistArea, onShortlistShown } from "./shortlist/panel.js";
 import { initTurnoverArea } from "./turnover/panel.js";
 import { loadKeys as resolveKeys } from "./keys.js";
 import { initHeader } from "./header.js";
@@ -516,7 +517,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // ---- Abas do painel -------------------------------------------------------
 
 const TABS = Object.fromEntries(
-  ["entrevistas", "curriculos", "comparativo", "salarios", "turnover", "prompts"].map((name) => [name, $(`tab-${name}`)]),
+  ["entrevistas", "curriculos", "comparativo", "salarios", "turnover", "prompts", "shortlist"].map((name) => [
+    name,
+    $(`tab-${name}`),
+  ]),
 );
 
 function selectTab(name) {
@@ -526,6 +530,8 @@ function selectTab(name) {
     $(`area-${key}`).hidden = !selected;
   }
   chrome.storage.session.set({ aba: name });
+  // A Shortlist abre o LinkedIn ao ser aberta.
+  if (name === "shortlist") onShortlistShown();
 }
 
 for (const [name, tab] of Object.entries(TABS)) tab.addEventListener("click", () => selectTab(name));
@@ -562,6 +568,7 @@ async function init() {
   await initSalaryArea({ apiKeyGetter: groqKeyGetter });
   initTurnoverArea();
   initPromptsArea();
+  initShortlistArea({ groqKeyGetter });
   const stored = await chrome.storage.session.get(["draft", "result", "capture", "modo", "aba"]);
   // Uma gravação em andamento sempre traz a aba de entrevistas para frente.
   selectTab(stored.capture || !TABS[stored.aba] ? "entrevistas" : stored.aba);

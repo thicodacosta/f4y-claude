@@ -48,13 +48,28 @@ console.log(
   `Chaves embutidas: Anthropic ${env.ANTHROPIC_API_KEY ? "sim" : "não"} · Groq ${env.GROQ_API_KEY ? "sim" : "não"}`,
 );
 
+// Script injetado na página do LinkedIn (Shortlist). Scripts injetados por
+// chrome.scripting não aceitam import: vai num arquivo único, sem módulos.
+const contentOptions = {
+  entryPoints: { "linkedin-content": "src/shortlist/linkedin-content.js" },
+  outdir: options.outdir,
+  bundle: true,
+  format: "iife",
+  target: "chrome120",
+  minify: true,
+  sourcemap: true,
+  logLevel: "info",
+};
+
 if (process.argv.includes("--watch")) {
   const ctx = await esbuild.context(options);
-  await ctx.watch();
+  const contentCtx = await esbuild.context(contentOptions);
+  await Promise.all([ctx.watch(), contentCtx.watch()]);
 } else {
   // Remove arquivos de builds anteriores (chunks com hash antigo).
   rmSync(options.outdir, { recursive: true, force: true });
   await esbuild.build(options);
+  await esbuild.build(contentOptions);
 }
 
 // O leitor de PDF (pdf.js) roda num worker próprio, que precisa estar no pacote.

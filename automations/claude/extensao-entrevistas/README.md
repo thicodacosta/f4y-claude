@@ -154,6 +154,41 @@ preserva a transcrição para tentar de novo.
   valores, e fica guardada junto do registro. Copiar e baixar usam o idioma
   exibido.
 
+## Shortlist no LinkedIn (aba "Shortlist")
+
+1. Ao abrir a aba, a extensão abre o LinkedIn (busca de pessoas), se ainda não
+   houver uma aba dele.
+2. A recrutadora cola a JD. "Sugerir termos de busca" analisa a vaga e sugere
+   buscas (cargo + cidade) que abrem direto no LinkedIn.
+3. Ela faz a busca de pessoas manualmente, aplica filtros e deixa a página de
+   resultados aberta.
+4. Escolhe quantos convites (1 a 5; para mais, recomeça) e a aderência mínima,
+   e clica em **Iniciar Shortlist**.
+5. A extensão assume a aba do LinkedIn: lê os resultados, faz a triagem pelos
+   cartões, abre os perfis mais promissores, avalia cada um frente à JD
+   (mesma regra de aderência do Comparativo) e, nos aderentes, clica em
+   Conectar → Adicionar nota → Enviar, com a nota do modelo das
+   Configurações. Pula quem já é conexão, já tem convite pendente ou exige
+   e-mail. Pausas de 25 a 45s entre convites; no máximo 15 perfis abertos e 3
+   páginas por execução. Botão **Parar** a qualquer momento.
+6. Ao final, mostra o resumo (aderência e situação de cada perfil) e volta
+   para a busca.
+
+O modo **Simular** faz tudo, menos o clique final em Enviar: use-o para validar
+a busca e a nota antes do primeiro envio real. A IA roda na Groq
+(`src/shortlist/ai.js`); o script que age na página
+(`src/shortlist/linkedin-content.js`) se orienta por textos e rótulos de
+acessibilidade (português e inglês), não por classes internas do LinkedIn.
+
+**Configurações → Integração com o LinkedIn:** conectar (confirma o login na
+sessão do LinkedIn aberta no Chrome, porque não há API oficial para isso),
+assinatura, modelo da nota ({nome}, {perfil}, {local}, {assinatura}),
+aderência mínima padrão e envio sem nota quando o LinkedIn não permitir nota.
+
+**Risco:** automatizar ações vai contra os termos de uso do LinkedIn e pode
+levar à restrição da conta. Os limites acima reduzem esse risco, mas não o
+eliminam.
+
 ## O que existe aqui
 
 | Caminho | Conteúdo |
@@ -173,6 +208,8 @@ preserva a transcrição para tentar de novo.
 | `src/theme.js`, `extension/theme-init.js` | Tema claro/escuro/automático |
 | `src/header.js` | Logo da empresa no cabeçalho |
 | `src/translate.js` | Tradução do registro para inglês e espanhol |
+| `src/shortlist/` | Shortlist no LinkedIn: IA (Groq), orquestração, script da página, configurações e a aba |
+| `src/compare/score.js` | Cálculo da aderência (Comparativo e Shortlist) |
 | `src/audio.js` | Captura PCM, reamostragem e montagem dos blocos WAV |
 | `src/transcribe.js` | Transcrição de um bloco via Groq (Whisper), com novas tentativas e filtro de alucinação |
 | `src/transcript.js` | Montagem da transcrição final com rótulos e horários |
