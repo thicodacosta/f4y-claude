@@ -2,6 +2,7 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { FriendlyError } from "../errors.js";
+import { stripCitations } from "../groq.js";
 import { getFavoritePrompts, onFavoritesChange } from "../prompts/favorites.js";
 import { $, el, normalize } from "../ui.js";
 import { prepareAttachment, sendChat } from "./engine.js";
@@ -26,7 +27,7 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   }
 });
 
-const renderMarkdown = (text) => DOMPurify.sanitize(marked.parse(text ?? ""));
+const renderMarkdown = (text) => DOMPurify.sanitize(marked.parse(stripCitations(text ?? "")));
 
 function persist() {
   chrome.storage.session.set({
@@ -34,6 +35,7 @@ function persist() {
       role: m.role,
       text: m.text,
       provider: m.provider ?? null,
+      sources: m.sources ?? [],
       attachments: (m.attachments ?? []).map((a) => ({ kind: a.kind, name: a.name })),
     })),
   });
@@ -84,6 +86,26 @@ function messageNode(m, index) {
   if (m.streaming && !m.text) bubble.append(el("span", "msg__typing", "Pensando"));
   else bubble.innerHTML = renderMarkdown(m.text);
   node.append(bubble);
+
+  if (!m.streaming && m.sources?.length) {
+    const sources = el("div", "msg__sources");
+    sources.append(el("span", null, "Fontes:"));
+    // Uma fonte por site, no máximo 4.
+    const bySite = new Map();
+    for (const src of m.sources) {
+      const host = new URL(src.url).hostname.replace(/^www\./, "");
+      if (!bySite.has(host)) bySite.set(host, src);
+    }
+    for (const [host, src] of [...bySite].slice(0, 4)) {
+      const link = el("a", null, host);
+      link.href = src.url;
+      link.title = src.title;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      sources.append(link);
+    }
+    node.append(sources);
+  }
 
   if (!m.streaming) {
     const meta = el("div", "msg__meta");
@@ -287,8 +309,9 @@ async function send() {
         updateStreaming(index);
       },
     });
-    reply.text = result.text || reply.text;
+    reply.text = result.text || stripCitations(reply.text);
     reply.provider = result.provider;
+    reply.sources = result.sources ?? [];
   } catch (error) {
     console.error(error);
     const interrupted = abort?.signal.aborted;

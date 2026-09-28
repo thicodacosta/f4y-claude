@@ -94,12 +94,16 @@ async function chat(options) {
   return (await request(options)).json();
 }
 
+/** Remove as marcações de citação da busca da Groq (ex.: "【1†L24-L35】"). */
+export const stripCitations = (text) => text.replace(/【[^】]*】/g, "");
+
 /**
  * Resposta em texto, entregue aos poucos (streaming) por `onText(trecho)`.
- * `messages` no formato da API (content em texto ou partes com imagem).
- * Devolve o texto completo.
+ * `messages` no formato da API (content em texto ou partes com imagem). Com
+ * `webSearch`, o modelo pode buscar na web quando precisar de dado atual.
+ * Devolve { text, sources }.
  */
-export async function groqChatStream({ apiKey, model = GROQ_MODEL, messages, signal, onText }) {
+export async function groqChatStream({ apiKey, model = GROQ_MODEL, messages, webSearch = false, signal, onText }) {
   const vision = model === GROQ_VISION_MODEL;
   const res = await request({
     apiKey,
@@ -111,8 +115,10 @@ export async function groqChatStream({ apiKey, model = GROQ_MODEL, messages, sig
       max_completion_tokens: 8000,
       // gpt-oss raciocina sem expor o raciocínio; no Qwen, o raciocínio fica oculto.
       ...(vision ? { reasoning_format: "hidden" } : { reasoning_effort: "low" }),
+      ...(webSearch && !vision ? { tools: [{ type: "browser_search" }], tool_choice: "auto" } : {}),
     },
   });
+  const sources = new Map();
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -129,10 +135,13 @@ export async function groqChatStream({ apiKey, model = GROQ_MODEL, messages, sig
         if (!line.startsWith("data: ")) continue;
         const data = line.slice(6).trim();
         if (data === "[DONE]") continue;
-        const delta = JSON.parse(data).choices?.[0]?.delta?.content;
-        if (delta) {
-          full += delta;
-          onText?.(delta);
+        const choice = JSON.parse(data).choices?.[0]?.delta ?? {};
+        for (const tool of choice.executed_tools ?? []) {
+          for (const r of tool.search_results?.results ?? []) if (r.url) sources.set(r.url, r.title ?? r.url);
+        }
+        if (choice.content) {
+          full += choice.content;
+          onText?.(choice.content);
         }
       }
     }
@@ -140,7 +149,7 @@ export async function groqChatStream({ apiKey, model = GROQ_MODEL, messages, sig
     if (signal?.aborted) throw new FriendlyError("Resposta interrompida.");
     throw new FriendlyError("A conexão com a Groq caiu no meio da resposta. Tente novamente.");
   }
-  return full;
+  return { text: stripCitations(full).trim(), sources: [...sources].map(([url, title]) => ({ url, title })) };
 }
 
 /**

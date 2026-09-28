@@ -214,7 +214,22 @@ export async function runShortlist({ groqKey, tabId, jd, job, quantidade, aderen
           ? personalized
           : templateNote;
       say(dryRun ? `Simulando o convite para ${candidate.nome}…` : `Enviando convite para ${candidate.nome}…`);
-      const result = await command(tabId, "connect", { note, allowNoNote: settings.enviarSemNota, dryRun });
+      let result = await command(tabId, "connect", { note, allowNoNote: settings.enviarSemNota, dryRun });
+      // Sem o botão na página (ex.: "Conectar" escondido ou só "Seguir"): abre
+      // direto a página de convite do LinkedIn para este perfil.
+      if (result.status === "sem_botao") {
+        const vanity = candidate.url.match(/\/in\/([^/]+)/)?.[1];
+        if (vanity) {
+          say(`Abrindo o convite de ${candidate.nome} pela página de convite…`);
+          await navigate(tabId, `https://www.linkedin.com/preload/custom-invite/?vanityName=${vanity}`);
+          result = await command(tabId, "connect", {
+            note,
+            allowNoNote: settings.enviarSemNota,
+            dryRun,
+            dialogOnly: true,
+          });
+        }
+      }
       Object.assign(candidate, { status: result.status, nota: result.withNote ? note : null, detalhe: result.detail ?? null });
       emit(candidate);
 

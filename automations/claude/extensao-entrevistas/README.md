@@ -132,6 +132,11 @@ Conversa com IA no estilo Claude/ChatGPT (`src/chat/`):
   sem crédito/chave na Anthropic, Groq automaticamente: `gpt-oss-120b` para
   texto e documentos (texto extraído no navegador) e `qwen3.8-27b` quando há
   imagem. Cada resposta indica quem respondeu.
+- **Objetivo e atualizado:** responde com a informação em si, sabe a data de
+  hoje e usa **busca na web** para dados que mudam (cotações, jogos, notícias,
+  leis, índices). As fontes aparecem como links abaixo da resposta (uma por
+  site). Se o modelo buscar e não escrever a resposta, a extensão tenta de novo.
+  Com imagem anexada (Qwen na Groq), não há busca na web.
 - Resposta em streaming, com botão para parar, Markdown sanitizado (DOMPurify)
   e botão Copiar. A conversa (texto e nomes dos anexos) fica em
   `chrome.storage.session`; o conteúdo dos anexos, só em memória.
@@ -198,7 +203,10 @@ preserva a transcrição para tentar de novo.
    trabalho) e, nos aderentes, clica em Conectar → Adicionar nota → Enviar
    com uma **nota personalizada pela IA** (cita cargo, empresa ou experiência
    da pessoa, até 200 caracteres). Pula quem já é conexão, já tem convite
-   pendente ou exige e-mail. Pausas de 25 a 45s entre convites; no máximo 20
+   pendente ou exige e-mail. Se o botão Conectar não estiver na página (ex.:
+   perfis só com "Seguir"), abre direto a página de convite do LinkedIn
+   (`/preload/custom-invite/?vanityName=…`). A nota é escrita tanto em campo de
+   texto comum quanto em editor rico. Pausas de 25 a 45s entre convites; no máximo 20
    perfis abertos e 5 páginas por execução. Botão **Parar** a qualquer momento.
 6. O painel lista **só os candidatos com a aderência mínima ou mais** (padrão
    70%); os demais entram apenas na contagem de perfis analisados. Ao final,

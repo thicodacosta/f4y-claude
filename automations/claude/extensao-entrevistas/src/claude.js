@@ -2,6 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import { FriendlyError } from "./errors.js";
 
 export const MODEL = "claude-opus-5";
+// Pausas do laço de ferramentas do servidor (busca web) a retomar antes de
+// desistir.
+const MAX_CONTINUATIONS = 5;
 
 /**
  * Erro com mensagem já pronta para exibir ao usuário. `code` indica quando a
@@ -71,43 +74,54 @@ export async function requestStructured({ apiKey, system, content, format, effor
 /**
  * Conversa com resposta em texto entregue aos poucos (`onText(trecho)`).
  * `messages` no formato da API (conteúdo com texto, documentos e imagens).
- * Devolve o texto completo.
+ * Com `webSearch`, o Claude busca na web quando precisa de dado atual.
+ * Devolve { text, sources }.
  */
-export async function claudeChatStream({ apiKey, system, messages, signal, onText }) {
+export async function claudeChatStream({ apiKey, system, messages, webSearch = false, signal, onText }) {
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
-  let message;
-  try {
-    const stream = client.beta.messages.stream(
-      {
-        model: MODEL,
-        max_tokens: 16000,
-        thinking: { type: "adaptive" },
-        // Conversa: esforço médio responde mais rápido, com boa qualidade.
-        output_config: { effort: "medium" },
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
-        system,
-        messages,
-      },
-      { signal },
-    );
-    if (onText) stream.on("text", onText);
-    message = await stream.finalMessage();
-  } catch (error) {
-    throw toClaudeError(error);
+  const conversation = [...messages];
+  const texts = [];
+  const sources = new Map();
+
+  for (let attempt = 0; attempt <= MAX_CONTINUATIONS; attempt++) {
+    let message;
+    try {
+      const stream = client.beta.messages.stream(
+        {
+          model: MODEL,
+          max_tokens: 16000,
+          thinking: { type: "adaptive" },
+          // Conversa: esforço médio responde mais rápido, com boa qualidade.
+          output_config: { effort: "medium" },
+          betas: ["server-side-fallback-2026-07-01"],
+          fallbacks: "default",
+          system,
+          messages: conversation,
+          ...(webSearch ? { tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }] } : {}),
+        },
+        { signal },
+      );
+      if (onText) stream.on("text", onText);
+      message = await stream.finalMessage();
+    } catch (error) {
+      throw toClaudeError(error);
+    }
+    if (message.stop_reason === "refusal") {
+      throw new ClaudeError("O modelo recusou responder a esta mensagem. Reformule e tente novamente.");
+    }
+    for (const block of message.content) {
+      if (block.type === "text") texts.push(block.text);
+      if (block.type === "web_search_tool_result" && Array.isArray(block.content)) {
+        for (const r of block.content) if (r.url) sources.set(r.url, r.title ?? r.url);
+      }
+    }
+    // Busca longa pausada pelo servidor: reenviar a resposta parcial retoma.
+    if (message.stop_reason !== "pause_turn") break;
+    conversation.push({ role: "assistant", content: message.content });
   }
-  if (message.stop_reason === "refusal") {
-    throw new ClaudeError("O modelo recusou responder a esta mensagem. Reformule e tente novamente.");
-  }
-  return message.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("");
+  return { text: texts.join(""), sources: [...sources].map(([url, title]) => ({ url, title })) };
 }
 
-// Pausas do laço de ferramentas do servidor (busca web) a retomar antes de
-// desistir.
-const MAX_CONTINUATIONS = 5;
 
 /**
  * Para tarefas com ferramentas do servidor (ex.: busca web): o Claude

@@ -147,7 +147,15 @@
   const SEND_WITHOUT_NOTE = /enviar sem (uma )?nota|send without a note/i;
   const CLOSE = /^(cancelar|cancel|fechar|dismiss|descartar)$|fechar|dismiss/i;
 
-  const dialog = () => [...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')].find(visible);
+  // Diálogos do LinkedIn: role="dialog" (artdeco-modal) ou <dialog> nativo.
+  const DIALOG = '[role="dialog"], [role="alertdialog"], dialog[open], [aria-modal="true"], .artdeco-modal';
+  const dialog = () => [...document.querySelectorAll(DIALOG)].find(visible);
+  // Campo da nota: textarea ou, em versões novas, um editor de texto rico.
+  const NOTE_FIELD = 'textarea, [contenteditable="true"], [role="textbox"]';
+  const noteField = () => {
+    const d = dialog();
+    return d && [...d.querySelectorAll(NOTE_FIELD)].find(visible);
+  };
 
   async function closeDialog() {
     const d = dialog();
@@ -159,6 +167,11 @@
   /** Escreve no campo de forma que o LinkedIn reconheça (como se fosse digitado). */
   function typeInto(field, text) {
     field.focus();
+    if (field.isContentEditable) {
+      document.execCommand("selectAll", false);
+      document.execCommand("insertText", false, text);
+      return;
+    }
     field.select?.();
     const ok = document.execCommand("insertText", false, text);
     if (!ok || field.value !== text) {
@@ -195,9 +208,17 @@
 
   const enabled = (b) => b && !b.disabled && b.getAttribute("aria-disabled") !== "true";
 
-  async function connect({ note, allowNoNote, dryRun }) {
-    if (findClickable(topCard(), /^(pendente|pending)\b/i)) return { status: "pendente" };
-    if (!(await openConnectDialog())) return { status: "sem_botao" };
+  /**
+   * `dialogOnly`: a página de convite já foi aberta pela extensão
+   * (linkedin.com/preload/custom-invite/…): só espera o diálogo.
+   */
+  async function connect({ note, allowNoNote, dryRun, dialogOnly = false }) {
+    if (dialogOnly) {
+      if (!(await waitFor(dialog, 10000))) return { status: "sem_botao" };
+    } else {
+      if (findClickable(topCard(), /^(pendente|pending)\b/i)) return { status: "pendente" };
+      if (!(await openConnectDialog())) return { status: "sem_botao" };
+    }
 
     // Alguns perfis pedem o e-mail do candidato para convidar.
     if (dialog()?.querySelector('input[type="email"]')) {
@@ -207,12 +228,12 @@
 
     // Com nota: "Adicionar nota" abre o campo. Sem o botão (ex.: limite de
     // notas da conta gratuita), só segue sem nota se o usuário permitir.
-    let field = dialog()?.querySelector("textarea");
+    let field = noteField();
     if (!field && note) {
       const addNote = findClickable(dialog(), ADD_NOTE);
       if (addNote) {
         addNote.click();
-        field = await waitFor(() => dialog()?.querySelector("textarea"), 4000);
+        field = await waitFor(noteField, 5000);
       }
     }
     const withNote = Boolean(field && note);
@@ -223,6 +244,7 @@
     if (withNote) {
       const max = Number(field.getAttribute("maxlength")) || 300;
       typeInto(field, note.slice(0, max));
+      await sleep(400);
     }
 
     const send = await waitFor(() => {
@@ -241,8 +263,9 @@
     }
 
     send.click();
-    await waitFor(() => !dialog(), 6000);
-    const pending = await waitFor(() => findClickable(topCard(), /^(pendente|pending)\b/i), 4000);
+    const closed = await waitFor(() => !dialog(), 8000);
+    if (!closed) return { status: "erro", detail: "O LinkedIn não fechou o convite após o envio." };
+    const pending = dialogOnly ? null : await waitFor(() => findClickable(topCard(), /^(pendente|pending)\b/i), 4000);
     return { status: "enviado", withNote, confirmed: Boolean(pending) };
   }
 
