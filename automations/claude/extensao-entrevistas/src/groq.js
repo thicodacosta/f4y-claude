@@ -1,7 +1,7 @@
 /**
- * Cliente da API de chat da Groq (compatível com a da OpenAI). Usado pelo
- * comparativo e pela pesquisa salarial: modelos abertos rodando no hardware da
- * Groq, com respostas em poucos segundos.
+ * Cliente da API de chat da Groq (compatível com a da OpenAI): comparativo,
+ * pesquisa salarial, Shortlist, tradução, Chat e alternativa ao Claude.
+ * Modelos abertos rodando no hardware da Groq, com respostas em segundos.
  */
 import { FriendlyError } from "./errors.js";
 
@@ -10,6 +10,8 @@ export const GROQ_MODEL = "openai/gpt-oss-120b";
 // Modelo menor para tarefas simples de formatação: mais rápido e com cota
 // de uso separada do 120b.
 export const GROQ_FAST_MODEL = "openai/gpt-oss-20b";
+// Único modelo da conta que lê imagens (usado pelo Chat quando há imagem).
+export const GROQ_VISION_MODEL = "qwen/qwen3.8-27b";
 const MAX_ATTEMPTS = 4;
 // Espera máxima aceitável antes de uma nova tentativa; acima disso, avisa.
 const MAX_RETRY_WAIT_MS = 20_000;
@@ -23,8 +25,11 @@ const sleep = (ms, signal) =>
     });
   });
 
-/** Uma chamada ao chat, com novas tentativas em limite de taxa e instabilidade. */
-async function chat({ apiKey, body, signal, model = GROQ_MODEL }) {
+/**
+ * Uma chamada à API, com novas tentativas em limite de taxa e instabilidade.
+ * Devolve a resposta HTTP já validada (status 2xx).
+ */
+async function request({ apiKey, body, signal, model = GROQ_MODEL }) {
   for (let attempt = 1; ; attempt++) {
     let res;
     try {
@@ -41,7 +46,7 @@ async function chat({ apiKey, body, signal, model = GROQ_MODEL }) {
       continue;
     }
 
-    if (res.ok) return res.json();
+    if (res.ok) return res;
 
     const detail = await res.text();
     // Detalhe técnico só no console (Inspecionar), para diagnóstico.
@@ -83,6 +88,59 @@ async function chat({ apiKey, body, signal, model = GROQ_MODEL }) {
     }
     throw new FriendlyError(`A Groq respondeu com erro (${res.status}). Tente novamente.`);
   }
+}
+
+async function chat(options) {
+  return (await request(options)).json();
+}
+
+/**
+ * Resposta em texto, entregue aos poucos (streaming) por `onText(trecho)`.
+ * `messages` no formato da API (content em texto ou partes com imagem).
+ * Devolve o texto completo.
+ */
+export async function groqChatStream({ apiKey, model = GROQ_MODEL, messages, signal, onText }) {
+  const vision = model === GROQ_VISION_MODEL;
+  const res = await request({
+    apiKey,
+    signal,
+    model,
+    body: {
+      messages,
+      stream: true,
+      max_completion_tokens: 8000,
+      // gpt-oss raciocina sem expor o raciocínio; no Qwen, o raciocínio fica oculto.
+      ...(vision ? { reasoning_format: "hidden" } : { reasoning_effort: "low" }),
+    },
+  });
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let full = "";
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") continue;
+        const delta = JSON.parse(data).choices?.[0]?.delta?.content;
+        if (delta) {
+          full += delta;
+          onText?.(delta);
+        }
+      }
+    }
+  } catch (error) {
+    if (signal?.aborted) throw new FriendlyError("Resposta interrompida.");
+    throw new FriendlyError("A conexão com a Groq caiu no meio da resposta. Tente novamente.");
+  }
+  return full;
 }
 
 /**

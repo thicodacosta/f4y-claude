@@ -68,6 +68,43 @@ export async function requestStructured({ apiKey, system, content, format, effor
   }
 }
 
+/**
+ * Conversa com resposta em texto entregue aos poucos (`onText(trecho)`).
+ * `messages` no formato da API (conteúdo com texto, documentos e imagens).
+ * Devolve o texto completo.
+ */
+export async function claudeChatStream({ apiKey, system, messages, signal, onText }) {
+  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+  let message;
+  try {
+    const stream = client.beta.messages.stream(
+      {
+        model: MODEL,
+        max_tokens: 16000,
+        thinking: { type: "adaptive" },
+        // Conversa: esforço médio responde mais rápido, com boa qualidade.
+        output_config: { effort: "medium" },
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        system,
+        messages,
+      },
+      { signal },
+    );
+    if (onText) stream.on("text", onText);
+    message = await stream.finalMessage();
+  } catch (error) {
+    throw toClaudeError(error);
+  }
+  if (message.stop_reason === "refusal") {
+    throw new ClaudeError("O modelo recusou responder a esta mensagem. Reformule e tente novamente.");
+  }
+  return message.content
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+}
+
 // Pausas do laço de ferramentas do servidor (busca web) a retomar antes de
 // desistir.
 const MAX_CONTINUATIONS = 5;

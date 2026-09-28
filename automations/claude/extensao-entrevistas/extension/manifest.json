@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "JourneyLab · Ferramentas de RH",
-  "version": "1.10.0",
-  "description": "Entrevistas gravadas e transcritas, currículos padronizados, comparativo, pesquisa salarial, turnover, prompts e Shortlist no LinkedIn.",
+  "version": "1.11.0",
+  "description": "Entrevistas, currículos padronizados, comparativo, pesquisa salarial, turnover, prompts, Shortlist no LinkedIn e Chat com IA para RH.",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",

@@ -1,8 +1,9 @@
 # JourneyLab · Ferramentas de RH (extensão Chrome)
 
-Painel lateral do Chrome com seis ferramentas: registro de entrevistas,
+Painel lateral do Chrome com oito ferramentas: registro de entrevistas,
 construtor de currículos padronizados, comparativo de candidatos, pesquisa
-salarial, calculadora de turnover e biblioteca de prompts para RH.
+salarial, custo de turnover, biblioteca de prompts, Shortlist no LinkedIn e
+Chat com IA.
 
 A aba "Entrevistas" grava e transcreve a entrevista feita no Google
 Meet, Teams ou Zoom (no navegador) e, ao final, entrega um registro
@@ -112,7 +113,28 @@ Custo de um desligamento, em cálculo local, sem IA (`src/turnover/calc.js`):
 ## Biblioteca de prompts (aba "Prompts")
 
 50 prompts em 10 categorias (5 cada) em `src/prompts/library.js`, com busca
-sem acento e tolerante a plural e gênero, e filtro por categoria.
+sem acento e tolerante a plural e gênero, e filtro por categoria. A ☆ de cada
+prompt o marca como **favorito** (`chrome.storage.local`, chave
+`promptFavoritos`); a categoria "★ Favoritos" fica depois de "Desligamento e
+retenção". Os favoritos alimentam o Chat.
+
+## Chat (aba "Chat")
+
+Conversa com IA no estilo Claude/ChatGPT (`src/chat/`):
+
+- **Prompts favoritos:** digitar `/` (com filtro pelo que vier depois, setas e
+  Enter) ou o botão **+ → Prompts favoritos** insere o prompt no campo e já
+  seleciona o primeiro `[CAMPO]` para preencher.
+- **Anexos:** botão **+ → Documento** (PDF, Word, texto, CSV, até 20 MB) ou
+  **Imagem** (PNG, JPG, WEBP, GIF, até 5 MB), ou arrastar para a conversa; até
+  5 por mensagem. Vídeo não é aceito.
+- **Provedor:** Claude (lê PDF inclusive escaneado e imagens, esforço médio);
+  sem crédito/chave na Anthropic, Groq automaticamente: `gpt-oss-120b` para
+  texto e documentos (texto extraído no navegador) e `qwen3.8-27b` quando há
+  imagem. Cada resposta indica quem respondeu.
+- Resposta em streaming, com botão para parar, Markdown sanitizado (DOMPurify)
+  e botão Copiar. A conversa (texto e nomes dos anexos) fica em
+  `chrome.storage.session`; o conteúdo dos anexos, só em memória.
 
 ## Provedores de IA e limites
 
@@ -121,7 +143,8 @@ sem acento e tolerante a plural e gênero, e filtro por categoria.
 | Registro de entrevista | Claude; se a Anthropic estiver sem crédito, chave ou cota, **Groq automaticamente** (mesmo prompt e schema) |
 | Currículos padronizados | Claude (lê PDF escaneado); na falta, **Groq** com texto extraído no navegador |
 | Transcrição da gravação | Groq (Whisper) |
-| Comparativo, pesquisa salarial e tradução | Groq |
+| Comparativo, pesquisa salarial, tradução e Shortlist | Groq |
+| Chat | Claude; sem crédito na Anthropic, Groq (Qwen para imagens) |
 
 Plano gratuito da Groq (limites da conta inteira, por modelo): **8.000 tokens
 por minuto** e **200.000 tokens por dia**. Na prática: currículos e
@@ -217,6 +240,8 @@ eliminam.
 | `src/theme.js`, `extension/theme-init.js` | Tema claro/escuro/automático |
 | `src/header.js` | Logo da empresa no cabeçalho |
 | `src/translate.js` | Tradução do registro para inglês e espanhol |
+| `src/chat/` | Chat: motor (Claude/Groq, anexos) e a aba |
+| `src/prompts/favorites.js` | Prompts favoritos |
 | `src/shortlist/` | Shortlist no LinkedIn: IA (Groq), orquestração, script da página, configurações e a aba |
 | `src/compare/score.js` | Cálculo da aderência (Comparativo e Shortlist) |
 | `src/audio.js` | Captura PCM, reamostragem e montagem dos blocos WAV |

@@ -11,7 +11,9 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
     "docx": "^9.7.2",
+    "dompurify": "^3.4.16",
     "mammoth": "^1.12.3",
+    "marked": "^18.0.14",
     "pdfjs-dist": "^6.3.289",
     "pdfmake": "^0.3.11"
   },

@@ -1,4 +1,5 @@
 import { analyzeInterview, AnalysisError } from "./analyze.js";
+import { initChatArea } from "./chat/panel.js";
 import { initCompareArea } from "./compare/panel.js";
 import { initCvArea } from "./cv/panel.js";
 import { initPromptsArea } from "./prompts/panel.js";
@@ -517,7 +518,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // ---- Abas do painel -------------------------------------------------------
 
 const TABS = Object.fromEntries(
-  ["entrevistas", "curriculos", "comparativo", "salarios", "turnover", "prompts", "shortlist"].map((name) => [
+  ["entrevistas", "curriculos", "comparativo", "salarios", "turnover", "prompts", "shortlist", "chat"].map((name) => [
     name,
     $(`tab-${name}`),
   ]),
@@ -567,8 +568,9 @@ async function init() {
   await initCompareArea({ apiKeyGetter: groqKeyGetter });
   await initSalaryArea({ apiKeyGetter: groqKeyGetter });
   initTurnoverArea();
-  initPromptsArea();
+  await initPromptsArea();
   initShortlistArea({ groqKeyGetter });
+  await initChatArea({ keysGetter: () => keys });
   const stored = await chrome.storage.session.get(["draft", "result", "capture", "modo", "aba"]);
   // Uma gravação em andamento sempre traz a aba de entrevistas para frente.
   selectTab(stored.capture || !TABS[stored.aba] ? "entrevistas" : stored.aba);

@@ -1,17 +1,21 @@
 /** Aba "Prompts": biblioteca com busca e filtro por categoria. */
 import { $, el, normalize } from "../ui.js";
+import { getFavoriteIds, onFavoritesChange, toggleFavorite } from "./favorites.js";
 import { CATEGORIES, PROMPTS } from "./library.js";
 
 const ALL = "Todos";
+const FAVORITES = "Favoritos";
 let category = ALL;
+let favorites = new Set();
 
 // Índice de busca pré-calculado (título, descrição, categoria e texto).
 const index = PROMPTS.map((p) => ({ prompt: p, haystack: normalize(`${p.titulo} ${p.descricao} ${p.categoria} ${p.prompt}`) }));
 
 function renderChips() {
   $("pr-cats").replaceChildren(
-    ...[ALL, ...CATEGORIES].map((name) => {
-      const chip = el("button", "chip", name);
+    ...[ALL, ...CATEGORIES, FAVORITES].map((name) => {
+      const label = name === FAVORITES ? `★ Favoritos (${favorites.size})` : name;
+      const chip = el("button", name === FAVORITES ? "chip chip--fav" : "chip", label);
       chip.type = "button";
       chip.setAttribute("aria-pressed", String(name === category));
       chip.addEventListener("click", () => {
@@ -22,6 +26,17 @@ function renderChips() {
       return chip;
     }),
   );
+}
+
+function favoriteButton(p) {
+  const on = favorites.has(p.id);
+  const button = el("button", "fav-toggle", on ? "★" : "☆");
+  button.type = "button";
+  button.setAttribute("aria-pressed", String(on));
+  button.setAttribute("aria-label", on ? `Remover "${p.titulo}" dos favoritos` : `Adicionar "${p.titulo}" aos favoritos`);
+  button.title = on ? "Remover dos favoritos" : "Adicionar aos favoritos (aparece no Chat)";
+  button.addEventListener("click", () => toggleFavorite(p.id));
+  return button;
 }
 
 function promptItem(p) {
@@ -44,8 +59,10 @@ function promptItem(p) {
   const actions = el("div", "prompt-item__actions");
   actions.append(copy, status);
   details.append(el("summary", null, "Ver prompt"), pre);
+  const head = el("div", "prompt-item__head");
+  head.append(el("p", "prompt-item__cat", p.categoria), favoriteButton(p));
   li.append(
-    el("p", "prompt-item__cat", p.categoria),
+    head,
     el("p", "prompt-item__title", p.titulo),
     el("p", "prompt-item__desc", p.descricao),
     details,
@@ -60,18 +77,28 @@ const stem = (term) => (term.length > 4 ? term.replace(/(ais|al|is|os|as|es|o|a|
 function renderList() {
   const terms = normalize($("pr-search").value).split(/\s+/).filter(Boolean).map(stem);
   const matches = index
-    .filter(({ prompt }) => category === ALL || prompt.categoria === category)
+    .filter(({ prompt }) =>
+      category === ALL ? true : category === FAVORITES ? favorites.has(prompt.id) : prompt.categoria === category,
+    )
     .filter(({ haystack }) => terms.every((t) => haystack.includes(t)))
     .map(({ prompt }) => prompt);
 
   $("pr-count").textContent =
     matches.length === 1 ? "1 prompt encontrado" : `${matches.length} prompts encontrados`;
-  $("pr-list").replaceChildren(
-    ...(matches.length ? matches.map(promptItem) : [el("li", "empty", "Nenhum prompt encontrado. Tente outro termo.")]),
-  );
+  const empty =
+    category === FAVORITES && !favorites.size
+      ? "Nenhum favorito ainda. Toque na ☆ de um prompt para marcá-lo; os favoritos aparecem no Chat ao digitar “/”."
+      : "Nenhum prompt encontrado. Tente outro termo.";
+  $("pr-list").replaceChildren(...(matches.length ? matches.map(promptItem) : [el("li", "empty", empty)]));
 }
 
-export function initPromptsArea() {
+export async function initPromptsArea() {
+  favorites = new Set(await getFavoriteIds());
+  onFavoritesChange((ids) => {
+    favorites = new Set(ids);
+    renderChips();
+    renderList();
+  });
   $("pr-search").addEventListener("input", renderList);
   renderChips();
   renderList();

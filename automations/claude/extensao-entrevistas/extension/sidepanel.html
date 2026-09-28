@@ -31,6 +31,7 @@
       <button type="button" class="tabs__tab" id="tab-turnover" aria-controls="area-turnover" aria-selected="false">Turnover</button>
       <button type="button" class="tabs__tab" id="tab-prompts" aria-controls="area-prompts" aria-selected="false">Prompts</button>
       <button type="button" class="tabs__tab" id="tab-shortlist" aria-controls="area-shortlist" aria-selected="false">Shortlist</button>
+      <button type="button" class="tabs__tab" id="tab-chat" aria-controls="area-chat" aria-selected="false">Chat</button>
     </nav>
 
     <main>
@@ -472,6 +473,37 @@
         </div>
 
         <ul id="sl-list" class="cv-list" aria-label="Candidatos aderentes"></ul>
+      </section>
+
+      <!-- Chat -->
+      <section id="area-chat" class="chat" hidden aria-labelledby="chat-title">
+        <div class="chat__header">
+          <h1 id="chat-title" class="title chat__title">Chat</h1>
+          <button type="button" id="chat-new" class="btn-link">Nova conversa</button>
+        </div>
+
+        <div id="chat-messages" class="chat__messages" aria-live="polite"></div>
+
+        <div class="chat__composer">
+          <div id="chat-slash" class="slash" role="listbox" aria-label="Prompts favoritos" hidden></div>
+          <div id="chat-menu" class="chat-menu" role="menu" hidden>
+            <button type="button" role="menuitem" data-action="prompts">★ Prompts favoritos</button>
+            <button type="button" role="menuitem" data-action="doc">Documento (PDF, Word, texto, CSV)</button>
+            <button type="button" role="menuitem" data-action="image">Imagem (PNG, JPG, WEBP)</button>
+          </div>
+          <ul id="chat-attachments" class="chat__attachments" aria-label="Anexos"></ul>
+          <p id="chat-error" class="error" role="alert" hidden></p>
+          <div class="chat__box">
+            <button type="button" id="chat-add" class="chat__icon" aria-label="Adicionar prompt favorito, documento ou imagem" aria-haspopup="menu" aria-expanded="false">+</button>
+            <textarea id="chat-input" rows="1" aria-label="Mensagem" placeholder="Pergunte algo ou digite / para usar um prompt favorito"></textarea>
+            <button type="button" id="chat-send" class="chat__send" aria-label="Enviar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </button>
+          </div>
+          <input id="chat-doc" type="file" accept=".pdf,.docx,.txt,.md,.csv" multiple hidden />
+          <input id="chat-image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
+          <p class="hint chat__foot">Respostas de IA podem conter erros; revise antes de usar. Evite dados sensíveis de candidatos sem necessidade.</p>
+        </div>
       </section>
     </main>
 
