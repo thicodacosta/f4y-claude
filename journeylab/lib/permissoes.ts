@@ -94,7 +94,7 @@ export const PAPEIS_PADRAO: { nome: string; base: PapelBase; regras: Regra[] }[]
     base: "colaborador",
     regras: [
       ["cadastro", ["visualizar"], "proprio"],
-      ["onboarding", ["visualizar", "concluir"], "proprio"],
+      // Onboarding: colaborador não acessa nesta versão (tarefas dele são acompanhadas por RH e gestor).
       ["feedback", ["visualizar", "concluir"], "proprio"],
       ["pdi", ["visualizar", "editar"], "proprio"],
       // Pulse e NR-1: responder é permitido a quem está no público da pesquisa/ciclo.

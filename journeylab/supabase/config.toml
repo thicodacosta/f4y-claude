@@ -107,7 +107,8 @@ enabled = true
 # Port to use for the email testing server web interface.
 port = 54524
 # Uncomment to expose additional ports for testing user applications that send emails.
-# smtp_port = 54525
+# Exposto para o e-mail transacional da aplicação em desenvolvimento (lib/email.ts).
+smtp_port = 54525
 # pop3_port = 54526
 # admin_email = "admin@email.com"
 # sender_name = "Admin"

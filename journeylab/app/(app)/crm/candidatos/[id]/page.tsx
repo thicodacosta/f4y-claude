@@ -58,10 +58,9 @@ export default async function CandidatoPage({ params }: { params: Promise<{ id: 
     podeConverter ? db.colaborador.findMany({ where: { status: "ativo" }, select: { id: true, nome: true }, orderBy: { nome: "asc" } }) : [],
   ]);
   // Modelos de onboarding só entram se o módulo estiver ativo e o papel puder iniciar.
-  const modelosOnboarding =
-    podeConverter && ctx.modulos.has("onboarding") && pode(ctx, "onboarding", "criar")
-      ? await db.modeloOnboarding.findMany({ where: { ativo: true }, select: { id: true, nome: true }, orderBy: { nome: "asc" } })
-      : [];
+  // Onboarding contratado: a conversão cria o onboarding automaticamente (como no cadastro).
+  const onboardingAtivo = podeConverter && ctx.modulos.has("onboarding");
+  const modelosOnboarding = onboardingAtivo ? await db.modeloOnboarding.findMany({ where: { ativo: true }, select: { id: true, nome: true }, orderBy: { nome: "asc" } }) : [];
   const mesmoEmail = colaboradoresLivres.find((p) => c.emailNorm && p.email === c.emailNorm);
 
   return (
@@ -183,11 +182,16 @@ export default async function CandidatoPage({ params }: { params: Promise<{ id: 
                     rotulo="Vaga de contratação"
                     opcoes={[{ valor: "", rotulo: "Não informar" }, ...c.candidaturas.map((cd) => ({ valor: cd.id, rotulo: cd.vaga.titulo }))]}
                   />
-                  {modelosOnboarding.length > 0 && (
+                  {onboardingAtivo && (
                     <Selecao
                       nome="modeloOnboardingId"
-                      rotulo="Iniciar onboarding com o modelo"
-                      opcoes={[{ valor: "", rotulo: "Não iniciar agora" }, ...modelosOnboarding.map((m) => ({ valor: m.id, rotulo: m.nome }))]}
+                      rotulo="Onboarding"
+                      ajuda="Criado automaticamente com a data de admissão."
+                      opcoes={[
+                        { valor: "auto", rotulo: "Criar com o template aplicável (área ou padrão)" },
+                        ...modelosOnboarding.map((m) => ({ valor: m.id, rotulo: `Criar com: ${m.nome}` })),
+                        { valor: "nao", rotulo: "Não criar agora" },
+                      ]}
                     />
                   )}
                 </div>

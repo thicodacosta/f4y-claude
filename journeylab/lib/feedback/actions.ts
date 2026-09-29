@@ -7,6 +7,7 @@ import { transacao, type Tx } from "@/lib/db";
 import { ErroAcesso, exigirPermissaoAcao, pode, type Contexto } from "@/lib/contexto";
 import { auditar } from "@/lib/auditoria";
 import { escopoCobre } from "@/lib/escopo";
+import { instanteNoFuso } from "@/lib/datas";
 import { filtroReunioes, participa, podeConcluirCompromisso, podeEditarReuniao } from "./regras";
 import { PDI_ABERTO } from "@/lib/pdi/regras";
 import type { EstadoForm } from "@/lib/auth/actions";
@@ -77,8 +78,7 @@ export async function agendarReuniao(_: EstadoForm, fd: FormData): Promise<Estad
     const { ctx, escopo } = await exigirPermissaoAcao("feedback", "criar");
     const colaboradorId = z.string().uuid("Selecione a pessoa.").parse(fd.get("colaboradorId"));
     const quando = z.string().trim().min(16, "Informe data e hora.").parse(fd.get("dataHora"));
-    const dataHora = new Date(quando);
-    if (Number.isNaN(dataHora.getTime())) throw new ErroAcesso("Data e hora inválidas.");
+    const dataHora = instanteNoFuso(quando.slice(0, 16));
     const modeloId = String(fd.get("modeloId") ?? "") || null;
     const pautaLivre = linhas(fd.get("pauta"));
     id = await transacao(escopoTx(ctx), async (tx) => {
@@ -125,8 +125,7 @@ export async function alterarReuniao(_: EstadoForm, fd: FormData): Promise<Estad
         await tx.reuniao.update({ where: { id }, data: { status: "cancelada", canceladaMotivo: motivo } });
       } else if (acao === "reagendar") {
         if (r.status !== "agendada") throw new ErroAcesso("A reunião não está agendada.");
-        const d = new Date(z.string().trim().min(16, "Informe data e hora.").parse(fd.get("dataHora")));
-        if (Number.isNaN(d.getTime())) throw new ErroAcesso("Data e hora inválidas.");
+        const d = instanteNoFuso(z.string().trim().min(16, "Informe data e hora.").parse(fd.get("dataHora")).slice(0, 16));
         await tx.reuniao.update({ where: { id }, data: { dataHora: d } });
       } else if (acao === "reabrir") {
         if (r.status === "agendada") throw new ErroAcesso("A reunião já está agendada.");

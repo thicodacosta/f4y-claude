@@ -628,3 +628,7 @@ begin
 end $$;
 revoke all on function public.jl_retencao(uuid, boolean) from public;
 grant execute on function public.jl_retencao(uuid, boolean) to journeylab_app;
+
+-- Onboarding v2: no máximo um template padrão por organização e um template ativo por área.
+create unique index if not exists modelo_onboarding_um_padrao on public.modelos_onboarding (tenant_id) where padrao;
+create unique index if not exists modelo_onboarding_um_por_area on public.modelos_onboarding (tenant_id, area_id) where ativo and area_id is not null;

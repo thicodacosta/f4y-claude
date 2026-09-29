@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Escopo } from "@/lib/permissoes";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { hoje as hojeCivil } from "@/lib/datas";
 
 /** Ciclos visíveis: todos → todos; equipe → abertos/encerrados com público nas equipes lideradas. */
 export function filtroCiclos(escopo: Escopo, minhasEquipes: string[]): Prisma.CicloNr1WhereInput {
@@ -13,8 +14,7 @@ export function filtroCiclos(escopo: Escopo, minhasEquipes: string[]): Prisma.Ci
 }
 
 export function filtroCiclosParaResponder(colaboradorId: string, equipeId: string | null): Prisma.CicloNr1WhereInput {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
+  const hoje = hojeCivil();
   return {
     status: "aberto",
     OR: [{ encerraEm: null }, { encerraEm: { gte: hoje } }],

@@ -345,7 +345,8 @@ model Area {
   nome     String
   criadoEm DateTime @default(now()) @map("criado_em")
 
-  equipes Equipe[]
+  equipes           Equipe[]
+  modelosOnboarding ModeloOnboarding[]
 
   @@unique([tenantId, nome])
   @@map("areas")
@@ -590,8 +591,11 @@ enum StatusOnboarding {
   cancelado
 }
 
+/// Pendentes = nao_iniciada, em_andamento, bloqueada. Dispensada não entra no progresso.
 enum StatusTarefa {
-  pendente
+  nao_iniciada
+  em_andamento
+  bloqueada
   concluida
   dispensada
 }
@@ -601,12 +605,17 @@ model ModeloOnboarding {
   tenantId   String   @map("tenant_id") @db.Uuid
   nome       String
   descricao  String?
-  /// Mensagem e orientações de boas-vindas exibidas ao novo colaborador.
+  /// Mensagem e orientações de boas-vindas (registradas no onboarding).
   boasVindas String?  @map("boas_vindas")
   ativo      Boolean  @default(true)
+  /// Template padrão da organização (no máximo um — índice parcial em rls.sql).
+  padrao     Boolean  @default(false)
+  /// Template específico de uma área/departamento (no máximo um ativo por área — rls.sql).
+  areaId     String?  @map("area_id") @db.Uuid
   criadoPor  String   @map("criado_por")
   criadoEm   DateTime @default(now()) @map("criado_em")
 
+  area        Area?         @relation(fields: [areaId], references: [id], onDelete: SetNull)
   etapas      EtapaModelo[]
   onboardings Onboarding[]
 
@@ -614,12 +623,15 @@ model ModeloOnboarding {
   @@map("modelos_onboarding")
 }
 
+/// Fase do template (ex.: 30/60/90). marcoDias = dia-limite da fase contado a partir do início.
 model EtapaModelo {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-  modeloId String @map("modelo_id") @db.Uuid
-  titulo   String
-  ordem    Int    @default(0)
+  id        String  @id @default(uuid()) @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  modeloId  String  @map("modelo_id") @db.Uuid
+  titulo    String
+  descricao String?
+  marcoDias Int     @default(30) @map("marco_dias")
+  ordem     Int     @default(0)
 
   modelo  ModeloOnboarding @relation(fields: [modeloId], references: [id], onDelete: Cascade)
   tarefas TarefaModelo[]
@@ -635,8 +647,9 @@ model TarefaModelo {
   descricao   String?
   tipo        TipoTarefa        @default(tarefa)
   responsavel ResponsavelTarefa
-  /// Dias em relação ao início (negativo = antes da chegada).
-  prazoDias   Int               @default(0) @map("prazo_dias")
+  /// Deslocamento em dias a partir do início (negativo = antes da chegada). Nulo = marco da fase.
+  prazoDias   Int?              @map("prazo_dias")
+  obrigatoria Boolean           @default(true)
   materialUrl String?           @map("material_url")
   ordem       Int               @default(0)
 
@@ -646,6 +659,8 @@ model TarefaModelo {
 }
 
 /// Onboarding de uma pessoa. Só um "em_andamento" por colaborador (índice parcial em rls.sql).
+/// "Não iniciado" não é gravado: é em_andamento com início no futuro (lib/onboarding/calculo.ts).
+/// status e progresso só mudam por recalcularOnboarding(), na mesma transação da tarefa.
 model Onboarding {
   id            String           @id @default(uuid()) @db.Uuid
   tenantId      String           @map("tenant_id") @db.Uuid
@@ -655,13 +670,20 @@ model Onboarding {
   boasVindas    String?          @map("boas_vindas")
   inicio        DateTime         @db.Date
   status        StatusOnboarding @default(em_andamento)
+  /// Concluídas ÷ consideradas (não dispensadas) × 100.
+  progresso     Int              @default(0)
+  /// manual · cadastro (criação automática) · crm (conversão de candidato)
+  origem        String           @default("manual")
+  lembreteEm    DateTime?        @map("lembrete_em")
   concluidoEm   DateTime?        @map("concluido_em")
   concluidoPor  String?          @map("concluido_por")
   criadoPor     String           @map("criado_por")
   criadoEm      DateTime         @default(now()) @map("criado_em")
+  atualizadoEm  DateTime         @default(now()) @updatedAt @map("atualizado_em")
 
   colaborador Colaborador        @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
   modelo      ModeloOnboarding?  @relation(fields: [modeloId], references: [id], onDelete: SetNull)
+  fases       FaseOnboarding[]
   tarefas     TarefaOnboarding[]
   eventos     EventoOnboarding[]
 
@@ -669,31 +691,76 @@ model Onboarding {
   @@map("onboardings")
 }
 
+/// Fase de um onboarding (copiada do template no início; o template pode mudar depois).
+model FaseOnboarding {
+  id           String  @id @default(uuid()) @db.Uuid
+  tenantId     String  @map("tenant_id") @db.Uuid
+  onboardingId String  @map("onboarding_id") @db.Uuid
+  nome         String
+  descricao    String?
+  marcoDias    Int     @map("marco_dias")
+  ordem        Int     @default(0)
+
+  onboarding Onboarding         @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  tarefas    TarefaOnboarding[]
+
+  @@index([onboardingId, ordem])
+  @@map("fases_onboarding")
+}
+
 model TarefaOnboarding {
   id              String            @id @default(uuid()) @db.Uuid
   tenantId        String            @map("tenant_id") @db.Uuid
   onboardingId    String            @map("onboarding_id") @db.Uuid
-  etapa           String
+  faseId          String            @map("fase_id") @db.Uuid
   titulo          String
   descricao       String?
   tipo            TipoTarefa
   responsavelTipo ResponsavelTarefa @map("responsavel_tipo")
-  /// Pessoa responsável resolvida (gestor/colaborador). Nulo para RH (qualquer pessoa com permissão).
+  /// Pessoa designada (gestor/colaborador resolvidos no início; RH opcional).
   responsavelId   String?           @map("responsavel_id") @db.Uuid
+  obrigatoria     Boolean           @default(true)
+  /// Deslocamento em dias a partir do início; nulo = marco da fase.
+  prazoDias       Int?              @map("prazo_dias")
+  /// true = "prazo" foi definido manualmente (prazo específico) e não acompanha a data de início.
+  prazoFixo       Boolean           @default(false) @map("prazo_fixo")
+  /// Prazo efetivo (fonte para alertas) — calculado por prazoDaTarefa().
   prazo           DateTime          @db.Date
-  status          StatusTarefa      @default(pendente)
+  status          StatusTarefa      @default(nao_iniciada)
+  bloqueioMotivo  String?           @map("bloqueio_motivo")
+  iniciadaEm      DateTime?         @map("iniciada_em")
   concluidaEm     DateTime?         @map("concluida_em")
   concluidaPor    String?           @map("concluida_por")
   observacao      String?
   materialUrl     String?           @map("material_url")
   ordem           Int               @default(0)
+  atualizadoEm    DateTime          @default(now()) @updatedAt @map("atualizado_em")
 
-  onboarding  Onboarding   @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
-  responsavel Colaborador? @relation("ResponsavelTarefa", fields: [responsavelId], references: [id], onDelete: SetNull)
+  onboarding  Onboarding              @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  fase        FaseOnboarding          @relation(fields: [faseId], references: [id], onDelete: Cascade)
+  responsavel Colaborador?            @relation("ResponsavelTarefa", fields: [responsavelId], references: [id], onDelete: SetNull)
+  anexos      AnexoTarefaOnboarding[]
 
   @@index([onboardingId, ordem])
   @@index([tenantId, status, prazo])
   @@map("tarefas_onboarding")
+}
+
+model AnexoTarefaOnboarding {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  tarefaId    String   @map("tarefa_id") @db.Uuid
+  nomeArquivo String   @map("nome_arquivo")
+  caminho     String   @unique
+  tamanho     Int
+  mime        String
+  enviadoPor  String   @map("enviado_por")
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  tarefa TarefaOnboarding @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+
+  @@index([tarefaId])
+  @@map("anexos_tarefa_onboarding")
 }
 
 model EventoOnboarding {

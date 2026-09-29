@@ -4,6 +4,7 @@ import { dbTenant } from "@/lib/db";
 import type { Contexto } from "@/lib/contexto";
 import type { Escopo } from "@/lib/permissoes";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { hoje as hojeCivil } from "@/lib/datas";
 
 /**
  * Pesquisas visíveis na gestão do Pulse:
@@ -27,8 +28,7 @@ export async function equipesLideradas(ctx: Contexto) {
 
 /** Pesquisas abertas que a pessoa pode responder e ainda não respondeu. */
 export function filtroParaResponder(colaboradorId: string, equipeId: string | null): Prisma.PesquisaPulseWhereInput {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
+  const hoje = hojeCivil();
   return {
     status: "aberta",
     OR: [{ encerraEm: null }, { encerraEm: { gte: hoje } }],

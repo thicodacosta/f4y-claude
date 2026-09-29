@@ -14,6 +14,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { PAPEIS_PADRAO, type Modulo } from "../lib/permissoes";
 import { VERSAO_PRIVACIDADE, VERSAO_TERMOS } from "../lib/legal";
+import { hoje as hojeCivil, somarDias } from "../lib/datas";
+import { MODELO_PADRAO } from "../lib/onboarding/modelo-padrao";
 
 if (process.env.NODE_ENV === "production") throw new Error("Seed de desenvolvimento não roda em produção.");
 
@@ -139,75 +141,108 @@ async function crm(tenantId: string, autor: string, vagas: { titulo: string; ges
   }
 }
 
-async function onboardingDemo(tenantId: string, gestorId: string, equipeId: string, papelColaborador: string) {
-  let modelo = await db.modeloOnboarding.findUnique({ where: { tenantId_nome: { tenantId, nome: "Integração padrão" } } });
-  if (!modelo) {
-    modelo = await db.modeloOnboarding.create({
-      data: {
-        tenantId,
-        nome: "Integração padrão",
-        descricao: "Chegada, primeira semana e primeiros 30 dias.",
-        boasVindas: "Que bom ter você com a gente! Nesta página estão as etapas da sua integração, os materiais de apoio e quem pode ajudar em cada momento.",
-        criadoPor: "Ana Souza",
-      },
-    });
-    const etapas: [string, [string, "tarefa" | "documento" | "material", "rh" | "gestor" | "colaborador", number, string?][]][] = [
-      ["Antes da chegada", [
-        ["Enviar documentos admissionais", "documento", "colaborador", -5],
-        ["Conferir documentação", "documento", "rh", -3],
-        ["Preparar equipamento e acessos", "tarefa", "rh", -1],
-      ]],
-      ["Primeira semana", [
-        ["Boas-vindas do gestor", "tarefa", "gestor", 0],
-        ["Guia de cultura e jeito de trabalhar", "material", "colaborador", 1, "https://example.com/guia-cultura"],
-        ["Reunião de alinhamento de expectativas", "tarefa", "gestor", 3],
-      ]],
-      ["Primeiros 30 dias", [
-        ["Checkpoint de 30 dias", "tarefa", "gestor", 30],
-        ["Pesquisa de experiência de integração", "tarefa", "rh", 30],
-      ]],
-    ];
-    for (const [i, [titulo, tarefas]] of etapas.entries()) {
-      const e = await db.etapaModelo.create({ data: { tenantId, modeloId: modelo.id, titulo, ordem: i } });
-      await db.tarefaModelo.createMany({
-        data: tarefas.map(([t, tipo, responsavel, prazoDias, materialUrl], j) => ({ tenantId, etapaId: e.id, titulo: t, tipo, responsavel, prazoDias, materialUrl, ordem: j })),
-      });
-    }
-  }
+type AjusteTarefa = { status?: "em_andamento" | "bloqueada" | "concluida"; prazoEmDias?: number; motivo?: string };
 
-  const otavio = await db.colaborador.upsert({
-    where: { tenantId_email: { tenantId, email: "otavio@aurora.test" } },
-    update: {},
-    create: { tenantId, nome: "Otávio Pires", email: "otavio@aurora.test", cargo: "Desenvolvedor Full-stack", equipeId, gestorId, status: "pre_admissao", dataAdmissao: new Date(Date.now() - 10 * 86400_000) },
-  });
-  await vincular(tenantId, await conta("otavio@aurora.test", "Otávio Pires"), papelColaborador, otavio.id);
-  if (await db.onboarding.findFirst({ where: { colaboradorId: otavio.id } })) return;
-
-  const inicio = new Date(Date.now() - 10 * 86400_000);
-  inicio.setHours(12, 0, 0, 0);
-  const completo = await db.modeloOnboarding.findUniqueOrThrow({
-    where: { id: modelo.id },
-    include: { etapas: { orderBy: { ordem: "asc" }, include: { tarefas: { orderBy: { ordem: "asc" } } } } },
-  });
+/** Onboarding de demonstração a partir do template padrão (mesma cópia de fases/tarefas do serviço). */
+async function criarOnboardingDemo(
+  tenantId: string,
+  modeloId: string,
+  pessoa: { id: string; gestorId: string | null },
+  inicio: Date,
+  origem: "manual" | "cadastro",
+  ajustes: Record<string, AjusteTarefa> = {},
+  concluido = false,
+) {
+  const hoje = hojeCivil();
+  const modelo = await db.modeloOnboarding.findUniqueOrThrow({ where: { id: modeloId }, include: { etapas: { orderBy: { ordem: "asc" }, include: { tarefas: { orderBy: { ordem: "asc" } } } } } });
   const onb = await db.onboarding.create({
-    data: { tenantId, colaboradorId: otavio.id, modeloId: modelo.id, modeloNome: modelo.nome, boasVindas: modelo.boasVindas, inicio, criadoPor: "Rafael Lima" },
+    data: { tenantId, colaboradorId: pessoa.id, modeloId, modeloNome: modelo.nome, boasVindas: modelo.boasVindas, inicio, origem, criadoPor: "Rafael Lima" },
   });
   let ordem = 0;
-  for (const e of completo.etapas) {
+  let total = 0;
+  let feitas = 0;
+  for (const e of modelo.etapas) {
+    const fase = await db.faseOnboarding.create({ data: { tenantId, onboardingId: onb.id, nome: e.titulo, descricao: e.descricao, marcoDias: e.marcoDias, ordem: e.ordem } });
     for (const t of e.tarefas) {
-      const feita = e.titulo === "Antes da chegada" || t.titulo === "Boas-vindas do gestor";
+      const aj = ajustes[t.titulo] ?? {};
+      const status = concluido ? "concluida" : (aj.status ?? "nao_iniciada");
+      const prazoFixo = aj.prazoEmDias !== undefined;
+      const prazo = prazoFixo ? somarDias(hoje, aj.prazoEmDias!) : somarDias(inicio, t.prazoDias ?? e.marcoDias);
+      total++;
+      if (status === "concluida") feitas++;
       await db.tarefaOnboarding.create({
         data: {
-          tenantId, onboardingId: onb.id, etapa: e.titulo, titulo: t.titulo, tipo: t.tipo, responsavelTipo: t.responsavel,
-          responsavelId: t.responsavel === "gestor" ? gestorId : t.responsavel === "colaborador" ? otavio.id : null,
-          prazo: new Date(inicio.getTime() + t.prazoDias * 86400_000), materialUrl: t.materialUrl, ordem: ordem++,
-          status: feita ? "concluida" : "pendente", concluidaEm: feita ? new Date(inicio.getTime() + t.prazoDias * 86400_000) : null,
-          concluidaPor: feita ? (t.responsavel === "gestor" ? "Bruno Martins" : t.responsavel === "rh" ? "Rafael Lima" : "Otávio Pires") : null,
+          tenantId, onboardingId: onb.id, faseId: fase.id, titulo: t.titulo, descricao: t.descricao, tipo: t.tipo, responsavelTipo: t.responsavel,
+          responsavelId: t.responsavel === "gestor" ? pessoa.gestorId : t.responsavel === "colaborador" ? pessoa.id : null,
+          obrigatoria: t.obrigatoria, prazoDias: t.prazoDias, prazoFixo, prazo, materialUrl: t.materialUrl, ordem: ordem++, status,
+          bloqueioMotivo: status === "bloqueada" ? (aj.motivo ?? "Aguardando terceiros") : null,
+          iniciadaEm: status === "nao_iniciada" ? null : inicio,
+          concluidaEm: status === "concluida" ? (concluido ? somarDias(inicio, Math.min(t.prazoDias ?? e.marcoDias, 90)) : somarDias(inicio, 1)) : null,
+          concluidaPor: status === "concluida" ? (t.responsavel === "gestor" ? "Bruno Martins" : "Rafael Lima") : null,
         },
       });
     }
   }
-  await db.eventoOnboarding.create({ data: { tenantId, onboardingId: onb.id, texto: "Onboarding iniciado com o modelo “Integração padrão” (seed).", autorNome: "Rafael Lima" } });
+  await db.onboarding.update({
+    where: { id: onb.id },
+    data: { progresso: total ? Math.round((feitas / total) * 100) : 0, ...(concluido ? { status: "concluido", concluidoEm: somarDias(inicio, 90), concluidoPor: "Automático — tarefas obrigatórias concluídas" } : {}) },
+  });
+  await db.eventoOnboarding.create({ data: { tenantId, onboardingId: onb.id, texto: `Onboarding criado (${origem === "cadastro" ? "automaticamente no cadastro" : "manualmente"}) com o template “${modelo.nome}” (seed).`, autorNome: "Rafael Lima" } });
+}
+
+/** Onboarding (Aurora): template padrão 30/60/90 e três situações — em andamento com alertas, não iniciado e concluído. Idempotente. */
+async function onboardingDemo(tenantId: string, gestorId: string, equipeId: string, papelColaborador: string) {
+  let modelo = await db.modeloOnboarding.findFirst({ where: { tenantId, padrao: true } });
+  if (!modelo) {
+    modelo = await db.modeloOnboarding.create({
+      data: {
+        tenantId,
+        nome: MODELO_PADRAO.nome,
+        descricao: MODELO_PADRAO.descricao,
+        padrao: true,
+        boasVindas: "Que bom ter você com a gente! Nos próximos 90 dias, RH e gestor acompanham sua integração por fases.",
+        criadoPor: "Ana Souza",
+      },
+    });
+    for (const [ordem, f] of MODELO_PADRAO.fases.entries()) {
+      const e = await db.etapaModelo.create({ data: { tenantId, modeloId: modelo.id, titulo: f.titulo, descricao: f.descricao, marcoDias: f.marcoDias, ordem } });
+      await db.tarefaModelo.createMany({ data: f.tarefas.map((t, i) => ({ tenantId, etapaId: e.id, titulo: t.titulo, responsavel: t.responsavel, tipo: t.tipo ?? "tarefa", prazoDias: null, ordem: i })) });
+    }
+  }
+  const hoje = hojeCivil();
+
+  // Em andamento há 10 dias, com tarefas atrasada, vencendo hoje, próxima do prazo e bloqueada.
+  const otavio = await db.colaborador.upsert({
+    where: { tenantId_email: { tenantId, email: "otavio@aurora.test" } },
+    update: {},
+    create: { tenantId, nome: "Otávio Pires", email: "otavio@aurora.test", cargo: "Desenvolvedor Full-stack", equipeId, gestorId, status: "pre_admissao", dataAdmissao: somarDias(hoje, -10) },
+  });
+  await vincular(tenantId, await conta("otavio@aurora.test", "Otávio Pires"), papelColaborador, otavio.id);
+  if (!(await db.onboarding.findFirst({ where: { colaboradorId: otavio.id } }))) {
+    await criarOnboardingDemo(tenantId, modelo.id, otavio, somarDias(hoje, -10), "manual", {
+      "Apresentação da empresa e cultura": { status: "concluida" },
+      "Configuração de e-mail e acessos": { status: "bloqueada", motivo: "Aguardando liberação de licença pelo fornecedor" },
+      "Reunião com o gestor direto": { status: "em_andamento", prazoEmDias: -3 },
+      "Leitura das políticas da empresa": { prazoEmDias: 0 },
+      "Conhecer o time": { prazoEmDias: 2 },
+    });
+  }
+
+  // Admissão em 7 dias: criado automaticamente no cadastro → "Não iniciado".
+  const rita = await db.colaborador.upsert({
+    where: { tenantId_email: { tenantId, email: "rita@aurora.test" } },
+    update: {},
+    create: { tenantId, nome: "Rita Campos", email: "rita@aurora.test", cargo: "Product Designer", equipeId, gestorId, status: "pre_admissao", dataAdmissao: somarDias(hoje, 7) },
+  });
+  if (!(await db.onboarding.findFirst({ where: { colaboradorId: rita.id } }))) {
+    await criarOnboardingDemo(tenantId, modelo.id, rita, somarDias(hoje, 7), "cadastro");
+  }
+
+  // Concluído (Comercial).
+  const marina = await db.colaborador.findUnique({ where: { tenantId_email: { tenantId, email: "marina@aurora.test" } } });
+  if (marina && !(await db.onboarding.findFirst({ where: { colaboradorId: marina.id } }))) {
+    await criarOnboardingDemo(tenantId, modelo.id, marina, somarDias(hoje, -100), "manual", {}, true);
+  }
 }
 
 /** Feedback 1:1 e PDI (Aurora): 1:1 realizado com anotações e compromissos, próximo 1:1 agendado e PDI ativo. Idempotente. */

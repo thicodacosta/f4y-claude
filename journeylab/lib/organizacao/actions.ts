@@ -10,6 +10,8 @@ import { convidarParaOrganizacao } from "@/lib/convites";
 import { ACOES, AREAS, type Escopo } from "@/lib/permissoes";
 import type { EstadoForm } from "@/lib/auth/actions";
 import { CATEGORIAS_RETENCAO, executarRetencao, type CategoriaRetencao } from "@/lib/retencao";
+import { criarOnboardingAutomatico } from "@/lib/onboarding/servico";
+import { dataDeTexto } from "@/lib/datas";
 
 function erroDe(e: unknown): EstadoForm {
   if (e instanceof z.ZodError) return { erro: e.issues[0].message };
@@ -206,12 +208,13 @@ const colaboradorSchema = z.object({
     .transform((v) => (v === "" ? null : v))
     .pipe(z.string().email("E-mail inválido.").nullable()),
   cargo: z.string().trim().transform((v) => v || null),
-  dataAdmissao: z.string().trim().transform((v) => (v ? new Date(`${v}T12:00:00`) : null)),
+  dataAdmissao: z.string().trim().transform((v) => (v ? dataDeTexto(v) : null)),
   status: z.enum(["pre_admissao", "ativo", "desligado"]),
 });
 
 export async function salvarColaborador(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
   let novoId: string | null = null;
+  let resultadoOnboarding = "";
   try {
     const id = uuidOpcional.parse(fd.get("id") ?? "");
     const { ctx, escopo } = await exigirPermissaoAcao("cadastro", id ? "editar" : "criar");
@@ -242,10 +245,16 @@ export async function salvarColaborador(_: EstadoForm, fd: FormData): Promise<Es
       }
     });
     revalidatePath("/pessoas");
+    // Integração com o Onboarding (se contratado): criação automática após o cadastro já estar salvo.
+    if (novoId && ctx.modulos.has("onboarding") && fd.get("criarOnboarding") === "on") {
+      const r = await criarOnboardingAutomatico({ tenantId: ctx.org.id, usuario: quem(ctx) }, novoId, "cadastro");
+      resultadoOnboarding = r.situacao === "erro" ? `erro&motivo=${encodeURIComponent(r.mensagem.slice(0, 300))}` : r.situacao;
+      revalidatePath("/onboarding");
+    }
   } catch (e) {
     return erroDe(e);
   }
-  if (novoId) redirect(`/pessoas/${novoId}`);
+  if (novoId) redirect(`/pessoas/${novoId}${resultadoOnboarding ? `?onboarding=${resultadoOnboarding}` : ""}`);
   return { ok: "Cadastro atualizado. A mudança vale para todos os módulos." };
 }
 

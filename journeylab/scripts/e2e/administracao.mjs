@@ -102,7 +102,8 @@ try {
   e = await nav.ir("/pessoas/nova");
   await nav.preencher({ "input[name=nome]": "Pessoa Criada E2E", "input[name=email]": `pessoa.${Date.now()}@aurora.test`, "input[name=cargo]": "Analista" });
   e = await nav.enviar("input[name=nome]", 4000);
-  checar("RH cadastra pessoa e abre a ficha", /^\/pessoas\/[0-9a-f-]{36}$/.test(e.url), e.url);
+  // Sem data de admissão: a ficha abre com o aviso de que o onboarding não foi criado.
+  checar("RH cadastra pessoa e abre a ficha", /^\/pessoas\/[0-9a-f-]{36}(\?onboarding=sem_data)?$/.test(e.url), e.url);
   e = await nav.entrar("bruno@aurora.test");
   e = await nav.ir("/pessoas/nova");
   checar("Gestor não acessa cadastro de nova pessoa", !e.url.startsWith("/pessoas/nova"), e.url);

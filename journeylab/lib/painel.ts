@@ -3,7 +3,9 @@ import "server-only";
 import { dbTenant } from "@/lib/db";
 import { pode, type Contexto } from "@/lib/contexto";
 import { filtroVagas } from "@/lib/crm/consultas";
-import { filtroOnboardings, hojeSemHora, podeConcluirTarefa } from "@/lib/onboarding/regras";
+import { filtroOnboardings, hojeSemHora } from "@/lib/onboarding/regras";
+import { buscarAlertas, contarAlertas, type AlertaOnboarding } from "@/lib/onboarding/alertas";
+import { RESPONSAVEL } from "@/lib/onboarding/calculo";
 import { formatarData, formatarDataHora } from "@/lib/formato";
 import { filtroReunioes } from "@/lib/feedback/regras";
 import { filtroPdis, PDI_ABERTO, progressoPdi } from "@/lib/pdi/regras";
@@ -18,6 +20,8 @@ export type BlocoPendencias = {
   href: string;
   vazio: string;
   itens: { texto: string; subtitulo?: string; detalhe?: string; href: string; alerta?: boolean }[];
+  /** Linha de resumo opcional sob o título do bloco. */
+  resumo?: string;
 };
 
 /** `paraTodos`: roda para quem está na organização com o módulo ativo, sem exigir permissão (ex.: responder pesquisas). */
@@ -53,65 +57,35 @@ const PROVEDORES: Provedor[] = [
     },
   },
   {
-    modulo: "onboarding",
-    async montar(ctx) {
-      const db = dbTenant(ctx.org.id, ctx.usuario.id);
-      const escopoConcluir = pode(ctx, "onboarding", "concluir");
-      const hoje = hojeSemHora();
-      const tarefas = await db.tarefaOnboarding.findMany({
-        where: {
-          status: "pendente",
-          onboarding: { status: "em_andamento" },
-          OR: [
-            ...(ctx.colaboradorId ? [{ responsavelId: ctx.colaboradorId }] : []),
-            ...(escopoConcluir === "todos" ? [{ responsavelTipo: "rh" as const }] : []),
-          ],
-        },
-        include: { onboarding: { select: { id: true, colaborador: { select: { nome: true } } } } },
-        orderBy: { prazo: "asc" },
-        take: 6,
-      });
-      const minhas = tarefas.filter((t) => podeConcluirTarefa(ctx, escopoConcluir, t));
-      return {
-        modulo: "onboarding",
-        titulo: "Tarefas de onboarding",
-        href: "/onboarding",
-        vazio: "Nenhuma tarefa de onboarding pendente para você.",
-        itens: minhas.map((t) => ({
-          texto: t.titulo,
-          subtitulo: t.onboarding.colaborador.nome,
-          detalhe: t.prazo < hoje ? `Atrasada · ${formatarData(t.prazo)}` : `Prazo ${formatarData(t.prazo)}`,
-          alerta: t.prazo < hoje,
-          href: `/onboarding/${t.onboarding.id}#tarefa-${t.id}`,
-        })),
-      };
-    },
-  },
-  {
+    // Alertas de onboarding: só RH/Admin e gestores (escopo mínimo "equipe" em lib/contexto.ts).
     modulo: "onboarding",
     async montar(ctx) {
       const escopo = pode(ctx, "onboarding", "visualizar")!;
-      if (escopo === "proprio") return null;
-      const lista = await dbTenant(ctx.org.id, ctx.usuario.id).onboarding.findMany({
-        where: { AND: [filtroOnboardings(ctx, escopo), { status: "em_andamento" }] },
-        include: { colaborador: { select: { nome: true, cargo: true } }, tarefas: { select: { status: true } } },
-        orderBy: { inicio: "desc" },
-        take: 5,
-      });
+      const alertas = await buscarAlertas(ctx, escopo, 50);
+      const c = contarAlertas(alertas);
+      const prioridade = (x: AlertaOnboarding) => (x.sinais.atrasada ? 0 : x.sinais.bloqueada ? 1 : x.sinais.venceHoje ? 2 : 3);
       return {
         modulo: "onboarding",
-        titulo: "Onboardings em andamento",
-        href: "/onboarding",
-        vazio: "Nenhum onboarding em andamento.",
-        itens: lista.map((o) => {
-          const fechadas = o.tarefas.filter((t) => t.status !== "pendente").length;
-          return {
-            texto: o.colaborador.nome,
-            subtitulo: o.colaborador.cargo ?? `Início em ${formatarData(o.inicio)}`,
-            detalhe: `${fechadas}/${o.tarefas.length} tarefas`,
-            href: `/onboarding/${o.id}`,
-          };
-        }),
+        titulo: "Alertas de onboarding",
+        href: "/onboarding?visao=painel",
+        vazio: "Nenhuma tarefa atrasada, bloqueada ou vencendo nos próximos 3 dias.",
+        resumo: `${c.atrasadas} atrasada(s) · ${c.bloqueadas} bloqueada(s) · ${c.hoje + c.proximas} vencendo em até 3 dias`,
+        itens: [...alertas]
+          .sort((x, y) => prioridade(x) - prioridade(y))
+          .slice(0, 6)
+          .map((x) => ({
+            texto: x.titulo,
+            subtitulo: `${x.colaborador} · ${RESPONSAVEL[x.responsavelTipo]}`,
+            detalhe: x.sinais.atrasada
+              ? `Atrasada · ${formatarData(x.prazo)}`
+              : x.sinais.bloqueada
+                ? "Bloqueada"
+                : x.sinais.venceHoje
+                  ? "Vence hoje"
+                  : `Vence ${formatarData(x.prazo)}`,
+            alerta: x.sinais.atrasada || x.sinais.bloqueada,
+            href: `/onboarding/${x.onboardingId}#tarefa-${x.tarefaId}`,
+          })),
       };
     },
   },
@@ -265,30 +239,27 @@ const INDICADORES: ProvedorIndicadores[] = [
     async montar(ctx) {
       const escopo = pode(ctx, "onboarding", "visualizar")!;
       const db = dbTenant(ctx.org.id, ctx.usuario.id);
-      const filtro = { AND: [filtroOnboardings(ctx, escopo), { status: "em_andamento" as const }] };
-      const [lista, atrasadas] = await Promise.all([
-        db.onboarding.findMany({ where: filtro, select: { tarefas: { select: { status: true } } } }),
-        db.tarefaOnboarding.count({ where: { status: "pendente", prazo: { lt: hojeSemHora() }, onboarding: filtro } }),
-      ]);
-      const total = lista.reduce((n, o) => n + o.tarefas.length, 0);
-      const fechadas = lista.reduce((n, o) => n + o.tarefas.filter((t) => t.status !== "pendente").length, 0);
-      const pct = total ? Math.round((fechadas / total) * 100) : 0;
+      const h = hojeSemHora();
+      const filtro = { AND: [filtroOnboardings(ctx, escopo), { status: "em_andamento" as const, inicio: { lte: h } }] };
+      const [lista, alertas] = await Promise.all([db.onboarding.findMany({ where: filtro, select: { progresso: true } }), buscarAlertas(ctx, escopo)]);
+      const media = lista.length ? Math.round(lista.reduce((n, o) => n + o.progresso, 0) / lista.length) : 0;
+      const c = contarAlertas(alertas);
       return [
         {
           modulo: "onboarding",
           rotulo: "Onboardings em andamento",
           valor: String(lista.length),
-          detalhe: lista.length ? `${pct}% das tarefas encerradas` : "Nenhum em andamento",
-          href: "/onboarding",
-          progresso: lista.length ? pct : undefined,
+          detalhe: lista.length ? `${media}% de progresso médio` : "Nenhum em andamento",
+          href: "/onboarding?status=em_andamento",
+          progresso: lista.length ? media : undefined,
         },
         {
           modulo: "onboarding",
-          rotulo: "Tarefas atrasadas",
-          valor: String(atrasadas),
-          detalhe: atrasadas ? "exigem atenção" : "Tudo em dia",
-          href: "/onboarding",
-          alerta: atrasadas > 0,
+          rotulo: "Alertas de onboarding",
+          valor: String(c.atrasadas + c.bloqueadas),
+          detalhe: c.atrasadas + c.bloqueadas ? `${c.atrasadas} atrasada(s) · ${c.bloqueadas} bloqueada(s)` : c.hoje + c.proximas ? `${c.hoje + c.proximas} vencendo em até 3 dias` : "Tudo em dia",
+          href: "/onboarding?visao=painel",
+          alerta: c.atrasadas + c.bloqueadas > 0,
         },
       ];
     },

@@ -6,10 +6,10 @@ import { CabecalhoModulo } from "@/components/app/painel";
 export default async function LayoutOnboarding({ children }: { children: React.ReactNode }) {
   const { ctx } = await exigirModulo("onboarding");
   const abas = [{ href: "/onboarding", rotulo: "Onboardings", exato: true }];
-  if (pode(ctx, "onboarding", "editar") === "todos") abas.push({ href: "/onboarding/modelos", rotulo: "Modelos", exato: false });
+  if (pode(ctx, "onboarding", "editar") === "todos") abas.push({ href: "/onboarding/modelos", rotulo: "Templates", exato: false });
   return (
     <>
-      <CabecalhoModulo titulo="Onboarding" icone={DoorOpen} descricao="Jornadas de integração, tarefas e documentação">
+      <CabecalhoModulo titulo="Onboarding" icone={DoorOpen} descricao="Integração de novos colaboradores por fases, tarefas e prazos">
         {abas.length > 1 && <Abas rotulo="Onboarding" abas={abas} />}
       </CabecalhoModulo>
       {children}

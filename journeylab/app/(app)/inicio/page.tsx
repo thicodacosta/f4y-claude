@@ -131,7 +131,7 @@ export default async function InicioPage({ searchParams }: { searchParams: Promi
           )}
           {pendencias.map((p) => (
             <Cartao key={p.titulo} aria-label={p.titulo}>
-              <CabecalhoCartao titulo={p.titulo} acao={<LinkVerTudo href={p.href} />} />
+              <CabecalhoCartao titulo={p.titulo} descricao={p.resumo} acao={<LinkVerTudo href={p.href} />} />
               <div className="px-3 pb-3">
                 {p.itens.length === 0 ? (
                   <p className="px-2 pb-3 text-sm text-muted-foreground">{p.vazio}</p>

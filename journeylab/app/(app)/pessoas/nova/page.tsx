@@ -21,7 +21,7 @@ export default async function NovaPessoaPage() {
         <Link href="/pessoas" className="text-sm text-muted-foreground hover:text-foreground">← Pessoas</Link>
         <h1 className="mt-2 font-heading text-2xl font-bold">Nova pessoa</h1>
       </div>
-      <FormPessoa equipes={equipes} gestores={gestores} />
+      <FormPessoa equipes={equipes} gestores={gestores} onboardingAutomatico={ctx.modulos.has("onboarding")} />
     </>
   );
 }

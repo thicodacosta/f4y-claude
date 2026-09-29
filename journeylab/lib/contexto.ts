@@ -162,10 +162,24 @@ export async function exigirContexto(): Promise<Contexto> {
   return ctx;
 }
 
+/**
+ * Escopo mínimo por área: o Onboarding (nesta versão) é de RH/Admin e gestores —
+ * uma permissão com escopo "próprio" (colaborador) não dá acesso, mesmo se
+ * concedida no editor de papéis.
+ */
+const ESCOPO_MINIMO: Partial<Record<AreaPermissao, Escopo>> = { onboarding: "equipe" };
+
+function escopoEfetivo(ctx: Contexto, area: AreaPermissao, acao: Acao): Escopo | null {
+  const e = escopoDe(ctx.permissoes, area, acao);
+  const minimo = ESCOPO_MINIMO[area];
+  if (e && minimo && ORDEM_ESCOPO[e] < ORDEM_ESCOPO[minimo]) return null;
+  return e;
+}
+
 export function pode(ctx: Contexto, area: AreaPermissao, acao: Acao): Escopo | null {
   if (area !== "organizacao" && area !== "cadastro" && !ctx.modulos.has(area)) return null;
   if (ctx.suporte && acao !== "visualizar") return null;
-  return escopoDe(ctx.permissoes, area, acao);
+  return escopoEfetivo(ctx, area, acao);
 }
 
 export function moduloLiberado(ctx: Contexto, modulo: Modulo) {
@@ -195,7 +209,7 @@ export async function exigirPermissaoAcao(area: AreaPermissao, acao: Acao) {
     throw new ErroAcesso("Este módulo não está ativo para a sua organização.");
   }
   if (ctx.suporte && acao !== "visualizar") throw new ErroAcesso("Acesso de suporte é somente leitura.");
-  const escopo = escopoDe(ctx.permissoes, area, acao);
+  const escopo = escopoEfetivo(ctx, area, acao);
   if (!escopo) throw new ErroAcesso("Você não tem permissão para esta ação.");
   return { ctx, escopo, db: dbTenant(ctx.org.id, ctx.usuario.id) };
 }

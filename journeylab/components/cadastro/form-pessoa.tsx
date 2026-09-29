@@ -1,6 +1,6 @@
 import { salvarColaborador } from "@/lib/organizacao/actions";
 import { FormAcao } from "@/components/admin/form-acao";
-import { Campo, Selecao } from "@/components/admin/campos";
+import { Campo, Interruptor, Selecao } from "@/components/admin/campos";
 
 type Pessoa = {
   id: string;
@@ -18,11 +18,14 @@ export function FormPessoa({
   equipes,
   gestores,
   somenteLeitura,
+  onboardingAutomatico,
 }: {
   pessoa?: Pessoa;
   equipes: { id: string; nome: string }[];
   gestores: { id: string; nome: string }[];
   somenteLeitura?: boolean;
+  /** Organização com Onboarding ativo: oferece a criação automática no cadastro. */
+  onboardingAutomatico?: boolean;
 }) {
   const campos = (
     <div className="grid gap-4 rounded-lg border border-border bg-card p-5 md:grid-cols-2">
@@ -63,6 +66,16 @@ export function FormPessoa({
         ]}
         disabled={somenteLeitura}
       />
+      {!pessoa && onboardingAutomatico && (
+        <div className="md:col-span-2">
+          <Interruptor
+            nome="criarOnboarding"
+            rotulo="Criar o onboarding automaticamente"
+            marcado
+            ajuda="Usa a data de admissão e o template da área da pessoa (ou o padrão da organização)."
+          />
+        </div>
+      )}
     </div>
   );
   if (somenteLeitura) return campos;

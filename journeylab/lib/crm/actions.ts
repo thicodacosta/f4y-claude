@@ -9,7 +9,8 @@ import { auditar } from "@/lib/auditoria";
 import { enviarArquivo, removerArquivo, TAMANHO_MAXIMO, tipoRealCurriculo, TIPOS_CURRICULO } from "@/lib/storage";
 import { buscarDuplicidades, filtroCandidatos } from "./consultas";
 import { normalizarEmail, normalizarLinkedin, normalizarTelefone, normalizarTexto, STATUS_CANDIDATURA } from "./normalizar";
-import { iniciarOnboardingPara } from "@/lib/onboarding/servico";
+import { criarOnboardingAutomatico } from "@/lib/onboarding/servico";
+import { dataDeTexto } from "@/lib/datas";
 import type { EstadoForm } from "@/lib/auth/actions";
 import type { Tx } from "@/lib/db";
 
@@ -273,6 +274,7 @@ export async function alterarCandidatura(_: EstadoForm, fd: FormData): Promise<E
  */
 export async function converterEmColaborador(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
   let colaboradorId: string;
+  let avisoOnboarding = "";
   try {
     const { ctx, escopo } = await exigirPermissaoAcao("crm", "concluir");
     if (pode(ctx, "cadastro", "criar") !== "todos") throw new ErroAcesso("Seu papel não permite criar colaboradores no cadastro.");
@@ -284,7 +286,8 @@ export async function converterEmColaborador(_: EstadoForm, fd: FormData): Promi
     const equipeId = uuidOpcional.parse(fd.get("equipeId") ?? "");
     const gestorId = uuidOpcional.parse(fd.get("gestorId") ?? "");
     const dataAdmissao = z.string().trim().min(10, "Informe a data de admissão.").parse(fd.get("dataAdmissao"));
-    const modeloOnboardingId = uuidOpcional.parse(fd.get("modeloOnboardingId") ?? "");
+    const escolhaOnboarding = String(fd.get("modeloOnboardingId") ?? "auto");
+    const modeloOnboardingId = escolhaOnboarding === "auto" || escolhaOnboarding === "nao" ? null : z.string().uuid().parse(escolhaOnboarding);
 
     colaboradorId = await transacao(escopoTx(ctx), async (tx) => {
       const cand = await candidatoVisivel(tx, ctx, candidatoId, escopo);
@@ -313,7 +316,7 @@ export async function converterEmColaborador(_: EstadoForm, fd: FormData): Promi
             cargo,
             equipeId,
             gestorId: gestorId ?? equipe?.gestorId ?? null,
-            dataAdmissao: new Date(`${dataAdmissao}T12:00:00`),
+            dataAdmissao: dataDeTexto(dataAdmissao),
             status: "pre_admissao",
             candidatoOrigemId: candidatoId,
           },
@@ -334,17 +337,18 @@ export async function converterEmColaborador(_: EstadoForm, fd: FormData): Promi
         detalhes: { colaboradorId: colab.id, modo },
       });
 
-      if (modeloOnboardingId) {
-        if (!ctx.modulos.has("onboarding")) throw new ErroAcesso("O módulo Onboarding não está ativo para esta organização.");
-        if (!pode(ctx, "onboarding", "criar")) throw new ErroAcesso("Seu papel não permite iniciar onboarding.");
-        await iniciarOnboardingPara(tx, ctx, { colaboradorId: colab.id, modeloId: modeloOnboardingId, inicio: new Date(`${dataAdmissao}T12:00:00`) });
-      }
       return colab.id;
     });
+    // Onboarding (se contratado): mesma criação automática do cadastro, em transação própria.
+    if (ctx.modulos.has("onboarding") && escolhaOnboarding !== "nao") {
+      const r = await criarOnboardingAutomatico({ tenantId: ctx.org.id, usuario: quem(ctx) }, colaboradorId, "crm", modeloOnboardingId);
+      avisoOnboarding = r.situacao === "erro" ? `erro&motivo=${encodeURIComponent(r.mensagem.slice(0, 300))}` : r.situacao;
+    }
   } catch (e) {
     return erroDe(e);
   }
   revalidatePath("/crm");
   revalidatePath("/pessoas");
-  redirect(`/pessoas/${colaboradorId}`);
+  revalidatePath("/onboarding");
+  redirect(`/pessoas/${colaboradorId}${avisoOnboarding ? `?onboarding=${avisoOnboarding}` : ""}`);
 }

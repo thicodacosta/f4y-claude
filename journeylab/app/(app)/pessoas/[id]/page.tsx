@@ -8,6 +8,8 @@ import { FormPessoa } from "@/components/cadastro/form-pessoa";
 import { Selo } from "@/components/app/lista";
 import { STATUS_PESSOA } from "@/lib/rotulos";
 import { filtroOnboardings } from "@/lib/onboarding/regras";
+import { SITUACAO, situacao } from "@/lib/onboarding/calculo";
+import { hoje } from "@/lib/datas";
 import { filtroCandidatos } from "@/lib/crm/consultas";
 import { filtroReunioes } from "@/lib/feedback/regras";
 import { filtroPdis, progressoPdi, STATUS_PDI } from "@/lib/pdi/regras";
@@ -17,8 +19,17 @@ import { ICONE_MODULO } from "@/components/app/icones-modulo";
 
 export const metadata: Metadata = { title: "Pessoa" };
 
-export default async function PessoaPage({ params }: { params: Promise<{ id: string }> }) {
+const AVISO_ONBOARDING: Record<string, { tom: "sucesso" | "alerta" | "perigo"; texto: string }> = {
+  criado: { tom: "sucesso", texto: "Onboarding criado automaticamente com a data de admissão." },
+  existente: { tom: "alerta", texto: "A pessoa já tinha um onboarding ativo; nenhum novo foi criado." },
+  sem_data: { tom: "alerta", texto: "Onboarding não criado: informe a data de admissão e crie-o em Onboarding." },
+  nao_aplicavel: { tom: "alerta", texto: "Onboarding não criado para pessoa desligada." },
+};
+
+export default async function PessoaPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
+  const sp = await searchParams;
+  const aviso = sp.onboarding === "erro" ? { tom: "perigo" as const, texto: sp.motivo ?? "O onboarding não pôde ser criado." } : sp.onboarding ? AVISO_ONBOARDING[sp.onboarding] : undefined;
   const ctx = await exigirContexto();
   const escopo = pode(ctx, "cadastro", "visualizar");
   if (!escopo) redirect("/inicio");
@@ -35,7 +46,6 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
   const onboardings = escopoOnb
     ? await db.onboarding.findMany({
         where: { AND: [{ colaboradorId: pessoa.id }, filtroOnboardings(ctx, escopoOnb)] },
-        include: { tarefas: { select: { status: true } } },
         orderBy: { inicio: "desc" },
       })
     : [];
@@ -93,6 +103,11 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
           {pessoa.desligadoEm && ` · Desligada em ${formatarData(pessoa.desligadoEm)}.`}
         </p>
       </div>
+      {aviso && (
+        <p role={aviso.tom === "perigo" ? "alert" : "status"} className={`rounded-lg border px-4 py-3 text-sm ${aviso.tom === "sucesso" ? "border-success/30 bg-success/10" : aviso.tom === "perigo" ? "border-destructive/30 bg-destructive/10" : "border-warning/40 bg-warning/10"}`}>
+          {aviso.texto}
+        </p>
+      )}
       {jornada.length > 0 && (
         <section aria-labelledby="jornada" className="flex flex-col gap-3">
           <h2 id="jornada" className="font-heading text-lg font-bold">
@@ -127,7 +142,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
             {onboardings.map((o) => (
               <li key={o.id}>
                 <Link href={`/onboarding/${o.id}`} className="font-medium text-teal-strong hover:underline">{o.modeloNome}</Link>{" "}
-                · {o.status === "em_andamento" ? `em andamento (${o.tarefas.filter((t) => t.status !== "pendente").length}/${o.tarefas.length})` : o.status === "concluido" ? "concluído" : "cancelado"} · início {formatarData(o.inicio)}
+                · {SITUACAO[situacao(o, hoje())].nome.toLowerCase()} · {o.progresso}% · início {formatarData(o.inicio)}
               </li>
             ))}
           </ul>

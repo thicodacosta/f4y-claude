@@ -43,9 +43,9 @@ CRM ─── candidatos ─┬─ tags · interações · anexos
                     └─ candidaturas ── vagas
         candidato "contratado" ──(ação explícita)──► colaborador ──► onboarding
 
-Onboarding ── modelos → etapas → tarefas_modelo
-              onboardings (colaborador) → tarefas (responsável, prazo, status)
-              concluído ► colaborador.status = ativo
+Onboarding ── templates (padrão da organização | por área) → fases (marco em dias) → tarefas
+              onboardings (colaborador) → fases_onboarding → tarefas (responsável, prazo, status, anexos)
+              criado automaticamente no cadastro/conversão · concluído ► colaborador.status = ativo
 
 Feedback ── modelos_pauta · reuniões (gestor × colaborador)
             anotações (compartilhada | privada do autor) · compromissos ──► ação de PDI
@@ -89,7 +89,7 @@ pelo administrador da organização):
 |---|---|---|---|---|
 | Cadastro (pessoas, equipes) | tudo | ver/criar/editar | ver (equipe) | ver (próprio) |
 | CRM de Candidatos | tudo | ver/criar/editar/exportar | — | — |
-| Onboarding | tudo | tudo | ver/concluir (equipe) | ver/concluir (próprio) |
+| Onboarding | tudo | tudo | ver/atualizar tarefas (subordinados diretos) | — (não acessa nesta versão) |
 | Feedback 1:1 | administrar* | ver metadados e compromissos | criar/editar (equipe) | ver/concluir (próprio) |
 | Pulse | tudo | criar/ver agregados | ver agregados (equipe, se ≥ mínimo) | responder |
 | PDI | tudo | ver/editar | criar/editar (equipe) | ver/editar (próprio) |
@@ -182,3 +182,30 @@ os prazos da própria política (não aceita prazo por parâmetro).
 `GET /api/cron/manutencao` com `Authorization: Bearer CRON_SECRET`: marca como
 `expirado` (com histórico, origem `sistema`) o módulo cujo período terminou e
 aplica a política de retenção de cada organização.
+
+## 10. Onboarding — regras
+
+- **Fonte única:** `lib/onboarding/calculo.ts` (funções puras: situação, progresso,
+  prazo, alertas, fase atual, ritmo) e `lib/onboarding/servico.ts` (única rota de
+  escrita). Botões, arrastar no Kanban e formulários chamam `mudarStatusTarefa`,
+  que valida permissão, grava e roda `recalcularOnboarding` **na mesma transação**.
+- **Status:** tarefas `não iniciada → em andamento → bloqueada → concluída`
+  (e `dispensada`, só RH, fora do progresso). Bloquear exige motivo; bloqueada
+  continua pendente. Progresso = concluídas ÷ não dispensadas. Onboarding
+  conclui sozinho quando todas as obrigatórias estão concluídas e reabre se uma
+  voltar a pendente. **"Não iniciado" não é gravado**: é em andamento com início
+  futuro — muda quando a data chega, sem rotina agendada.
+- **Prazo:** específico (quando definido) ou início + deslocamento; sem
+  deslocamento, o marco da fase. Alterar a data de início recalcula os prazos
+  não específicos.
+- **Datas:** colunas `date` tratadas como datas civis em UTC e "hoje" no fuso
+  `America/Sao_Paulo` (`lib/datas.ts`) — sem deslocamento de um dia em nenhum servidor.
+- **Acesso:** RH/Admin (escopo todos); gestor só subordinados diretos e sem
+  tarefas de RH; colaborador não acessa (escopo mínimo "equipe" aplicado em
+  `lib/contexto.ts`, mesmo se um papel receber "próprio").
+- **Criação automática:** no cadastro de pessoa e na conversão do CRM, com a
+  data de admissão e o template aplicável (o da área da pessoa, senão o padrão
+  30/60/90). Transação própria: falha não desfaz o cadastro e é informada.
+  Um onboarding ativo por pessoa (checagem + índice único parcial).
+- **Lembrete:** e-mail ao gestor direto (destinatário resolvido no servidor),
+  por SMTP (`lib/email.ts`), no máximo um por hora por onboarding, auditado.

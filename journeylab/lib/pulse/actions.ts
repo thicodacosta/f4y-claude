@@ -7,6 +7,7 @@ import { transacao, type Tx } from "@/lib/db";
 import { ErroAcesso, exigirPermissaoAcao, getContexto, type Contexto } from "@/lib/contexto";
 import { auditar } from "@/lib/auditoria";
 import { MODELOS_PULSE } from "./regras";
+import { hoje as hojeCivil } from "@/lib/datas";
 import type { EstadoForm } from "@/lib/auth/actions";
 
 function erroDe(e: unknown): EstadoForm {
@@ -130,8 +131,7 @@ export async function alterarStatusPesquisa(_: EstadoForm, fd: FormData): Promis
       if (acao === "abrir") {
         if (p.status !== "rascunho") throw new ErroAcesso("A pesquisa já foi aberta.");
         if (!p._count.perguntas) throw new ErroAcesso("Inclua ao menos uma pergunta antes de abrir.");
-        const hoje = new Date();
-        hoje.setHours(0, 0, 0, 0);
+        const hoje = hojeCivil();
         if (p.encerraEm && p.encerraEm < hoje) throw new ErroAcesso("A data de encerramento já passou.");
         await tx.pesquisaPulse.update({ where: { id }, data: { status: "aberta", abertaEm: new Date() } });
       } else {
