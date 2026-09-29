@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "platform", "run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "journeylab-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "journeylab", "run", "dev"],
+      "port": 3020
     }
   ]
 }

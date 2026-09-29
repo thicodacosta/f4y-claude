@@ -27,6 +27,7 @@ Este repositório é o workspace operacional da Find4You dentro do Claude Code. 
 | **`design-system/`** | Fonte única de verdade de tokens/componentes de UI |
 | **`website/`** | Código-fonte do site institucional (ainda não iniciado) — spec/planejamento vive em `docs/website/`, não aqui |
 | **`platform/`** | Código-fonte do Find4You Business Platform, o sistema interno de gestão (Fase 0 em andamento — ver `platform/README.md`) — spec/planejamento vive em `docs/business-platform/`, não aqui |
+| **`journeylab/`** | Código-fonte do JourneyLab — plataforma multitenant (aplicação autenticada) com os produtos CRM de Candidatos, Onboarding, Feedback 1:1, Pulse, PDI e Diagnóstico NR-1 — spec/planejamento vive em `docs/journeylab/`, não aqui |
 | **`automations/`** | Scripts e config específicos de cada integração — o procedimento (fluxo, checklist, troubleshooting) continua sendo da Skill correspondente, nunca duplicado aqui |
 
 **Regra de organização:** ao criar um novo artefato (documento, prompt, componente, script), coloque-o na pasta já existente correspondente ao seu tipo em vez de criar novas pastas de nível superior.

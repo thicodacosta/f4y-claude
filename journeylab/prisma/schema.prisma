@@ -1,0 +1,1208 @@
+// JourneyLab — schema da plataforma multitenant.
+// Decisões: docs/journeylab/arquitetura.md.
+//
+// Regra: toda tabela com dados de uma organização tem `tenant_id` e RLS
+// (prisma/rls.sql). A aplicação conecta com um papel SEM bypass de RLS e
+// define `app.tenant_id` / `app.usuario_id` / `app.escopo` em cada operação
+// (lib/db.ts).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────
+
+enum Modulo {
+  crm
+  onboarding
+  feedback
+  pulse
+  pdi
+  nr1
+}
+
+enum StatusEntitlement {
+  ativo
+  teste
+  inativo
+  suspenso
+  expirado
+}
+
+enum OrigemEntitlement {
+  manual
+  kiwify
+  site
+  sistema
+}
+
+enum PapelBase {
+  admin_org
+  rh
+  gestor
+  colaborador
+  personalizado
+}
+
+/// Área de permissão: os 6 módulos + áreas comuns da organização.
+enum AreaPermissao {
+  organizacao
+  cadastro
+  crm
+  onboarding
+  feedback
+  pulse
+  pdi
+  nr1
+}
+
+enum Acao {
+  visualizar
+  criar
+  editar
+  concluir
+  exportar
+  administrar
+}
+
+enum Escopo {
+  proprio
+  equipe
+  todos
+}
+
+enum StatusAssociacao {
+  ativa
+  suspensa
+}
+
+enum StatusColaborador {
+  pre_admissao
+  ativo
+  desligado
+}
+
+enum Canal {
+  kiwify
+  site
+}
+
+enum StatusEvento {
+  recebido
+  processado
+  ignorado
+  erro
+}
+
+// ─── Plataforma ───────────────────────────────────────────────────────────
+
+/// Espelha auth.users. `superadmin` só é concedido por outro superadmin/seed.
+model Usuario {
+  id         String   @id @db.Uuid
+  nome       String
+  email      String   @unique
+  superadmin Boolean  @default(false)
+  criadoEm   DateTime @default(now()) @map("criado_em")
+
+  associacoes    Associacao[]
+  consentimentos Consentimento[]
+
+  @@map("usuarios")
+}
+
+model Consentimento {
+  id           String   @id @default(uuid()) @db.Uuid
+  usuarioId    String   @map("usuario_id") @db.Uuid
+  tipo         String
+  versao       String
+  aceito       Boolean
+  registradoEm DateTime @default(now()) @map("registrado_em")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, tipo])
+  @@map("consentimentos")
+}
+
+/// O tenant. `identificadoresExternos`: e-mails/documentos usados para
+/// associar compras externas (Kiwify/site) a esta organização.
+model Organizacao {
+  id                      String   @id @default(uuid()) @db.Uuid
+  nome                    String
+  slug                    String   @unique
+  documento               String?
+  identificadoresExternos String[] @map("identificadores_externos")
+  ativa                   Boolean  @default(true)
+  /// Mínimo de respondentes para recortes (Pulse/NR-1) — padrão da organização.
+  minimoRecorte           Int      @default(5) @map("minimo_recorte")
+  criadoEm                DateTime @default(now()) @map("criado_em")
+
+  entitlements Entitlement[]
+  associacoes  Associacao[]
+  papeis       Papel[]
+  retencao     PoliticaRetencao?
+
+  @@map("organizacoes")
+}
+
+/// Produto externo (Kiwify/site) → módulos que ativa. Preço e prazo não
+/// ficam no código: `duracaoDias` é dado configurável (nulo = sem prazo).
+model ProdutoExterno {
+  id          String   @id @default(uuid()) @db.Uuid
+  canal       Canal
+  idExterno   String   @map("id_externo")
+  descricao   String
+  modulos     Modulo[]
+  duracaoDias Int?     @map("duracao_dias")
+  ativo       Boolean  @default(true)
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  @@unique([canal, idExterno])
+  @@map("produtos_externos")
+}
+
+/// Direito de uso de um módulo por uma organização. Mudanças só via
+/// lib/entitlements.ts (grava histórico; nunca apaga dados do módulo).
+model Entitlement {
+  id                String            @id @default(uuid()) @db.Uuid
+  tenantId          String            @map("tenant_id") @db.Uuid
+  modulo            Modulo
+  status            StatusEntitlement
+  inicio            DateTime          @default(now())
+  fim               DateTime?
+  origem            OrigemEntitlement
+  referenciaExterna String?           @map("referencia_externa")
+  atualizadoEm      DateTime          @updatedAt @map("atualizado_em")
+
+  organizacao Organizacao            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  historico   HistoricoEntitlement[]
+
+  @@unique([tenantId, modulo])
+  @@map("entitlements")
+}
+
+model HistoricoEntitlement {
+  id              String             @id @default(uuid()) @db.Uuid
+  tenantId        String             @map("tenant_id") @db.Uuid
+  entitlementId   String             @map("entitlement_id") @db.Uuid
+  modulo          Modulo
+  statusAnterior  StatusEntitlement? @map("status_anterior")
+  statusNovo      StatusEntitlement  @map("status_novo")
+  inicio          DateTime
+  fim             DateTime?
+  origem          OrigemEntitlement
+  responsavelId   String?            @map("responsavel_id") @db.Uuid
+  responsavelNome String             @map("responsavel_nome")
+  motivo          String?
+  criadoEm        DateTime           @default(now()) @map("criado_em")
+
+  entitlement Entitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, criadoEm])
+  @@map("historico_entitlements")
+}
+
+/// Acesso de suporte: temporário, somente leitura, com motivo; auditado.
+model AcessoSuporte {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  superadminId   String    @map("superadmin_id") @db.Uuid
+  superadminNome String    @map("superadmin_nome")
+  motivo         String
+  inicio         DateTime  @default(now())
+  expiraEm       DateTime  @map("expira_em")
+  encerradoEm    DateTime? @map("encerrado_em")
+
+  @@index([superadminId, expiraEm])
+  @@map("acessos_suporte")
+}
+
+model EventoIntegracao {
+  id                 String       @id @default(uuid()) @db.Uuid
+  canal              Canal
+  recebidoEm         DateTime     @default(now()) @map("recebido_em")
+  corpo              Json?
+  corpoBruto         String?      @map("corpo_bruto")
+  cabecalhos         Json?
+  consulta           String?
+  tokenConferido     Boolean?     @map("token_conferido")
+  status             StatusEvento @default(recebido)
+  tentativas         Int          @default(0)
+  erro               String?
+  processadoEm       DateTime?    @map("processado_em")
+  /// Campos interpretados (lib/integracoes/interpretar.ts). "organizacao_id" (e não tenant_id)
+  /// para a tabela continuar exclusiva da plataforma no RLS.
+  tipo               String?
+  pedidoId           String?      @map("pedido_id")
+  produtoIdExterno   String?      @map("produto_id_externo")
+  compradorEmail     String?      @map("comprador_email")
+  compradorDocumento String?      @map("comprador_documento")
+  organizacaoId      String?      @map("organizacao_id") @db.Uuid
+  aplicadoPor        String?      @map("aplicado_por")
+
+  @@index([canal, recebidoEm])
+  @@index([pedidoId])
+  @@map("eventos_integracao")
+}
+
+/// Trilha de auditoria. `tenantId` nulo = ação de plataforma. Imutável (rls.sql).
+model Auditoria {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String?  @map("tenant_id") @db.Uuid
+  usuarioId   String?  @map("usuario_id") @db.Uuid
+  usuarioNome String   @map("usuario_nome")
+  acao        String
+  entidade    String
+  entidadeId  String?  @map("entidade_id")
+  detalhes    Json?
+  suporte     Boolean  @default(false)
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  @@index([tenantId, criadoEm])
+  @@map("auditoria")
+}
+
+// ─── Acesso dentro da organização ─────────────────────────────────────────
+
+model Papel {
+  id       String    @id @default(uuid()) @db.Uuid
+  tenantId String    @map("tenant_id") @db.Uuid
+  nome     String
+  base     PapelBase
+  /// Papéis padrão não podem ser excluídos (podem ter permissões ajustadas).
+  sistema  Boolean   @default(false)
+  criadoEm DateTime  @default(now()) @map("criado_em")
+
+  organizacao Organizacao      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  permissoes  PapelPermissao[]
+  associacoes Associacao[]
+  convites    Convite[]
+
+  @@unique([tenantId, nome])
+  @@map("papeis")
+}
+
+model PapelPermissao {
+  id       String        @id @default(uuid()) @db.Uuid
+  tenantId String        @map("tenant_id") @db.Uuid
+  papelId  String        @map("papel_id") @db.Uuid
+  area     AreaPermissao
+  acao     Acao
+  escopo   Escopo
+
+  papel Papel @relation(fields: [papelId], references: [id], onDelete: Cascade)
+
+  @@unique([papelId, area, acao])
+  @@map("papel_permissoes")
+}
+
+/// Usuário × organização. Um usuário pode estar em várias organizações,
+/// com papéis diferentes; `colaboradorId` liga a conta ao cadastro de pessoa.
+model Associacao {
+  id            String           @id @default(uuid()) @db.Uuid
+  tenantId      String           @map("tenant_id") @db.Uuid
+  usuarioId     String           @map("usuario_id") @db.Uuid
+  papelId       String           @map("papel_id") @db.Uuid
+  colaboradorId String?          @unique @map("colaborador_id") @db.Uuid
+  status        StatusAssociacao @default(ativa)
+  criadoEm      DateTime         @default(now()) @map("criado_em")
+
+  organizacao Organizacao  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuario     Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  papel       Papel        @relation(fields: [papelId], references: [id])
+  colaborador Colaborador? @relation(fields: [colaboradorId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, usuarioId])
+  @@map("associacoes")
+}
+
+model Convite {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  email         String
+  papelId       String   @map("papel_id") @db.Uuid
+  colaboradorId String?  @map("colaborador_id") @db.Uuid
+  convidadoPor  String   @map("convidado_por")
+  status        String   @default("enviado")
+  criadoEm      DateTime @default(now()) @map("criado_em")
+
+  papel Papel @relation(fields: [papelId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, email])
+  @@map("convites")
+}
+
+// ─── Cadastro compartilhado ───────────────────────────────────────────────
+
+model Area {
+  id       String   @id @default(uuid()) @db.Uuid
+  tenantId String   @map("tenant_id") @db.Uuid
+  nome     String
+  criadoEm DateTime @default(now()) @map("criado_em")
+
+  equipes Equipe[]
+
+  @@unique([tenantId, nome])
+  @@map("areas")
+}
+
+model Equipe {
+  id       String   @id @default(uuid()) @db.Uuid
+  tenantId String   @map("tenant_id") @db.Uuid
+  nome     String
+  areaId   String?  @map("area_id") @db.Uuid
+  gestorId String?  @map("gestor_id") @db.Uuid
+  criadoEm DateTime @default(now()) @map("criado_em")
+
+  area    Area?         @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  gestor  Colaborador?  @relation("GestorEquipe", fields: [gestorId], references: [id], onDelete: SetNull)
+  membros Colaborador[] @relation("MembrosEquipe")
+  vagas   Vaga[]
+
+  @@unique([tenantId, nome])
+  @@map("equipes")
+}
+
+/// Pessoa vinculada à organização (Onboarding, Feedback, Pulse, PDI, NR-1).
+/// Candidato (CRM) é outra entidade; a conversão é explícita e preenche
+/// `candidatoOrigemId` (único — evita duplicidade).
+model Colaborador {
+  id                String            @id @default(uuid()) @db.Uuid
+  tenantId          String            @map("tenant_id") @db.Uuid
+  nome              String
+  email             String?
+  cargo             String?
+  equipeId          String?           @map("equipe_id") @db.Uuid
+  gestorId          String?           @map("gestor_id") @db.Uuid
+  dataAdmissao      DateTime?         @map("data_admissao") @db.Date
+  status            StatusColaborador @default(ativo)
+  candidatoOrigemId String?           @unique @map("candidato_origem_id") @db.Uuid
+  desligadoEm       DateTime?         @map("desligado_em")
+  criadoEm          DateTime          @default(now()) @map("criado_em")
+  atualizadoEm      DateTime          @updatedAt @map("atualizado_em")
+
+  equipe                  Equipe?            @relation("MembrosEquipe", fields: [equipeId], references: [id], onDelete: SetNull)
+  candidatoOrigem         Candidato?         @relation("CandidatoConvertido", fields: [candidatoOrigemId], references: [id], onDelete: SetNull)
+  vagasGeridas            Vaga[]
+  onboardings             Onboarding[]
+  tarefasOnboarding       TarefaOnboarding[] @relation("ResponsavelTarefa")
+  gestor                  Colaborador?       @relation("Gestor", fields: [gestorId], references: [id], onDelete: SetNull)
+  liderados               Colaborador[]      @relation("Gestor")
+  equipesGeridas          Equipe[]           @relation("GestorEquipe")
+  associacao              Associacao?
+  reunioesComoGestor      Reuniao[]          @relation("ReuniaoGestor")
+  reunioesComoColaborador Reuniao[]          @relation("ReuniaoColaborador")
+  compromissos            Compromisso[]      @relation("CompromissoResponsavel")
+  pdis                    Pdi[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, status])
+  @@index([tenantId, gestorId])
+  @@map("colaboradores")
+}
+
+// ─── CRM de Candidatos ────────────────────────────────────────────────────
+// Candidato é entidade separada de Colaborador. A conversão é ação explícita
+// (lib/crm/actions.ts) e preenche Colaborador.candidatoOrigemId (único).
+
+enum StatusVaga {
+  aberta
+  pausada
+  fechada
+  cancelada
+}
+
+enum StatusCandidatura {
+  inscrito
+  em_avaliacao
+  entrevista
+  aprovado
+  reprovado
+  contratado
+  desistiu
+}
+
+enum TipoInteracao {
+  nota
+  ligacao
+  email
+  entrevista
+  sistema
+}
+
+model Candidato {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  nome         String
+  email        String?
+  telefone     String?
+  cidade       String?
+  uf           String?
+  linkedin     String?
+  /// Resumo de experiência (texto livre).
+  experiencia  String?
+  competencias String[]
+  observacoes  String?
+  origem       String?
+  /// Base legal / consentimento (LGPD) informado no cadastro.
+  baseLegal    String?  @map("base_legal")
+  // Campos normalizados para detecção de duplicidade.
+  emailNorm    String?  @map("email_norm")
+  telefoneNorm String?  @map("telefone_norm")
+  linkedinNorm String?  @map("linkedin_norm")
+  nomeNorm     String   @map("nome_norm")
+  criadoPor    String   @map("criado_por")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  tags         CandidatoTag[]
+  interacoes   InteracaoCandidato[]
+  anexos       AnexoCandidato[]
+  candidaturas Candidatura[]
+  colaborador  Colaborador?         @relation("CandidatoConvertido")
+
+  @@index([tenantId, nomeNorm])
+  @@index([tenantId, emailNorm])
+  @@index([tenantId, telefoneNorm])
+  @@index([tenantId, linkedinNorm])
+  @@map("candidatos")
+}
+
+model Tag {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  nome     String
+
+  candidatos CandidatoTag[]
+
+  @@unique([tenantId, nome])
+  @@map("tags")
+}
+
+model CandidatoTag {
+  tenantId    String @map("tenant_id") @db.Uuid
+  candidatoId String @map("candidato_id") @db.Uuid
+  tagId       String @map("tag_id") @db.Uuid
+
+  candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+  tag       Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([candidatoId, tagId])
+  @@map("candidatos_tags")
+}
+
+model InteracaoCandidato {
+  id          String        @id @default(uuid()) @db.Uuid
+  tenantId    String        @map("tenant_id") @db.Uuid
+  candidatoId String        @map("candidato_id") @db.Uuid
+  tipo        TipoInteracao
+  texto       String
+  autorId     String?       @map("autor_id") @db.Uuid
+  autorNome   String        @map("autor_nome")
+  criadoEm    DateTime      @default(now()) @map("criado_em")
+
+  candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+
+  @@index([candidatoId, criadoEm])
+  @@map("interacoes_candidato")
+}
+
+/// Arquivo no Supabase Storage (bucket privado), caminho prefixado pelo tenant.
+model AnexoCandidato {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  candidatoId String   @map("candidato_id") @db.Uuid
+  tipo        String
+  nomeArquivo String   @map("nome_arquivo")
+  caminho     String   @unique
+  tamanho     Int
+  mime        String
+  enviadoPor  String   @map("enviado_por")
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+
+  @@map("anexos_candidato")
+}
+
+model Vaga {
+  id        String     @id @default(uuid()) @db.Uuid
+  tenantId  String     @map("tenant_id") @db.Uuid
+  titulo    String
+  descricao String?
+  equipeId  String?    @map("equipe_id") @db.Uuid
+  gestorId  String?    @map("gestor_id") @db.Uuid
+  local     String?
+  modelo    String?
+  status    StatusVaga @default(aberta)
+  abertaEm  DateTime   @default(now()) @map("aberta_em")
+  fechadaEm DateTime?  @map("fechada_em")
+  criadoPor String     @map("criado_por")
+
+  equipe       Equipe?       @relation(fields: [equipeId], references: [id], onDelete: SetNull)
+  gestor       Colaborador?  @relation(fields: [gestorId], references: [id], onDelete: SetNull)
+  candidaturas Candidatura[]
+
+  @@index([tenantId, status])
+  @@map("vagas")
+}
+
+model Candidatura {
+  id           String            @id @default(uuid()) @db.Uuid
+  tenantId     String            @map("tenant_id") @db.Uuid
+  vagaId       String            @map("vaga_id") @db.Uuid
+  candidatoId  String            @map("candidato_id") @db.Uuid
+  status       StatusCandidatura @default(inscrito)
+  observacao   String?
+  criadoEm     DateTime          @default(now()) @map("criado_em")
+  atualizadoEm DateTime          @updatedAt @map("atualizado_em")
+
+  vaga      Vaga      @relation(fields: [vagaId], references: [id], onDelete: Cascade)
+  candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+
+  @@unique([vagaId, candidatoId])
+  @@index([tenantId, status])
+  @@map("candidaturas")
+}
+
+// ─── Onboarding ───────────────────────────────────────────────────────────
+
+enum TipoTarefa {
+  tarefa
+  documento
+  material
+}
+
+enum ResponsavelTarefa {
+  rh
+  gestor
+  colaborador
+}
+
+enum StatusOnboarding {
+  em_andamento
+  concluido
+  cancelado
+}
+
+enum StatusTarefa {
+  pendente
+  concluida
+  dispensada
+}
+
+model ModeloOnboarding {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  nome       String
+  descricao  String?
+  /// Mensagem e orientações de boas-vindas exibidas ao novo colaborador.
+  boasVindas String?  @map("boas_vindas")
+  ativo      Boolean  @default(true)
+  criadoPor  String   @map("criado_por")
+  criadoEm   DateTime @default(now()) @map("criado_em")
+
+  etapas      EtapaModelo[]
+  onboardings Onboarding[]
+
+  @@unique([tenantId, nome])
+  @@map("modelos_onboarding")
+}
+
+model EtapaModelo {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  modeloId String @map("modelo_id") @db.Uuid
+  titulo   String
+  ordem    Int    @default(0)
+
+  modelo  ModeloOnboarding @relation(fields: [modeloId], references: [id], onDelete: Cascade)
+  tarefas TarefaModelo[]
+
+  @@map("etapas_modelo")
+}
+
+model TarefaModelo {
+  id          String            @id @default(uuid()) @db.Uuid
+  tenantId    String            @map("tenant_id") @db.Uuid
+  etapaId     String            @map("etapa_id") @db.Uuid
+  titulo      String
+  descricao   String?
+  tipo        TipoTarefa        @default(tarefa)
+  responsavel ResponsavelTarefa
+  /// Dias em relação ao início (negativo = antes da chegada).
+  prazoDias   Int               @default(0) @map("prazo_dias")
+  materialUrl String?           @map("material_url")
+  ordem       Int               @default(0)
+
+  etapa EtapaModelo @relation(fields: [etapaId], references: [id], onDelete: Cascade)
+
+  @@map("tarefas_modelo")
+}
+
+/// Onboarding de uma pessoa. Só um "em_andamento" por colaborador (índice parcial em rls.sql).
+model Onboarding {
+  id            String           @id @default(uuid()) @db.Uuid
+  tenantId      String           @map("tenant_id") @db.Uuid
+  colaboradorId String           @map("colaborador_id") @db.Uuid
+  modeloId      String?          @map("modelo_id") @db.Uuid
+  modeloNome    String           @map("modelo_nome")
+  boasVindas    String?          @map("boas_vindas")
+  inicio        DateTime         @db.Date
+  status        StatusOnboarding @default(em_andamento)
+  concluidoEm   DateTime?        @map("concluido_em")
+  concluidoPor  String?          @map("concluido_por")
+  criadoPor     String           @map("criado_por")
+  criadoEm      DateTime         @default(now()) @map("criado_em")
+
+  colaborador Colaborador        @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  modelo      ModeloOnboarding?  @relation(fields: [modeloId], references: [id], onDelete: SetNull)
+  tarefas     TarefaOnboarding[]
+  eventos     EventoOnboarding[]
+
+  @@index([tenantId, status])
+  @@map("onboardings")
+}
+
+model TarefaOnboarding {
+  id              String            @id @default(uuid()) @db.Uuid
+  tenantId        String            @map("tenant_id") @db.Uuid
+  onboardingId    String            @map("onboarding_id") @db.Uuid
+  etapa           String
+  titulo          String
+  descricao       String?
+  tipo            TipoTarefa
+  responsavelTipo ResponsavelTarefa @map("responsavel_tipo")
+  /// Pessoa responsável resolvida (gestor/colaborador). Nulo para RH (qualquer pessoa com permissão).
+  responsavelId   String?           @map("responsavel_id") @db.Uuid
+  prazo           DateTime          @db.Date
+  status          StatusTarefa      @default(pendente)
+  concluidaEm     DateTime?         @map("concluida_em")
+  concluidaPor    String?           @map("concluida_por")
+  observacao      String?
+  materialUrl     String?           @map("material_url")
+  ordem           Int               @default(0)
+
+  onboarding  Onboarding   @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  responsavel Colaborador? @relation("ResponsavelTarefa", fields: [responsavelId], references: [id], onDelete: SetNull)
+
+  @@index([onboardingId, ordem])
+  @@index([tenantId, status, prazo])
+  @@map("tarefas_onboarding")
+}
+
+model EventoOnboarding {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  onboardingId String   @map("onboarding_id") @db.Uuid
+  texto        String
+  autorNome    String   @map("autor_nome")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+
+  onboarding Onboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+
+  @@index([onboardingId, criadoEm])
+  @@map("eventos_onboarding")
+}
+
+// ─── Feedback 1:1 ─────────────────────────────────────────────────────────
+// Reunião entre gestor e liderado. Anotações: "compartilhada" (só os dois
+// participantes) ou "privada" (só o autor) — regra aplicada também no banco
+// (policy própria em rls.sql). RH/admin veem metadados e compromissos.
+
+enum StatusReuniao {
+  agendada
+  realizada
+  cancelada
+}
+
+enum VisibilidadeAnotacao {
+  compartilhada
+  privada
+}
+
+enum StatusCompromisso {
+  aberto
+  concluido
+  cancelado
+}
+
+model ModeloPauta {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  nome      String
+  itens     String[]
+  ativo     Boolean  @default(true)
+  criadoPor String   @map("criado_por")
+  criadoEm  DateTime @default(now()) @map("criado_em")
+
+  @@unique([tenantId, nome])
+  @@map("modelos_pauta")
+}
+
+model Reuniao {
+  id              String        @id @default(uuid()) @db.Uuid
+  tenantId        String        @map("tenant_id") @db.Uuid
+  gestorId        String        @map("gestor_id") @db.Uuid
+  colaboradorId   String        @map("colaborador_id") @db.Uuid
+  dataHora        DateTime      @map("data_hora")
+  status          StatusReuniao @default(agendada)
+  /// Pauta copiada do modelo (ou livre) no agendamento.
+  pauta           String[]
+  modeloNome      String?       @map("modelo_nome")
+  realizadaEm     DateTime?     @map("realizada_em")
+  canceladaMotivo String?       @map("cancelada_motivo")
+  criadoPor       String        @map("criado_por")
+  criadoEm        DateTime      @default(now()) @map("criado_em")
+  atualizadoEm    DateTime      @updatedAt @map("atualizado_em")
+
+  gestor       Colaborador       @relation("ReuniaoGestor", fields: [gestorId], references: [id], onDelete: Cascade)
+  colaborador  Colaborador       @relation("ReuniaoColaborador", fields: [colaboradorId], references: [id], onDelete: Cascade)
+  anotacoes    AnotacaoReuniao[]
+  compromissos Compromisso[]
+
+  @@index([tenantId, dataHora])
+  @@index([tenantId, colaboradorId])
+  @@index([tenantId, gestorId])
+  @@map("reunioes")
+}
+
+model AnotacaoReuniao {
+  id             String               @id @default(uuid()) @db.Uuid
+  tenantId       String               @map("tenant_id") @db.Uuid
+  reuniaoId      String               @map("reuniao_id") @db.Uuid
+  autorUsuarioId String               @map("autor_usuario_id") @db.Uuid
+  autorNome      String               @map("autor_nome")
+  visibilidade   VisibilidadeAnotacao
+  texto          String
+  criadoEm       DateTime             @default(now()) @map("criado_em")
+  atualizadoEm   DateTime             @updatedAt @map("atualizado_em")
+
+  reuniao Reuniao @relation(fields: [reuniaoId], references: [id], onDelete: Cascade)
+
+  @@index([reuniaoId, criadoEm])
+  @@map("anotacoes_reuniao")
+}
+
+model Compromisso {
+  id            String            @id @default(uuid()) @db.Uuid
+  tenantId      String            @map("tenant_id") @db.Uuid
+  reuniaoId     String            @map("reuniao_id") @db.Uuid
+  responsavelId String            @map("responsavel_id") @db.Uuid
+  descricao     String
+  prazo         DateTime?         @db.Date
+  status        StatusCompromisso @default(aberto)
+  concluidoEm   DateTime?         @map("concluido_em")
+  concluidoPor  String?           @map("concluido_por")
+  criadoPor     String            @map("criado_por")
+  criadoEm      DateTime          @default(now()) @map("criado_em")
+
+  reuniao     Reuniao     @relation(fields: [reuniaoId], references: [id], onDelete: Cascade)
+  responsavel Colaborador @relation("CompromissoResponsavel", fields: [responsavelId], references: [id], onDelete: Cascade)
+  acaoPdi     AcaoPdi?
+
+  @@index([tenantId, status])
+  @@index([reuniaoId])
+  @@map("compromissos")
+}
+
+// ─── PDI ──────────────────────────────────────────────────────────────────
+
+enum StatusPdi {
+  rascunho
+  ativo
+  concluido
+  arquivado
+}
+
+enum StatusObjetivo {
+  em_andamento
+  concluido
+  cancelado
+}
+
+enum TipoAcaoPdi {
+  pratica
+  curso
+  mentoria
+  leitura
+  projeto
+  outro
+}
+
+enum StatusAcaoPdi {
+  pendente
+  em_andamento
+  concluida
+  cancelada
+}
+
+enum TipoRegistroPdi {
+  comentario
+  revisao
+  evento
+}
+
+/// Plano de desenvolvimento. No máximo um aberto (rascunho/ativo) por pessoa (índice parcial em rls.sql).
+model Pdi {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  colaboradorId String    @map("colaborador_id") @db.Uuid
+  titulo        String
+  inicio        DateTime  @db.Date
+  fim           DateTime  @db.Date
+  status        StatusPdi @default(rascunho)
+  concluidoEm   DateTime? @map("concluido_em")
+  criadoPor     String    @map("criado_por")
+  criadoEm      DateTime  @default(now()) @map("criado_em")
+  atualizadoEm  DateTime  @updatedAt @map("atualizado_em")
+
+  colaborador Colaborador   @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  objetivos   ObjetivoPdi[]
+  acoes       AcaoPdi[]
+  registros   RegistroPdi[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, colaboradorId])
+  @@map("pdis")
+}
+
+model ObjetivoPdi {
+  id          String         @id @default(uuid()) @db.Uuid
+  tenantId    String         @map("tenant_id") @db.Uuid
+  pdiId       String         @map("pdi_id") @db.Uuid
+  titulo      String
+  descricao   String?
+  competencia String?
+  status      StatusObjetivo @default(em_andamento)
+  ordem       Int            @default(0)
+  criadoEm    DateTime       @default(now()) @map("criado_em")
+
+  pdi   Pdi       @relation(fields: [pdiId], references: [id], onDelete: Cascade)
+  acoes AcaoPdi[]
+
+  @@index([pdiId, ordem])
+  @@map("objetivos_pdi")
+}
+
+model AcaoPdi {
+  id                  String        @id @default(uuid()) @db.Uuid
+  tenantId            String        @map("tenant_id") @db.Uuid
+  pdiId               String        @map("pdi_id") @db.Uuid
+  objetivoId          String        @map("objetivo_id") @db.Uuid
+  titulo              String
+  tipo                TipoAcaoPdi   @default(pratica)
+  prazo               DateTime?     @db.Date
+  status              StatusAcaoPdi @default(pendente)
+  /// Evidência de conclusão (texto e/ou link).
+  evidencia           String?
+  evidenciaUrl        String?       @map("evidencia_url")
+  concluidaEm         DateTime?     @map("concluida_em")
+  /// Compromisso de 1:1 que originou a ação (integração Feedback → PDI).
+  compromissoOrigemId String?       @unique @map("compromisso_origem_id") @db.Uuid
+  criadoPor           String        @map("criado_por")
+  criadoEm            DateTime      @default(now()) @map("criado_em")
+
+  pdi               Pdi          @relation(fields: [pdiId], references: [id], onDelete: Cascade)
+  objetivo          ObjetivoPdi  @relation(fields: [objetivoId], references: [id], onDelete: Cascade)
+  compromissoOrigem Compromisso? @relation(fields: [compromissoOrigemId], references: [id], onDelete: SetNull)
+
+  @@index([pdiId])
+  @@index([tenantId, status, prazo])
+  @@map("acoes_pdi")
+}
+
+model RegistroPdi {
+  id        String          @id @default(uuid()) @db.Uuid
+  tenantId  String          @map("tenant_id") @db.Uuid
+  pdiId     String          @map("pdi_id") @db.Uuid
+  tipo      TipoRegistroPdi
+  texto     String
+  autorNome String          @map("autor_nome")
+  criadoEm  DateTime        @default(now()) @map("criado_em")
+
+  pdi Pdi @relation(fields: [pdiId], references: [id], onDelete: Cascade)
+
+  @@index([pdiId, criadoEm])
+  @@map("registros_pdi")
+}
+
+// ─── Pulse ────────────────────────────────────────────────────────────────
+// Anonimato garantido no banco (rls.sql):
+//  * respostas_pulse NÃO tem vínculo com pessoa nem horário; o papel da
+//    aplicação não lê nem grava nela — só a função jl_responder_pulse grava;
+//  * resultados só por funções de agregação, após o encerramento, com mínimo
+//    de respondentes e regra do complemento em recortes por equipe;
+//  * participacoes_pulse registra QUEM respondeu (data, sem hora), legível só
+//    pela própria pessoa.
+
+enum StatusPesquisa {
+  rascunho
+  aberta
+  encerrada
+}
+
+enum TipoPergunta {
+  escala
+  enps
+  sim_nao
+  texto
+}
+
+model PesquisaPulse {
+  id           String         @id @default(uuid()) @db.Uuid
+  tenantId     String         @map("tenant_id") @db.Uuid
+  titulo       String
+  descricao    String?
+  status       StatusPesquisa @default(rascunho)
+  publicoTodos Boolean        @default(true) @map("publico_todos")
+  equipeIds    String[]       @map("equipe_ids") @db.Uuid
+  encerraEm    DateTime?      @map("encerra_em") @db.Date
+  abertaEm     DateTime?      @map("aberta_em")
+  encerradaEm  DateTime?      @map("encerrada_em")
+  criadoPor    String         @map("criado_por")
+  criadoEm     DateTime       @default(now()) @map("criado_em")
+
+  perguntas     PerguntaPulse[]
+  participacoes ParticipacaoPulse[]
+  respostas     RespostaPulse[]
+
+  @@index([tenantId, status])
+  @@map("pesquisas_pulse")
+}
+
+model PerguntaPulse {
+  id          String       @id @default(uuid()) @db.Uuid
+  tenantId    String       @map("tenant_id") @db.Uuid
+  pesquisaId  String       @map("pesquisa_id") @db.Uuid
+  texto       String
+  tipo        TipoPergunta
+  obrigatoria Boolean      @default(true)
+  ordem       Int          @default(0)
+
+  pesquisa  PesquisaPulse   @relation(fields: [pesquisaId], references: [id], onDelete: Cascade)
+  respostas RespostaPulse[]
+
+  @@index([pesquisaId, ordem])
+  @@map("perguntas_pulse")
+}
+
+model ParticipacaoPulse {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  pesquisaId    String   @map("pesquisa_id") @db.Uuid
+  colaboradorId String   @map("colaborador_id") @db.Uuid
+  respondidoEm  DateTime @map("respondido_em") @db.Date
+
+  pesquisa PesquisaPulse @relation(fields: [pesquisaId], references: [id], onDelete: Cascade)
+
+  @@unique([pesquisaId, colaboradorId])
+  @@map("participacoes_pulse")
+}
+
+/// Resposta anônima: sem pessoa, sem horário. "lote" agrupa as respostas de um envio (aleatório).
+model RespostaPulse {
+  id         String  @id @default(uuid()) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  pesquisaId String  @map("pesquisa_id") @db.Uuid
+  perguntaId String  @map("pergunta_id") @db.Uuid
+  lote       String  @db.Uuid
+  equipeId   String? @map("equipe_id") @db.Uuid
+  valor      Int?
+  texto      String?
+
+  pesquisa PesquisaPulse @relation(fields: [pesquisaId], references: [id], onDelete: Cascade)
+  pergunta PerguntaPulse @relation(fields: [perguntaId], references: [id], onDelete: Cascade)
+
+  @@index([pesquisaId, perguntaId])
+  @@map("respostas_pulse")
+}
+
+// ─── Diagnóstico NR-1 (fatores psicossociais) ─────────────────────────────
+// Mesmas garantias do Pulse no banco (rls.sql): respostas sem pessoa/horário,
+// ilegíveis pela aplicação; resultados só agregados, após o encerramento, com
+// mínimo de respondentes e regra do complemento. Sem campo de texto livre.
+// Ferramenta de apoio à gestão — não é avaliação clínica nem parecer jurídico.
+
+enum StatusCiclo {
+  rascunho
+  aberto
+  encerrado
+}
+
+enum PrioridadeRisco {
+  baixa
+  media
+  alta
+}
+
+enum StatusRisco {
+  identificado
+  em_tratamento
+  monitorado
+  encerrado
+}
+
+enum StatusAcaoNr1 {
+  pendente
+  em_andamento
+  concluida
+  cancelada
+}
+
+model CicloNr1 {
+  id           String      @id @default(uuid()) @db.Uuid
+  tenantId     String      @map("tenant_id") @db.Uuid
+  titulo       String
+  descricao    String?
+  status       StatusCiclo @default(rascunho)
+  publicoTodos Boolean     @default(true) @map("publico_todos")
+  equipeIds    String[]    @map("equipe_ids") @db.Uuid
+  encerraEm    DateTime?   @map("encerra_em") @db.Date
+  abertoEm     DateTime?   @map("aberto_em")
+  encerradoEm  DateTime?   @map("encerrado_em")
+  criadoPor    String      @map("criado_por")
+  criadoEm     DateTime    @default(now()) @map("criado_em")
+
+  dimensoes     DimensaoNr1[]
+  perguntas     PerguntaNr1[]
+  participacoes ParticipacaoNr1[]
+  respostas     RespostaNr1[]
+  riscos        RiscoNr1[]
+
+  @@index([tenantId, status])
+  @@map("ciclos_nr1")
+}
+
+model DimensaoNr1 {
+  id        String  @id @default(uuid()) @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  cicloId   String  @map("ciclo_id") @db.Uuid
+  nome      String
+  descricao String?
+  ordem     Int     @default(0)
+
+  ciclo     CicloNr1      @relation(fields: [cicloId], references: [id], onDelete: Cascade)
+  perguntas PerguntaNr1[]
+  riscos    RiscoNr1[]
+
+  @@index([cicloId, ordem])
+  @@map("dimensoes_nr1")
+}
+
+/// Pergunta de frequência (1 = nunca … 5 = sempre). "invertida": frequência alta é desfavorável.
+model PerguntaNr1 {
+  id         String  @id @default(uuid()) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  cicloId    String  @map("ciclo_id") @db.Uuid
+  dimensaoId String  @map("dimensao_id") @db.Uuid
+  texto      String
+  invertida  Boolean @default(false)
+  ordem      Int     @default(0)
+
+  ciclo     CicloNr1      @relation(fields: [cicloId], references: [id], onDelete: Cascade)
+  dimensao  DimensaoNr1   @relation(fields: [dimensaoId], references: [id], onDelete: Cascade)
+  respostas RespostaNr1[]
+
+  @@index([cicloId, ordem])
+  @@map("perguntas_nr1")
+}
+
+model ParticipacaoNr1 {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  cicloId       String   @map("ciclo_id") @db.Uuid
+  colaboradorId String   @map("colaborador_id") @db.Uuid
+  respondidoEm  DateTime @map("respondido_em") @db.Date
+
+  ciclo CicloNr1 @relation(fields: [cicloId], references: [id], onDelete: Cascade)
+
+  @@unique([cicloId, colaboradorId])
+  @@map("participacoes_nr1")
+}
+
+model RespostaNr1 {
+  id         String  @id @default(uuid()) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  cicloId    String  @map("ciclo_id") @db.Uuid
+  perguntaId String  @map("pergunta_id") @db.Uuid
+  lote       String  @db.Uuid
+  equipeId   String? @map("equipe_id") @db.Uuid
+  valor      Int
+
+  ciclo    CicloNr1    @relation(fields: [cicloId], references: [id], onDelete: Cascade)
+  pergunta PerguntaNr1 @relation(fields: [perguntaId], references: [id], onDelete: Cascade)
+
+  @@index([cicloId, perguntaId])
+  @@map("respostas_nr1")
+}
+
+/// Fator de risco registrado pela gestão a partir dos resultados agregados.
+model RiscoNr1 {
+  id         String          @id @default(uuid()) @db.Uuid
+  tenantId   String          @map("tenant_id") @db.Uuid
+  cicloId    String          @map("ciclo_id") @db.Uuid
+  dimensaoId String?         @map("dimensao_id") @db.Uuid
+  titulo     String
+  descricao  String?
+  prioridade PrioridadeRisco
+  status     StatusRisco     @default(identificado)
+  criadoPor  String          @map("criado_por")
+  criadoEm   DateTime        @default(now()) @map("criado_em")
+
+  ciclo    CicloNr1     @relation(fields: [cicloId], references: [id], onDelete: Cascade)
+  dimensao DimensaoNr1? @relation(fields: [dimensaoId], references: [id], onDelete: SetNull)
+  acoes    AcaoNr1[]
+
+  @@index([tenantId, status])
+  @@map("riscos_nr1")
+}
+
+model AcaoNr1 {
+  id              String        @id @default(uuid()) @db.Uuid
+  tenantId        String        @map("tenant_id") @db.Uuid
+  riscoId         String        @map("risco_id") @db.Uuid
+  titulo          String
+  responsavelNome String        @map("responsavel_nome")
+  prazo           DateTime?     @db.Date
+  status          StatusAcaoNr1 @default(pendente)
+  evidencia       String?
+  concluidaEm     DateTime?     @map("concluida_em")
+  criadoPor       String        @map("criado_por")
+  criadoEm        DateTime      @default(now()) @map("criado_em")
+
+  risco RiscoNr1 @relation(fields: [riscoId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, prazo])
+  @@map("acoes_nr1")
+}
+
+// ─── Retenção de dados (configurável por organização) ─────────────────────
+// Nulo = categoria não é eliminada automaticamente. Nenhum prazo é assumido.
+
+model PoliticaRetencao {
+  id                 String    @id @default(uuid()) @db.Uuid
+  tenantId           String    @unique @map("tenant_id") @db.Uuid
+  /// Candidatos sem vínculo de colaborador e sem processo em andamento, sem atualização há N meses.
+  crmCandidatosMeses Int?      @map("crm_candidatos_meses")
+  /// Currículos e anexos de candidatos enviados há N meses.
+  crmAnexosMeses     Int?      @map("crm_anexos_meses")
+  /// Anotações de 1:1 de reuniões ocorridas há N meses (compromissos e metadados são mantidos).
+  feedbackNotasMeses Int?      @map("feedback_notas_meses")
+  /// Pesquisas Pulse encerradas há N meses (pesquisa, respostas e participações).
+  pulseMeses         Int?      @map("pulse_meses")
+  /// Respostas brutas de ciclos NR-1 encerrados há N meses (riscos e plano de ação são mantidos).
+  nr1RespostasMeses  Int?      @map("nr1_respostas_meses")
+  atualizadoPor      String?   @map("atualizado_por")
+  atualizadoEm       DateTime  @updatedAt @map("atualizado_em")
+  ultimaExecucao     DateTime? @map("ultima_execucao")
+
+  organizacao Organizacao @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("politicas_retencao")
+}
