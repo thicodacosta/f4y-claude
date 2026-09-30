@@ -141,6 +141,19 @@ Conversa com IA no estilo Claude/ChatGPT (`src/chat/`):
   e botão Copiar. A conversa (texto e nomes dos anexos) fica em
   `chrome.storage.session`; o conteúdo dos anexos, só em memória.
 
+## Interface
+
+Segue o *CRM UI Kit for SaaS Dashboards* (Figma) do mesmo jeito que a
+plataforma JourneyLab: os tokens de `extension/styles.css` são os de
+`journeylab/app/globals.css` (azul muito escuro `#0B1F3A`, verde-água
+`#14B8A6`, texto em verde-água `#0B7A70`, ardósia `#526173`, fundo `#F6F8FA`;
+tema escuro com a ação principal em verde-água). Barra superior no padrão do
+menu lateral do kit (azul-marinho, logo da empresa sobre fundo branco), abas
+no formato de faixa com o item ativo preenchido, raios de 8/12/16px (itens,
+controles, cartões), elevação sutil com viés azulado e anel de foco
+verde-água nos campos. Mudou algo no kit ou na plataforma? Atualize os tokens
+nos dois lugares.
+
 ## Provedores de IA e limites
 
 | Ferramenta | Provedor |
