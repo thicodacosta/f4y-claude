@@ -8,6 +8,7 @@ import { formatarData, formatarDataHora } from "@/lib/formato";
 import { emailValido } from "@/lib/email";
 import { calcularProgresso, diaDoOnboarding, faseAtual, RESPONSAVEL, ritmo, SITUACAO, situacao, STATUS_TAREFA, TIPO_TAREFA, type StatusTarefa } from "@/lib/onboarding/calculo";
 import { filtroOnboardings } from "@/lib/onboarding/regras";
+import { cobrePdi } from "@/lib/pdi/regras";
 import { serializarTarefa } from "@/lib/onboarding/consultas";
 import { alterarInicio, cancelarOnboarding, concluirOnboarding, editarTarefa, enviarAnexoTarefa, enviarLembreteGestor, removerAnexoTarefa } from "@/lib/onboarding/actions";
 import { BarraProgresso } from "@/components/secao";
@@ -56,6 +57,7 @@ export default async function OnboardingDetalhe({ params, searchParams }: { para
           nome: true,
           cargo: true,
           dataAdmissao: true,
+          gestorId: true,
           equipe: { select: { nome: true, area: { select: { nome: true } } } },
           gestor: { select: { nome: true, email: true, associacao: { select: { status: true, usuario: { select: { email: true } } } } } },
         },
@@ -97,6 +99,12 @@ export default async function OnboardingDetalhe({ params, searchParams }: { para
   const sugerir1a1 =
     emAndamento && ctx.modulos.has("feedback") && !!pode(ctx, "feedback", "criar") && !ctx.suporte
       ? !(await db.reuniao.findFirst({ where: { colaboradorId: o.colaborador.id, status: { not: "cancelada" } }, select: { id: true } }))
+      : false;
+  // Integração opcional com PDI: na conclusão ou a partir do D+90, sugere criar um PDI (revisão e confirmação humanas; nada é criado aqui).
+  const escopoPdi = ctx.modulos.has("pdi") && !ctx.suporte ? pode(ctx, "pdi", "criar") : null;
+  const sugerirPdi =
+    o.status !== "cancelado" && (o.status === "concluido" || dia >= 90) && escopoPdi && cobrePdi(ctx, escopoPdi, { id: o.colaborador.id, gestorId: o.colaborador.gestorId })
+      ? !(await db.pdi.findFirst({ where: { colaboradorId: o.colaborador.id }, select: { id: true } }))
       : false;
 
   return (
@@ -396,6 +404,20 @@ export default async function OnboardingDetalhe({ params, searchParams }: { para
               <p className="mt-1 text-sm text-muted-foreground">{o.colaborador.nome.split(" ")[0]} ainda não tem conversa 1:1 agendada com o gestor.</p>
               <Link href={`/feedback/agendar?colaborador=${o.colaborador.id}`} className="mt-3 inline-flex h-9 items-center rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted">
                 Agendar primeiro 1:1
+              </Link>
+            </Cartao>
+          )}
+
+          {sugerirPdi && (
+            <Cartao className="p-5">
+              <h3 className="flex items-center gap-2 font-heading text-base font-bold">
+                <Target className="size-4 text-teal-strong" aria-hidden /> Próximo passo: PDI
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {o.status === "concluido" ? "Onboarding concluído." : "Revisão de 90 dias."} {o.colaborador.nome.split(" ")[0]} ainda não tem PDI. Você revisa focos e ações antes de criar.
+              </p>
+              <Link href={`/pdi/novo?origem=onboarding&onboarding=${o.id}`} className="mt-3 inline-flex h-9 items-center rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted">
+                Sugerir PDI
               </Link>
             </Cartao>
           )}

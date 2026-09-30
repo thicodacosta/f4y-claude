@@ -51,8 +51,9 @@ Feedback ── avaliacoes_feedback (8 critérios de Performance + 8 de Cultura,
             reuniões de 1:1 (gestor × colaborador; duração, série recorrente, vínculo com o feedback)
             modelos_pauta · anotações (compartilhada | privada do autor) · compromissos ──► ação de PDI
 
-PDI ── pdis (rascunho/ativo/concluído/arquivado) → objetivos → ações
-       evidências · revisões · comentários
+PDI ── pdis (status e progresso CALCULADOS pelas ações) → focos (catálogo com chave estável | Outro)
+       → ações (tipo, responsável, datas, status, progresso, investimento, impacto, mentor)
+       comentários por ação (RH/gestor; fala do colaborador registrada por quem acompanha) · histórico
 
 Pulse ── modelos_pulse (globais: tenant nulo · da empresa) → pesquisas → perguntas (16 tipos, config jsonb)
          audiência (todos | departamentos | equipes | pessoas) · convites (link pessoal por e-mail)
@@ -94,7 +95,7 @@ pelo administrador da organização):
 | Onboarding | tudo | tudo | ver/atualizar tarefas (subordinados diretos) | — (não acessa nesta versão) |
 | Feedback 1:1 | tudo* | registrar e administrar (todos)* | registrar e administrar (subordinados diretos)* | — (não acessa nesta versão) |
 | Pulse | tudo | tudo (criar, enviar, encerrar, exportar) | ver resultados agregados da empresa (somente leitura) | — (responde pelo link/Início) |
-| PDI | tudo | ver/editar | criar/editar (equipe) | ver/editar (próprio) |
+| PDI | tudo (inclui excluir) | criar/ver/editar/exportar/excluir (todos) | criar/ver/editar (só liderados diretos; não exclui) | — (não acessa nesta versão) |
 | Diagnóstico NR-1 | administrar | — (só se concedido) | — | responder |
 
 \* **Anotações de 1:1:** as *compartilhadas* são vistas só pelos dois
@@ -166,6 +167,7 @@ Situação: etapas 1 a 8 implementadas e cobertas por testes E2E
 | Anotações de 1:1 | Compartilhada: só os dois participantes. Privada: só o autor. Ninguém mais lê — nem administração, RH, plataforma ou suporte. | Policy de `anotacoes_reuniao` + `jl_participa_reuniao` |
 | Respostas de Pulse e NR-1 | Sem pessoa e sem horário; a aplicação não tem permissão de leitura nem de escrita. Gravação só por `jl_registrar_resposta_pulse` / `jl_responder_nr1`, que validam organização, módulo, situação e prazo, público, pessoa ativa e resposta única. Pesquisa **identificada** grava a pessoa (avisada antes de responder); gatilho impede pessoa em pesquisa anônima. | `respostas_pulse`, `respostas_nr1` (sem GRANT) |
 | Participação (quem respondeu) | Só a data; cada pessoa lê apenas a própria. Adesão agregada por função. | Policy `propria` |
+| PDI | Leitura e escrita validadas no banco por `jl_acesso_pdi`: módulo liberado, papel com a ação, escopo "todos" ou liderado direto (`colaboradores.gestor_id`), nunca o próprio PDI do gestor; excluir só com escopo "todos"; suporte só lê. Gatilhos mantêm ação × foco do mesmo plano e progresso coerente com o status. | Policies de `pdis`, `focos_pdi`, `acoes_pdi`, `comentarios_acao_pdi`, `registros_pdi` |
 | Resultados | Só por funções agregadas (`jl_resumo_pulse`, `jl_distribuicao_pulse`, `jl_comentarios_pulse`); anônimas **após o encerramento**, com mínimo de respondentes da organização (`minimo_recorte`) e **regra do complemento** em recortes por departamento/equipe (o restante da organização também precisa atingir o mínimo). Identificadas: a qualquer momento. Comentários do Pulse só em recorte liberado, em ordem aleatória. NR-1 não tem texto livre. | `jl_resumo_*`, `jl_resultado_*`, `jl_comentarios_pulse` |
 
 Visualizações de resultado do NR-1 e todas as exportações ficam na auditoria.
@@ -276,3 +278,31 @@ aplica a política de retenção de cada organização.
 - **Rotina diária:** encerra pesquisas vencidas e envia **um** lembrete automático a
   quem não respondeu (2 dias antes do fim; sem data de fim, 3 dias após o envio).
   Lembrete manual disponível na pesquisa.
+
+## 13. PDI — regras
+
+- **Status e progresso calculados** (`lib/pdi/calculo.ts`, fonte única para lista,
+  Kanban, dashboard, detalhe, painel e CSV): ação concluída = 100%, em andamento =
+  progresso explícito (1–99) ou 50%, não iniciada = 0%; foco = média das ações;
+  PDI = média dos focos. **Concluído** exige focos, ações em todos os focos e todas
+  concluídas; **Em risco** = alguma ação não concluída com prazo anterior a hoje;
+  senão **Em andamento**. Não há status editável; o Kanban só visualiza.
+- **Coerência no banco** (`jl_normalizar_acao_pdi`): concluir grava 100%; não iniciada
+  zera; em andamento aceita 1–99. Na tela, progresso 100 conclui e 0 volta para
+  não iniciada.
+- **Focos:** catálogo com chaves estáveis (`lib/pdi/focos.ts`; CHECK no banco) e
+  "Outro" com nome obrigatório. Sem focos repetidos no mesmo plano.
+- **Fluxo guiado** (`/pdi/novo`, `/pdi?action=create`, edição em `/pdi/:id/editar`):
+  colaborador e período → focos → descrição/importância/objetivo → ações → revisão.
+  Nada é gravado antes da confirmação. Investimento em BRL; impacto sempre tratado
+  como estimativa.
+- **Feedback 1:1 → PDI** (se contratado): notas 1 e 2 (escala 1–5) sugerem focos
+  (1 = prioridade crítica, 2 = atenção — organização, não rótulo), menores notas
+  primeiro, sem repetição, até 3. A prévia na avaliação abre o fluxo pré-preenchido;
+  o objetivo sugerido é comportamental e editável (nunca "atingir nota X").
+- **Onboarding → PDI** (se contratado): na conclusão ou a partir do D+90, sugere
+  criar o PDI se a pessoa ainda não tiver um. Nunca cria automaticamente.
+- **Compromissos de 1:1** podem virar ação do PDI em andamento da pessoa; concluir
+  a ação conclui o compromisso.
+- **Alertas:** ações não concluídas vencidas ou vencendo em 7 dias aparecem no
+  painel de pendências (uma linha por ação), no escopo de cada usuário.

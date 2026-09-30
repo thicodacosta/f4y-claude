@@ -5,19 +5,17 @@ import { ArrowDown, ArrowUp, CalendarPlus, Minus, Pencil, Sparkles, Target } fro
 import { exigirModulo, pode } from "@/lib/contexto";
 import { hoje as hojeCivil } from "@/lib/datas";
 import { formatarData, formatarDataHora } from "@/lib/formato";
-import { escopoCobre } from "@/lib/escopo";
-import { PDI_ABERTO } from "@/lib/pdi/regras";
-import { cadencia, CRITERIOS_CULTURA, CRITERIOS_PERFORMANCE, ESCALA, ESTADO_CADENCIA, focosPdi, PERIODICIDADE, SEMAFORO, umaCasa, type Criterio, type Notas } from "@/lib/feedback/avaliacao";
+import { cobrePdi } from "@/lib/pdi/regras";
+import { nomeFoco, PRIORIDADE, sugerirFocos } from "@/lib/pdi/focos";
+import { cadencia, CRITERIOS_CULTURA, CRITERIOS_PERFORMANCE, ESCALA, ESTADO_CADENCIA, notasDe, PERIODICIDADE, SEMAFORO, umaCasa, type Criterio, type Notas } from "@/lib/feedback/avaliacao";
 import { filtroAvaliacoes, podeEditarAvaliacao, STATUS_REUNIAO } from "@/lib/feedback/regras";
-import { criarPdiDoFeedback, excluirAvaliacao } from "@/lib/feedback/avaliacoes-actions";
+import { excluirAvaliacao } from "@/lib/feedback/avaliacoes-actions";
 import { Selo } from "@/components/app/lista";
 import { Cartao, CabecalhoCartao } from "@/components/app/painel";
 import { FormAcao } from "@/components/admin/form-acao";
-import { Campo } from "@/components/admin/campos";
 
 export const metadata: Metadata = { title: "Feedback 1:1" };
 
-const notasDe = (a: object) => Object.fromEntries([...CRITERIOS_PERFORMANCE, ...CRITERIOS_CULTURA].map((c) => [c.campo, (a as Record<string, number>)[c.campo]])) as Notas;
 
 function Delta({ atual, anterior }: { atual: number; anterior: number | undefined }) {
   if (anterior === undefined) return null;
@@ -81,10 +79,10 @@ export default async function AvaliacaoPage({ params, searchParams }: { params: 
   const agenda = !!pode(ctx, "feedback", "criar") && !ctx.suporte;
   const cad = maisRecente?.id === a.id ? cadencia({ data: a.data, periodicidade: a.periodicidade }, a.colaborador.dataAdmissao, hojeCivil()) : null;
 
-  // PDI: só com o módulo contratado e permissão no PDI da pessoa.
-  const focos = focosPdi(notas);
-  const pdiAberto = ctx.modulos.has("pdi") ? await db.pdi.findFirst({ where: { colaboradorId: a.colaboradorId, status: { in: [...PDI_ABERTO] } }, select: { id: true, titulo: true } }) : null;
-  const podePdi = focos.length > 0 && ctx.modulos.has("pdi") && !ctx.suporte && a.colaborador.status === "ativo" && escopoCobre(ctx, pode(ctx, "pdi", pdiAberto ? "editar" : "criar"), a.colaborador);
+  // PDI: só com o módulo contratado e permissão de criar PDI para a pessoa. Nada é gravado aqui:
+  // a prévia abre o fluxo de criação pré-preenchido, que exige confirmação.
+  const sugestoes = sugerirFocos(notas);
+  const podePdi = sugestoes.length > 0 && ctx.modulos.has("pdi") && !ctx.suporte && a.colaborador.status === "ativo" && cobrePdi(ctx, pode(ctx, "pdi", "criar"), a.colaborador);
 
   return (
     <>
@@ -150,31 +148,40 @@ export default async function AvaliacaoPage({ params, searchParams }: { params: 
               <CabecalhoCartao
                 id="pdi"
                 titulo="Sugestão de PDI"
-                descricao={`${focos.length} critério(s) com nota até 2. Revise os focos — nada é criado sem a sua confirmação.`}
+                descricao="Focos sugeridos por critérios com nota 1 ou 2 (escala 1–5), ordenados pelas menores notas. Nada é salvo sem a sua confirmação."
               />
               <div className="px-5 pb-5">
                 <details>
                   <summary className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-teal-strong">
                     <Target className="size-4" aria-hidden /> Revisar prévia do PDI
                   </summary>
-                  <FormAcao action={criarPdiDoFeedback} textoBotao={pdiAberto ? "Confirmar e incluir no PDI aberto" : "Confirmar e criar PDI (rascunho)"} className="mt-3">
-                    <input type="hidden" name="avaliacaoId" value={a.id} />
-                    {pdiAberto ? (
-                      <p className="text-sm text-muted-foreground">
-                        Os objetivos serão incluídos no PDI aberto <strong className="text-foreground">{pdiAberto.titulo}</strong>.
-                        <input type="hidden" name="titulo" value={pdiAberto.titulo} />
-                      </p>
-                    ) : (
-                      <Campo nome="titulo" rotulo="Título do plano" defaultValue={`Desenvolvimento — ${a.colaborador.nome.split(" ")[0]}`} required />
-                    )}
+                  <form action="/pdi/novo" method="get" className="mt-3 flex flex-col gap-3">
+                    <input type="hidden" name="avaliacao" value={a.id} />
+                    <input type="hidden" name="colaborador" value={a.colaboradorId} />
+                    <input type="hidden" name="previa" value="1" />
                     <fieldset className="flex flex-col gap-2">
-                      <legend className="mb-1 text-[13px] font-semibold text-foreground/85">Objetivos (edite ou apague os que não fizerem sentido)</legend>
-                      {focos.map((c, i) => (
-                        <Campo key={c.campo} nome="objetivo" idCampo={`obj-${i}`} rotulo={`${c.nome} · nota ${notas[c.campo]}`} defaultValue={c.focoPdi} />
+                      <legend className="mb-1 text-[13px] font-semibold text-foreground/85">Focos sugeridos (desmarque os que não fizerem sentido)</legend>
+                      {sugestoes.map((s) => (
+                        <label key={s.chave} className="flex items-start gap-2 rounded-md border border-border p-3 text-sm">
+                          <input type="checkbox" name="foco" value={s.chave} defaultChecked className="mt-0.5 size-4 accent-[var(--primary)]" />
+                          <span>
+                            <span className="flex flex-wrap items-center gap-2 font-medium">
+                              {nomeFoco(s.chave)} <Selo tom={PRIORIDADE[s.prioridade].tom}>{PRIORIDADE[s.prioridade].nome}</Selo>
+                            </span>
+                            <span className="block text-xs text-muted-foreground">
+                              {s.criterios.map((c) => `${c.nome}: nota ${c.nota}`).join(" · ")} · objetivo sugerido: {s.objetivo}
+                            </span>
+                          </span>
+                        </label>
                       ))}
-                      <Campo nome="objetivo" idCampo="obj-extra" rotulo="Outro objetivo (opcional)" />
                     </fieldset>
-                  </FormAcao>
+                    <p className="text-xs text-muted-foreground">Na próxima tela você ajusta focos, objetivos e ações antes de criar o PDI.</p>
+                    <div>
+                      <button type="submit" className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                        Continuar para o PDI
+                      </button>
+                    </div>
+                  </form>
                 </details>
               </div>
             </Cartao>

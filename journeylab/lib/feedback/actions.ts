@@ -5,10 +5,9 @@ import { z } from "zod";
 import { transacao, type Tx } from "@/lib/db";
 import { ErroAcesso, exigirPermissaoAcao, pode, type Contexto } from "@/lib/contexto";
 import { auditar } from "@/lib/auditoria";
-import { escopoCobre } from "@/lib/escopo";
 import { instanteNoFuso } from "@/lib/datas";
 import { filtroReunioes, participa, podeConcluirCompromisso, podeEditarReuniao } from "./regras";
-import { PDI_ABERTO } from "@/lib/pdi/regras";
+import { cobrePdi, pdiEmAberto } from "@/lib/pdi/regras";
 import type { EstadoForm } from "@/lib/auth/actions";
 
 function erroDe(e: unknown): EstadoForm {
@@ -215,26 +214,37 @@ export async function levarAoPdi(_: EstadoForm, fd: FormData): Promise<EstadoFor
     const escopoPdi = pode(ctx, "pdi", "editar");
     if (!ctx.modulos.has("pdi") || !escopoPdi) throw new ErroAcesso("O PDI não está disponível para você.");
     const id = z.string().uuid().parse(fd.get("compromissoId"));
-    const objetivoSel = z.string().min(1, "Escolha o objetivo.").parse(fd.get("objetivoId"));
+    const focoSel = z.string().min(1, "Escolha o foco.").parse(fd.get("focoId"));
     const reuniaoId = await transacao(escopoTx(ctx), async (tx) => {
       const c = await tx.compromisso.findUnique({ where: { id }, include: { responsavel: true, acaoPdi: true } });
       if (!c) throw new ErroAcesso("Compromisso não encontrado.");
       const r = await reuniaoVisivel(tx, ctx, c.reuniaoId);
       if (!podeEditarReuniao(ctx, pode(ctx, "feedback", "editar"), r)) throw new ErroAcesso("Somente o gestor da reunião leva compromissos ao PDI.");
       if (c.acaoPdi) throw new ErroAcesso("Este compromisso já está no PDI.");
-      if (!escopoCobre(ctx, escopoPdi, c.responsavel)) throw new ErroAcesso("Você não pode editar o PDI desta pessoa.");
-      const pdi = await tx.pdi.findFirst({ where: { colaboradorId: c.responsavelId, status: { in: [...PDI_ABERTO] } } });
-      if (!pdi) throw new ErroAcesso("A pessoa não tem PDI em rascunho ou ativo. Crie o PDI primeiro.");
-      let objetivoId = objetivoSel;
-      if (objetivoSel === "novo") {
-        const ordem = await tx.objetivoPdi.count({ where: { pdiId: pdi.id } });
-        const o = await tx.objetivoPdi.create({ data: { tenantId: ctx.org.id, pdiId: pdi.id, titulo: "Compromissos de 1:1", ordem } });
-        objetivoId = o.id;
-      } else if (!(await tx.objetivoPdi.findFirst({ where: { id: z.string().uuid().parse(objetivoSel), pdiId: pdi.id } }))) {
-        throw new ErroAcesso("Objetivo não encontrado neste PDI.");
+      if (!cobrePdi(ctx, escopoPdi, c.responsavel)) throw new ErroAcesso("Você não pode editar o PDI desta pessoa.");
+      const pdi = await pdiEmAberto(tx, c.responsavelId);
+      if (!pdi) throw new ErroAcesso("A pessoa não tem PDI em andamento. Crie o PDI primeiro.");
+      let focoId = focoSel;
+      if (focoSel === "novo") {
+        const existente = pdi.focos.find((f) => f.focoChave === "outro" && f.nomePersonalizado === "Compromissos de 1:1");
+        focoId =
+          existente?.id ??
+          (await tx.focoPdi.create({ data: { tenantId: ctx.org.id, pdiId: pdi.id, focoChave: "outro", nomePersonalizado: "Compromissos de 1:1", ordem: pdi.focos.length } })).id;
+      } else if (!pdi.focos.some((f) => f.id === focoSel)) {
+        throw new ErroAcesso("Foco não encontrado neste PDI.");
       }
       await tx.acaoPdi.create({
-        data: { tenantId: ctx.org.id, pdiId: pdi.id, objetivoId, titulo: c.descricao, prazo: c.prazo, compromissoOrigemId: c.id, criadoPor: ctx.usuario.nome },
+        data: {
+          tenantId: ctx.org.id,
+          pdiId: pdi.id,
+          focoId,
+          descricao: c.descricao,
+          tipo: "projeto_pratico",
+          responsavel: "colaborador",
+          prazo: c.prazo,
+          compromissoOrigemId: c.id,
+          criadoPor: ctx.usuario.nome,
+        },
       });
       await tx.registroPdi.create({ data: { tenantId: ctx.org.id, pdiId: pdi.id, tipo: "evento", texto: `Ação criada a partir de compromisso de 1:1: “${c.descricao}”.`, autorNome: ctx.usuario.nome } });
       await auditar(tx, { tenantId: ctx.org.id, usuario: quem(ctx), acao: "feedback.compromisso.levar_pdi", entidade: "compromisso", entidadeId: id, detalhes: { pdiId: pdi.id } });

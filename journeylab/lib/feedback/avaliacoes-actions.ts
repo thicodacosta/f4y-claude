@@ -5,12 +5,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { transacao } from "@/lib/db";
-import { ErroAcesso, exigirPermissaoAcao, pode, type Contexto } from "@/lib/contexto";
+import { ErroAcesso, exigirPermissaoAcao, type Contexto } from "@/lib/contexto";
 import { auditar } from "@/lib/auditoria";
-import { dataDeTexto, hoje, hojeTexto, instanteNoFuso, somarDias, textoDeData } from "@/lib/datas";
-import { formatarData, formatarDataHora } from "@/lib/formato";
-import { escopoCobre } from "@/lib/escopo";
-import { PDI_ABERTO } from "@/lib/pdi/regras";
+import { dataDeTexto, hojeTexto, instanteNoFuso, textoDeData } from "@/lib/datas";
+import { formatarDataHora } from "@/lib/formato";
 import { calcularMedias, DURACOES, HORARIOS, TODOS_CRITERIOS, type Notas } from "./avaliacao";
 import { filtroAvaliacoes, filtroPessoasFeedback, podeEditarAvaliacao } from "./regras";
 import type { EstadoForm } from "@/lib/auth/actions";
@@ -209,51 +207,4 @@ export async function cancelarSerie(_: EstadoForm, fd: FormData): Promise<Estado
   } catch (e) {
     return erroDe(e);
   }
-}
-
-// ─── Integração com PDI (só com confirmação) ──────────────────────────────
-
-/**
- * Cria o PDI (rascunho) — ou acrescenta objetivos ao PDI aberto da pessoa — a
- * partir dos focos revisados na prévia. Exige PDI contratado e permissão no PDI.
- */
-export async function criarPdiDoFeedback(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
-  let destino: string;
-  try {
-    const { ctx, escopo } = await exigirPermissaoAcao("feedback", "visualizar");
-    if (!ctx.modulos.has("pdi")) throw new ErroAcesso("O PDI não está contratado pela sua organização.");
-    const avaliacaoId = z.string().uuid().parse(fd.get("avaliacaoId"));
-    const objetivos = fd
-      .getAll("objetivo")
-      .map((v) => String(v).trim().slice(0, 200))
-      .filter((v) => v.length >= 3);
-    if (!objetivos.length) throw new ErroAcesso("Mantenha ao menos um objetivo (mínimo 3 caracteres).");
-    const titulo = z.string().trim().min(3, "Informe o título do plano.").max(120).parse(fd.get("titulo") ?? "");
-    destino = await transacao(escopoTx(ctx), async (tx) => {
-      const a = await tx.avaliacaoFeedback.findFirst({ where: { AND: [{ id: avaliacaoId }, filtroAvaliacoes(ctx, escopo)] }, include: { colaborador: true } });
-      if (!a) throw new ErroAcesso("Feedback não encontrado.");
-      const aberto = await tx.pdi.findFirst({ where: { colaboradorId: a.colaboradorId, status: { in: [...PDI_ABERTO] } } });
-      const escopoPdi = pode(ctx, "pdi", aberto ? "editar" : "criar");
-      if (!escopoCobre(ctx, escopoPdi, a.colaborador)) throw new ErroAcesso("Você não tem permissão no PDI desta pessoa.");
-      if (a.colaborador.status !== "ativo") throw new ErroAcesso("PDI é para pessoas ativas.");
-      const pdi =
-        aberto ??
-        (await tx.pdi.create({
-          data: { tenantId: ctx.org.id, colaboradorId: a.colaboradorId, titulo, inicio: hoje(), fim: somarDias(hoje(), 180), criadoPor: ctx.usuario.nome },
-        }));
-      let ordem = await tx.objetivoPdi.count({ where: { pdiId: pdi.id } });
-      for (const t of objetivos) {
-        await tx.objetivoPdi.create({ data: { tenantId: ctx.org.id, pdiId: pdi.id, titulo: t, descricao: `Sugerido a partir do feedback de ${formatarData(a.data)}.`, ordem: ordem++ } });
-      }
-      await tx.registroPdi.create({
-        data: { tenantId: ctx.org.id, pdiId: pdi.id, tipo: "evento", texto: `${aberto ? "Objetivos incluídos" : "PDI criado em rascunho"} a partir do feedback 1:1 de ${formatarData(a.data)} (${objetivos.length} foco(s)).`, autorNome: ctx.usuario.nome },
-      });
-      await auditar(tx, { tenantId: ctx.org.id, usuario: quem(ctx), acao: "feedback.avaliacao.pdi", entidade: "avaliacao_feedback", entidadeId: avaliacaoId, detalhes: { pdiId: pdi.id, objetivos: objetivos.length } });
-      return `/pdi/${pdi.id}`;
-    });
-  } catch (e) {
-    return erroDe(e);
-  }
-  revalidatePath("/pdi");
-  redirect(destino);
 }

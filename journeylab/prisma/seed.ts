@@ -247,7 +247,7 @@ async function onboardingDemo(tenantId: string, gestorId: string, equipeId: stri
   }
 }
 
-/** Feedback 1:1 e PDI (Aurora): 1:1 realizado com anotações e compromissos, próximo 1:1 agendado e PDI ativo. Idempotente. */
+/** Feedback 1:1 (Aurora): 1:1 realizado com anotações e compromissos e próximo 1:1 agendado. Idempotente. */
 async function feedbackPdiDemo(tenantId: string, gestor: { id: string; uid: string }, pessoa: { id: string; uid: string }) {
   const dias = (n: number, hora = 10) => {
     const d = new Date();
@@ -286,32 +286,103 @@ async function feedbackPdiDemo(tenantId: string, gestor: { id: string; uid: stri
   await db.reuniao.create({
     data: { tenantId, gestorId: gestor.id, colaboradorId: pessoa.id, dataHora: dias(3, 15), pauta: itens, modeloNome: "1:1 quinzenal", criadoPor: "Bruno Martins" },
   });
+}
 
-  const inicio = dias(-30);
-  const fim = dias(150);
-  const pdi = await db.pdi.create({
-    data: { tenantId, colaboradorId: pessoa.id, titulo: "Desenvolvimento 2026 · Design de Produto", inicio, fim, status: "ativo", criadoPor: "Bruno Martins" },
-  });
-  const comunicacao = await db.objetivoPdi.create({
-    data: { tenantId, pdiId: pdi.id, titulo: "Comunicar decisões de design para executivos", competencia: "Comunicação", descricao: "Conduzir apresentações para a liderança com clareza e segurança.", ordem: 0 },
-  });
-  const pesquisa = await db.objetivoPdi.create({
-    data: { tenantId, pdiId: pdi.id, titulo: "Aprofundar pesquisa com usuários", competencia: "Pesquisa", ordem: 1 },
-  });
-  await db.acaoPdi.createMany({
-    data: [
-      { tenantId, pdiId: pdi.id, objetivoId: comunicacao.id, titulo: "Curso de storytelling para apresentações", tipo: "curso", prazo: dias(20), status: "em_andamento", criadoPor: "Bruno Martins" },
-      { tenantId, pdiId: pdi.id, objetivoId: comunicacao.id, titulo: apresentar.descricao, tipo: "pratica", prazo: apresentar.prazo, compromissoOrigemId: apresentar.id, criadoPor: "Bruno Martins" },
-      { tenantId, pdiId: pdi.id, objetivoId: pesquisa.id, titulo: "Conduzir 5 entrevistas com clientes", tipo: "pratica", prazo: dias(-5), status: "concluida", evidencia: "Relatório de síntese compartilhado com o time.", concluidaEm: dias(-6), criadoPor: "Bruno Martins" },
-    ],
-  });
-  await db.registroPdi.createMany({
-    data: [
-      { tenantId, pdiId: pdi.id, tipo: "evento", texto: "PDI criado em rascunho.", autorNome: "Bruno Martins", criadoEm: dias(-30) },
-      { tenantId, pdiId: pdi.id, tipo: "evento", texto: "PDI ativado.", autorNome: "Bruno Martins", criadoEm: dias(-29) },
-      { tenantId, pdiId: pdi.id, tipo: "revisao", texto: "Primeira revisão: bom ritmo nas entrevistas; manter foco na comunicação.", autorNome: "Bruno Martins", criadoEm: dias(-5) },
-    ],
-  });
+/**
+ * PDI (Aurora): três planos com status calculado diferente — Carla em andamento
+ * (inclui ação vinda de compromisso de 1:1), Diego em risco (ação vencida) e
+ * Gabriela concluído. Idempotente por título.
+ */
+async function pdiDemo(tenantId: string) {
+  const h = hojeCivil();
+  const pessoa = async (email: string) => db.colaborador.findUniqueOrThrow({ where: { tenantId_email: { tenantId, email } } });
+  type AcaoSeed = { descricao: string; tipo: "treinamento" | "mentoria" | "leitura" | "projeto_pratico"; responsavel: "colaborador" | "gestor" | "ambos"; inicio: number; prazo: number; status?: "nao_iniciada" | "em_andamento" | "concluida"; progresso?: number; investimento?: number; impacto?: string; mentor?: string; compromissoOrigemId?: string };
+  const plano = async (email: string, titulo: string, descricao: string, inicio: number, fim: number, focos: { chave: string; nome?: string; descricao: string; importancia: string; objetivo: string; acoes: AcaoSeed[] }[]) => {
+    const p = await pessoa(email);
+    if (await db.pdi.findFirst({ where: { tenantId, colaboradorId: p.id, titulo } })) return;
+    const pdi = await db.pdi.create({ data: { tenantId, colaboradorId: p.id, titulo, descricao, inicio: somarDias(h, inicio), fim: somarDias(h, fim), criadoPor: "Bruno Martins" } });
+    for (const [i, f] of focos.entries()) {
+      const foco = await db.focoPdi.create({
+        data: { tenantId, pdiId: pdi.id, focoChave: f.chave, nomePersonalizado: f.nome ?? null, descricao: f.descricao, importancia: f.importancia, objetivo: f.objetivo, ordem: i },
+      });
+      for (const [j, a] of f.acoes.entries()) {
+        await db.acaoPdi.create({
+          data: {
+            tenantId,
+            pdiId: pdi.id,
+            focoId: foco.id,
+            descricao: a.descricao,
+            tipo: a.tipo,
+            responsavel: a.responsavel,
+            inicio: somarDias(h, a.inicio),
+            prazo: somarDias(h, a.prazo),
+            status: a.status ?? "nao_iniciada",
+            progresso: a.progresso ?? null,
+            investimento: a.investimento ?? null,
+            impacto: a.impacto ?? null,
+            mentor: a.mentor ?? null,
+            compromissoOrigemId: a.compromissoOrigemId ?? null,
+            ordem: j,
+            criadoPor: "Bruno Martins",
+          },
+        });
+      }
+    }
+    await db.registroPdi.create({ data: { tenantId, pdiId: pdi.id, tipo: "evento", texto: `PDI criado com ${focos.length} foco(s).`, autorNome: "Bruno Martins", criadoEm: somarDias(h, inicio) } });
+  };
+
+  const apresentar = await db.compromisso.findFirst({ where: { tenantId, descricao: "Apresentar o roadmap de design para a liderança de produto", acaoPdi: null } });
+  await plano("carla@aurora.test", "Desenvolvimento 2026 · Design de Produto", "Comunicação com executivos e pesquisa com usuários.", -30, 150, [
+    {
+      chave: "comunicacao",
+      descricao: "Apresentações para a liderança e alinhamento com áreas parceiras.",
+      importancia: "As decisões de design precisam ser defendidas com clareza para a liderança de produto.",
+      objetivo: "Conduzir apresentações para executivos com clareza, objetividade e segurança.",
+      acoes: [
+        { descricao: "Curso de storytelling para apresentações", tipo: "treinamento", responsavel: "colaborador", inicio: -25, prazo: 20, status: "em_andamento", progresso: 60, investimento: 890, impacto: "Apresentações mais objetivas (estimativa: metade do tempo de preparação)." },
+        { descricao: "Apresentar o roadmap de design para a liderança de produto", tipo: "projeto_pratico", responsavel: "ambos", inicio: -7, prazo: 10, compromissoOrigemId: apresentar?.id },
+      ],
+    },
+    {
+      chave: "analise_dados",
+      descricao: "Pesquisa com usuários e síntese de evidências.",
+      importancia: "Decisões de produto mais embasadas.",
+      objetivo: "Conduzir pesquisas e transformar achados em recomendações acionáveis.",
+      acoes: [{ descricao: "Conduzir 5 entrevistas com clientes", tipo: "projeto_pratico", responsavel: "colaborador", inicio: -28, prazo: -5, status: "concluida" }],
+    },
+  ]);
+  await plano("diego@aurora.test", "Plano de desenvolvimento · Engenharia", "Gestão do tempo e observabilidade.", -60, 60, [
+    {
+      chave: "gestao_tempo",
+      descricao: "Planejamento semanal e cumprimento de prazos.",
+      importancia: "Entregas atrasaram nos últimos ciclos.",
+      objetivo: "Planejar a semana e sinalizar riscos de prazo com antecedência.",
+      acoes: [
+        { descricao: "Leitura: Getting Things Done", tipo: "leitura", responsavel: "colaborador", inicio: -50, prazo: -10, status: "em_andamento", investimento: 79.9 },
+        { descricao: "Mentoria quinzenal de planejamento", tipo: "mentoria", responsavel: "ambos", inicio: -40, prazo: 30, status: "em_andamento", mentor: "Ana Souza" },
+      ],
+    },
+    {
+      chave: "outro",
+      nome: "Observabilidade",
+      descricao: "Monitoramento de serviços críticos.",
+      importancia: "Reduzir tempo de diagnóstico de incidentes.",
+      objetivo: "Instrumentar os serviços do time com métricas e alertas.",
+      acoes: [{ descricao: "Instrumentar serviço de pagamentos", tipo: "projeto_pratico", responsavel: "colaborador", inicio: -20, prazo: 25, impacto: "Diagnóstico de incidentes mais rápido (estimativa)." }],
+    },
+  ]);
+  await plano("gabriela@aurora.test", "Liderança técnica · 1º semestre", "Preparação para liderar o squad.", -180, -5, [
+    {
+      chave: "lideranca",
+      descricao: "Condução de rituais e desenvolvimento do time.",
+      importancia: "Preparação para a liderança do squad.",
+      objetivo: "Conduzir rituais do time e apoiar o desenvolvimento de colegas.",
+      acoes: [
+        { descricao: "Programa de liderança para novos líderes", tipo: "treinamento", responsavel: "colaborador", inicio: -170, prazo: -60, status: "concluida", investimento: 2400 },
+        { descricao: "Conduzir as retrospectivas do squad por um trimestre", tipo: "projeto_pratico", responsavel: "ambos", inicio: -90, prazo: -10, status: "concluida" },
+      ],
+    },
+  ]);
 }
 
 /** Templates globais do Pulse (tenant nulo — visíveis a todas as organizações). */
@@ -546,6 +617,7 @@ async function main() {
 
   // ── Feedback 1:1 e PDI (dados fictícios) ──
   await feedbackPdiDemo(A, { id: bruno.id, uid: brunoUid }, { id: carla.id, uid: carlaUid });
+  await pdiDemo(A);
 
   // ── Feedback 1:1 avaliado (dados fictícios) ──
   await avaliacoesDemo(A, { id: brunoUid, nome: "Bruno Martins" });

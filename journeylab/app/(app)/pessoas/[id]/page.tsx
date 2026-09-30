@@ -13,7 +13,9 @@ import { hoje } from "@/lib/datas";
 import { filtroCandidatos } from "@/lib/crm/consultas";
 import { filtroAvaliacoes, filtroReunioes } from "@/lib/feedback/regras";
 import { SEMAFORO, umaCasa } from "@/lib/feedback/avaliacao";
-import { filtroPdis, progressoPdi, STATUS_PDI } from "@/lib/pdi/regras";
+import { COM_ACOES, filtroPdis } from "@/lib/pdi/regras";
+import { calcularPdi, STATUS_PDI } from "@/lib/pdi/calculo";
+import { hoje as hojePdi } from "@/lib/datas";
 import { formatarDataHora } from "@/lib/formato";
 import { Cartao } from "@/components/app/painel";
 import { ICONE_MODULO } from "@/components/app/icones-modulo";
@@ -67,7 +69,7 @@ export default async function PessoaPage({ params, searchParams }: { params: Pro
     escopoFb ? db.reuniao.count({ where: { AND: [{ colaboradorId: pessoa.id, status: "realizada" }, filtroReunioes(ctx, escopoFb)] } }) : 0,
     escopoFb ? db.compromisso.count({ where: { responsavelId: pessoa.id, status: "aberto", reuniao: filtroReunioes(ctx, escopoFb) } }) : 0,
     escopoPdi
-      ? db.pdi.findFirst({ where: { AND: [{ colaboradorId: pessoa.id }, filtroPdis(ctx, escopoPdi)] }, orderBy: { criadoEm: "desc" }, include: { acoes: { select: { status: true } } } })
+      ? db.pdi.findFirst({ where: { AND: [{ colaboradorId: pessoa.id }, filtroPdis(ctx, escopoPdi)] }, orderBy: { criadoEm: "desc" }, include: COM_ACOES })
       : null,
   ]);
   const jornada = [
@@ -81,7 +83,7 @@ export default async function PessoaPage({ params, searchParams }: { params: Pro
     escopoPdi && {
       chave: "pdi",
       titulo: "PDI",
-      texto: pdi ? `${pdi.titulo} · ${STATUS_PDI[pdi.status].nome} · ${progressoPdi(pdi.acoes)}% concluído` : "Sem PDI",
+      texto: pdi ? (() => { const c = calcularPdi(pdi.focos, hojePdi()); return `${pdi.titulo} · ${STATUS_PDI[c.status].nome} · ${c.progresso}% de progresso`; })() : "Sem PDI",
       href: pdi ? `/pdi/${pdi.id}` : "/pdi",
     },
   ].filter(Boolean) as { chave: string; titulo: string; texto: string; href: string }[];

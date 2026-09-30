@@ -244,6 +244,23 @@ try {
   checar("Mapa de calor por departamento (Negócios oculto)", /Mapa de calor/.test(e.texto) && /Tecnologia \(6\)/.test(e.texto) && !/Negócios \(/.test(e.texto), e.texto.slice(0, 300));
   e = await nav.ir(`/pulse/${encerrada.id}?tab=insights`);
   checar("Insights IA: estado indisponível sem chave configurada", /indisponíveis/.test(e.texto) || /Gerar insights/.test(e.texto));
+  const insights = {
+    resumo_executivo: "Clima positivo, com atenção à carga de trabalho.",
+    pontos_fortes: ["Clareza de expectativas acima de 4,0"],
+    pontos_atencao: ["Carga de trabalho com média 3,4"],
+    riscos: ["Sobrecarga pode reduzir o eNPS"],
+    plano_acao: [{ acao: "Revisar priorização trimestral", prioridade: "Alta", prazo_sugerido: "30 dias", responsavel_sugerido: "Lideranças" }],
+  };
+  await adm.query("update pesquisas_pulse set ai_insights=$2, ai_insights_em=now() where id=$1", [encerrada.id, JSON.stringify(insights)]);
+  e = await nav.ir(`/pulse/${encerrada.id}?tab=insights`);
+  checar(
+    "Insights IA salvos são exibidos (resumo, fortes, atenção, riscos, plano)",
+    ["Clima positivo", "Clareza de expectativas", "Carga de trabalho com média", "Sobrecarga", "Revisar priorização trimestral", "Lideranças"].every((t) => e.texto.includes(t)),
+  );
+  await adm.query("update pesquisas_pulse set ai_insights='{\"invalido\":true}' where id=$1", [encerrada.id]);
+  e = await nav.ir(`/pulse/${encerrada.id}?tab=insights`);
+  checar("Insights em formato inválido não quebram a página", /Nenhum insight/.test(e.texto) && !/Clima positivo/.test(e.texto));
+  await adm.query("update pesquisas_pulse set ai_insights=null, ai_insights_em=null where id=$1", [encerrada.id]);
   const csv = await nav.avaliar(`fetch('/pulse/${encerrada.id}/exportar').then(async r=>r.status+' '+(await r.text()).slice(0,4000))`);
   checar("Exportação CSV agregada, sem comentários livres", csv.startsWith("200") && /Toda a organização/.test(csv) && !/colaborativo/.test(csv));
 
@@ -282,9 +299,22 @@ try {
     await adm.query("update pesquisas_pulse set link_aberto=false where id=$1", [aberta.id]);
   }
 
-  // ── 7. Rotina diária: encerra vencidas e envia lembrete automático ──
+  // ── 7. Rotina diária: lembrete automático (uma vez) e encerramento das vencidas ──
+  const cron = () => fetch(`${BASE}/api/cron/manutencao`, { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } });
+  await adm.query("update pesquisas_pulse set encerra_em = current_date + 1 where id=$1", [aberta.id]);
+  await adm.query("update convites_pulse set lembrete_em = null where pesquisa_id=$1", [aberta.id]);
+  const pendentes = (await um("select count(*)::int n from convites_pulse c where c.pesquisa_id=$1 and not exists (select 1 from participacoes_pulse p where p.pesquisa_id=c.pesquisa_id and p.colaborador_id=c.colaborador_id)", [aberta.id])).n;
+  await fetch(`${MAILPIT}/messages`, { method: "DELETE" });
+  const c1 = (await (await cron()).json()).pulse;
+  const lembrados = (await um("select count(*)::int n from convites_pulse where pesquisa_id=$1 and lembrete_em is not null", [aberta.id])).n;
+  const respondeuLembrada = (await um("select count(*)::int n from convites_pulse c join participacoes_pulse p on p.pesquisa_id=c.pesquisa_id and p.colaborador_id=c.colaborador_id where c.pesquisa_id=$1 and c.lembrete_em is not null", [aberta.id])).n;
+  await esperar(1000);
+  const mails = await emails((m) => /^Lembrete: eNPS · outubro/.test(m.Subject));
+  checar("Cron envia lembrete automático só a quem não respondeu (prazo em 1 dia)", c1?.lembretes > 0 && lembrados === pendentes && respondeuLembrada === 0 && mails.length === c1.lembretes, `${JSON.stringify(c1)} · pendentes ${pendentes} · marcados ${lembrados} · e-mails ${mails.length}`);
+  const c2 = (await (await cron()).json()).pulse;
+  checar("Cron não repete o lembrete automático", c2?.lembretes === 0, JSON.stringify(c2));
   await adm.query("update pesquisas_pulse set encerra_em = current_date - 1 where id=$1", [aberta.id]);
-  const r = await fetch(`${BASE}/api/cron/manutencao`, { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } });
+  const r = await cron();
   const corpo = await r.json();
   const st = await um("select status from pesquisas_pulse where id=$1", [aberta.id]);
   checar("Cron encerra pesquisa vencida", r.status === 200 && st.status === "encerrada" && corpo.pulse?.encerradas >= 1, JSON.stringify(corpo.pulse));

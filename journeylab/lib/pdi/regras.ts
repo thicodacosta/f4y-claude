@@ -3,44 +3,43 @@ import "server-only";
 import type { Contexto } from "@/lib/contexto";
 import type { Escopo } from "@/lib/permissoes";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import type { Tx } from "@/lib/db";
 import { NENHUM } from "@/lib/escopo";
+import { hoje } from "@/lib/datas";
+import { calcularPdi } from "./calculo";
 
-/** PDIs visíveis: todos · equipe (o meu + liderados diretos) · próprio. */
-export function filtroPdis(ctx: Contexto, escopo: Escopo): Prisma.PdiWhereInput {
+/**
+ * PDIs visíveis (mesma regra de jl_acesso_pdi no banco):
+ *  todos  (RH/Admin) → qualquer pessoa da organização
+ *  equipe (gestor)   → só liderados diretos (não o próprio PDI)
+ * Colaborador não acessa o módulo nesta versão (escopo mínimo em lib/contexto.ts).
+ */
+export function filtroPdis(ctx: Contexto, escopo: Escopo | null): Prisma.PdiWhereInput {
   if (escopo === "todos") return {};
-  const eu = ctx.colaboradorId ?? NENHUM;
-  if (escopo === "equipe") return { OR: [{ colaboradorId: eu }, { colaborador: { gestorId: eu } }] };
-  return { colaboradorId: eu };
+  if (escopo === "equipe") return { colaborador: { gestorId: ctx.colaboradorId ?? NENHUM, id: { not: ctx.colaboradorId ?? NENHUM } } };
+  return { id: NENHUM };
 }
 
-/** Um PDI aceita mudanças de conteúdo enquanto está em rascunho ou ativo. */
-export const PDI_ABERTO = ["rascunho", "ativo"] as const;
-
-export function progressoPdi(acoes: { status: string }[]) {
-  const validas = acoes.filter((a) => a.status !== "cancelada");
-  if (!validas.length) return 0;
-  return Math.round((validas.filter((a) => a.status === "concluida").length / validas.length) * 100);
+/** Pessoas para quem o usuário pode criar/gerir PDI. */
+export function filtroPessoasPdi(ctx: Contexto, escopo: Escopo | null): Prisma.ColaboradorWhereInput {
+  if (escopo === "todos") return {};
+  if (escopo === "equipe") return { gestorId: ctx.colaboradorId ?? NENHUM, id: { not: ctx.colaboradorId ?? NENHUM } };
+  return { id: NENHUM };
 }
 
-export const STATUS_PDI = {
-  rascunho: { nome: "Rascunho", tom: "neutro" },
-  ativo: { nome: "Ativo", tom: "info" },
-  concluido: { nome: "Concluído", tom: "sucesso" },
-  arquivado: { nome: "Arquivado", tom: "neutro" },
-} as const;
+export function cobrePdi(ctx: Contexto, escopo: Escopo | null, pessoa: { id: string; gestorId: string | null }) {
+  if (escopo === "todos") return true;
+  return escopo === "equipe" && !!ctx.colaboradorId && pessoa.gestorId === ctx.colaboradorId && pessoa.id !== ctx.colaboradorId;
+}
 
-export const STATUS_ACAO = {
-  pendente: { nome: "Pendente", tom: "neutro" },
-  em_andamento: { nome: "Em andamento", tom: "info" },
-  concluida: { nome: "Concluída", tom: "sucesso" },
-  cancelada: { nome: "Cancelada", tom: "neutro" },
-} as const;
+/** Inclusão padrão para calcular progresso/status (focos → ações em ordem). */
+export const COM_ACOES = {
+  focos: { orderBy: { ordem: "asc" }, include: { acoes: { orderBy: [{ ordem: "asc" }, { criadoEm: "asc" }] } } },
+} satisfies Prisma.PdiInclude;
 
-export const TIPO_ACAO = {
-  pratica: "Prática no trabalho",
-  curso: "Curso ou treinamento",
-  mentoria: "Mentoria",
-  leitura: "Leitura",
-  projeto: "Projeto",
-  outro: "Outro",
-} as const;
+/** PDI mais recente ainda não concluído da pessoa (destino de compromissos de 1:1). */
+export async function pdiEmAberto(tx: Tx, colaboradorId: string) {
+  const pdis = await tx.pdi.findMany({ where: { colaboradorId }, include: COM_ACOES, orderBy: { criadoEm: "desc" }, take: 10 });
+  const h = hoje();
+  return pdis.find((p) => calcularPdi(p.focos, h).status !== "concluido") ?? null;
+}

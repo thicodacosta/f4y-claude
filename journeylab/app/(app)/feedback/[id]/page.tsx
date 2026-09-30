@@ -5,10 +5,12 @@ import { CalendarPlus, CheckCircle2, Circle, EyeOff, Lock, MinusCircle, Repeat, 
 import { exigirModulo, pode } from "@/lib/contexto";
 import { filtroReunioes, participa, podeConcluirCompromisso, podeEditarReuniao, STATUS_COMPROMISSO, STATUS_REUNIAO } from "@/lib/feedback/regras";
 import { adicionarCompromisso, alterarCompromisso, alterarReuniao, excluirAnotacao, levarAoPdi, salvarAnotacao } from "@/lib/feedback/actions";
-import { escopoCobre } from "@/lib/escopo";
 import { linksCalendario } from "@/lib/feedback/calendario";
 import { cancelarSerie } from "@/lib/feedback/avaliacoes-actions";
-import { PDI_ABERTO } from "@/lib/pdi/regras";
+import { cobrePdi, COM_ACOES } from "@/lib/pdi/regras";
+import { calcularPdi } from "@/lib/pdi/calculo";
+import { nomeFoco } from "@/lib/pdi/focos";
+import { hoje as hojeCivil } from "@/lib/datas";
 import { formatarData, formatarDataHora } from "@/lib/formato";
 import { Selo } from "@/components/app/lista";
 import { Cartao, CabecalhoCartao } from "@/components/app/painel";
@@ -43,15 +45,14 @@ export default async function ReuniaoPage({ params, searchParams }: { params: Pr
   const gestao = podeEditarReuniao(ctx, escopoEditar, r);
   const agendada = r.status === "agendada";
 
-  // Integração com PDI: objetivos do PDI aberto de cada responsável (se contratado e permitido).
-  const escopoPdi = pode(ctx, "pdi", "editar");
-  const responsaveisPdi = gestao && escopoPdi ? [r.colaborador, r.gestor].filter((p) => escopoCobre(ctx, escopoPdi, p)) : [];
-  const pdis = responsaveisPdi.length
-    ? await db.pdi.findMany({
-        where: { colaboradorId: { in: responsaveisPdi.map((p) => p.id) }, status: { in: [...PDI_ABERTO] } },
-        select: { id: true, colaboradorId: true, objetivos: { where: { status: "em_andamento" }, select: { id: true, titulo: true }, orderBy: { ordem: "asc" } } },
-      })
+  // Integração com PDI: focos do PDI em aberto (não concluído) de cada responsável (se contratado e permitido).
+  const escopoPdi = ctx.modulos.has("pdi") ? pode(ctx, "pdi", "editar") : null;
+  const responsaveisPdi = gestao && escopoPdi ? [r.colaborador, r.gestor].filter((p) => cobrePdi(ctx, escopoPdi, p)) : [];
+  const pdisTodos = responsaveisPdi.length
+    ? await db.pdi.findMany({ where: { colaboradorId: { in: responsaveisPdi.map((p) => p.id) } }, include: COM_ACOES, orderBy: { criadoEm: "desc" } })
     : [];
+  const hojePdi = hojeCivil();
+  const pdis = pdisTodos.filter((p) => calcularPdi(p.focos, hojePdi).status !== "concluido");
   const pdiDe = (pessoaId: string) => pdis.find((p) => p.colaboradorId === pessoaId);
   const serie = r.serieId ? await db.reuniao.findMany({ where: { serieId: r.serieId }, orderBy: { dataHora: "asc" }, select: { id: true, dataHora: true, status: true } }) : [];
   const agora = new Date();
@@ -278,24 +279,24 @@ export default async function ReuniaoPage({ params, searchParams }: { params: Pr
                           </FormAcao>
                         )}
                       </div>
-                      {gestao && c.status === "aberto" && !c.acaoPdi && escopoPdi && escopoCobre(ctx, escopoPdi, c.responsavel) && (
+                      {gestao && c.status === "aberto" && !c.acaoPdi && escopoPdi && cobrePdi(ctx, escopoPdi, c.responsavel) && (
                         <details className="pl-6 text-sm">
                           <summary className="cursor-pointer text-teal-strong hover:underline">Levar ao PDI…</summary>
                           {pdi ? (
                             <FormAcao action={levarAoPdi} textoBotao="Incluir no PDI" variante="outline" className="mt-2">
                               <input type="hidden" name="compromissoId" value={c.id} />
                               <Selecao
-                                nome="objetivoId"
-                                idCampo={`objetivo-${c.id}`}
-                                rotulo={`Objetivo no PDI de ${c.responsavel.nome.split(" ")[0]}`}
-                                opcoes={[...pdi.objetivos.map((o) => ({ valor: o.id, rotulo: o.titulo })), { valor: "novo", rotulo: "Novo objetivo: Compromissos de 1:1" }]}
+                                nome="focoId"
+                                idCampo={`foco-${c.id}`}
+                                rotulo={`Foco no PDI de ${c.responsavel.nome.split(" ")[0]}`}
+                                opcoes={[...pdi.focos.map((f) => ({ valor: f.id, rotulo: nomeFoco(f.focoChave, f.nomePersonalizado) })), { valor: "novo", rotulo: "Novo foco: Compromissos de 1:1" }]}
                               />
                             </FormAcao>
                           ) : (
                             <p className="mt-2 text-muted-foreground">
-                              {c.responsavel.nome} não tem PDI em rascunho ou ativo.{" "}
+                              {c.responsavel.nome} não tem PDI em andamento.{" "}
                               {pode(ctx, "pdi", "criar") && (
-                                <Link href="/pdi" className="text-teal-strong underline">
+                                <Link href={`/pdi/novo?colaborador=${c.responsavel.id}`} className="text-teal-strong underline">
                                   Criar PDI
                                 </Link>
                               )}

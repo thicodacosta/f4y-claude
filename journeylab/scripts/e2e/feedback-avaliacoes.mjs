@@ -172,17 +172,15 @@ try {
   checar("Excluir com confirmação remove e avisa", !(await um("select 1 from avaliacoes_feedback where id=$1", [avElisa.id])) && /Feedback excluído/.test((await nav.estado()).texto));
 
   // ── 6. Sugestão de PDI: só com confirmação e só com PDI contratado ──
-  const pdisAntes = (await um("select count(*)::int n from objetivos_pdi o join pdis p on p.id=o.pdi_id where p.colaborador_id=$1", [diego.id])).n;
+  const pdisAntes = (await um("select count(*)::int n from focos_pdi f join pdis p on p.id=f.pdi_id where p.colaborador_id=$1", [diego.id])).n;
   e = await nav.ir(`/feedback/avaliacoes/${avDiego.id}`);
-  checar("Critérios ≤ 2 geram sugestão de PDI com prévia editável", /Sugestão de PDI/.test(e.texto) && (await nav.avaliar("document.querySelectorAll('input[name=objetivo]').length")) >= 5);
-  checar("Nada é criado no PDI antes da confirmação", (await um("select count(*)::int n from objetivos_pdi o join pdis p on p.id=o.pdi_id where p.colaborador_id=$1", [diego.id])).n === pdisAntes);
-  await nav.avaliar(`(()=>{const f=[...document.querySelectorAll('form')].find(f=>f.querySelector('input[name=avaliacaoId]') && f.querySelector('input[name=objetivo]'));
-    const i=f.querySelector('#obj-0');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Objetivo revisado E2E');
-    f.querySelectorAll('input[name=objetivo]').forEach((x,k)=>{if(k>1)Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(x,'');});
-    f.requestSubmit();})()`);
-  await nav.esperarAte("/\\/pdi\\/[0-9a-f-]{36}$/.test(location.pathname)");
-  const objetivos = await um("select count(*)::int n, bool_or(o.titulo='Objetivo revisado E2E') revisado from objetivos_pdi o join pdis p on p.id=o.pdi_id where p.colaborador_id=$1", [diego.id]);
-  checar("Após confirmar, PDI recebe só os objetivos revisados", objetivos.n === pdisAntes + 2 && objetivos.revisado, JSON.stringify(objetivos));
+  const nFocos = await nav.avaliar("document.querySelectorAll('main input[name=foco]').length");
+  checar("Notas 1–2 geram sugestão de PDI com prévia (até 3 focos)", /Sugestão de PDI/.test(e.texto) && nFocos >= 1 && nFocos <= 3, String(nFocos));
+  checar("Nada é criado no PDI antes da confirmação", (await um("select count(*)::int n from focos_pdi f join pdis p on p.id=f.pdi_id where p.colaborador_id=$1", [diego.id])).n === pdisAntes);
+  await nav.avaliar("document.querySelector('main input[name=foco]').form.requestSubmit()");
+  await nav.esperarAte("location.pathname === '/pdi/novo'");
+  await nav.esperarEstavel();
+  checar("Confirmar a prévia abre o fluxo de criação pré-preenchido, ainda sem gravar", /Pré-preenchido com as sugestões do feedback/.test((await nav.estado()).texto) && (await um("select count(*)::int n from focos_pdi f join pdis p on p.id=f.pdi_id where p.colaborador_id=$1", [diego.id])).n === pdisAntes);
   await adm.query("update entitlements set status='suspenso' where tenant_id=$1 and modulo='pdi'", [AURORA]);
   e = await nav.ir(`/feedback/avaliacoes/${avDiego.id}`);
   checar("Sem PDI contratado: feedback funciona e a sugestão some", /Diego Ferreira/.test(e.texto) && !/Sugestão de PDI/.test(e.texto));

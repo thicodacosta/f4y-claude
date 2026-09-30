@@ -33,8 +33,12 @@ const nav = await abrirNavegador(9446);
 try {
   // 1. RH da Aurora cadastra candidato
   let e = await nav.entrar("rafael@aurora.test");
+  // Busca por nome: a lista é paginada e execuções anteriores acumulam candidatos de teste.
+  e = await nav.ir("/crm?q=Beatriz");
+  const beatriz = /Beatriz Oliveira/.test(e.texto);
+  e = await nav.ir("/crm?q=Henrique");
+  checar("RH vê candidatos do seed da Aurora (e não os da Bravo)", beatriz && !/Henrique Castro/.test(e.texto));
   e = await nav.ir("/crm");
-  checar("RH vê candidatos do seed da Aurora", /Beatriz Oliveira/.test(e.texto) && !/Henrique Castro/.test(e.texto));
   e = await nav.ir("/crm/candidatos/novo");
   await nav.preencher({
     "input[name=nome]": `Candidata E2E ${sufixo}`,

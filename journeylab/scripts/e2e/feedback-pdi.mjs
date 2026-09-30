@@ -81,7 +81,7 @@ const nav = await abrirNavegador(9448);
 try {
   // ── 2. Gestor ──
   let e = await nav.entrar("bruno@aurora.test");
-  checar("Painel do gestor mostra próximo 1:1 e ações de PDI", /Próximos 1:1/.test(e.texto) && /Carla Mendes/.test(e.texto) && /Ações de PDI em aberto/.test(e.texto));
+  checar("Painel do gestor mostra próximo 1:1 e ações de PDI", /Próximos 1:1/.test(e.texto) && /Carla Mendes/.test(e.texto) && /Ações de PDI/.test(e.texto));
   e = await nav.ir(`/feedback/${reuniao.id}`);
   checar("Gestor vê a própria nota privada e a compartilhada da liderada", /avaliar a Carla para liderar/.test(e.texto) && /desenvolver comunicação com executivos/.test(e.texto));
   checar("Gestor NÃO vê a nota privada da liderada", !/pedir feedback mais frequente/.test(e.texto));
@@ -93,7 +93,7 @@ try {
   // Integração 1:1 → PDI
   const mapear = await compromisso("Mapear pontos de atrito do onboarding de clientes");
   await nav.ir(`/feedback/${reuniao.id}`);
-  await formulario(nav, `f.querySelector('input[name=compromissoId][value="${mapear.id}"]') && f.querySelector('select[name=objetivoId]')`, { objetivoId: "novo" });
+  await formulario(nav, `f.querySelector('input[name=compromissoId][value="${mapear.id}"]') && f.querySelector('select[name=focoId]')`, { focoId: "novo" });
   const acaoOrigem = await um("select a.id, a.pdi_id from acoes_pdi a where compromisso_origem_id=$1", [mapear.id]);
   checar("Compromisso levado ao PDI vira ação no PDI da pessoa", acaoOrigem?.pdi_id === pdiCarla.id);
 
@@ -106,41 +106,33 @@ try {
   e = await nav.estado();
   checar("Gestor agenda 1:1 com liderado e abre a ficha", /1:1 · Diego Ferreira/.test(e.texto), e.url);
 
-  // PDI: criar, ativação recusada sem ações, incluir objetivo/ação, ativar
-  e = await nav.ir("/pdi");
-  await formulario(nav, "f.querySelector('select[name=colaboradorId]') && f.querySelector('input[name=titulo]')", { colaboradorId: diego.id, titulo: "PDI E2E Diego" }, 1000);
-  await nav.esperarAte("/\\/pdi\\/[0-9a-f-]{36}$/.test(location.pathname)");
-  const pdiDiego = await um("select id, status from pdis where colaborador_id=$1 and status='rascunho'", [diego.id]);
-  checar("Gestor cria PDI em rascunho para liderado", !!pdiDiego);
-  await nav.esperarEstavel();
-  await formulario(nav, "f.querySelector('input[name=acao][value=ativar]')");
-  checar("Ativação sem ações é recusada", /ao menos um objetivo/.test(await nav.mensagem()), await nav.mensagem());
-  await formulario(nav, "f.querySelector('input[name=competencia]')", { titulo: "Dominar observabilidade", competencia: "Técnica" });
-  await nav.ir(`/pdi/${pdiDiego.id}`);
-  await formulario(nav, "f.querySelector('input[name=objetivoId]') && f.querySelector('select[name=tipo]')", { titulo: "Instrumentar serviço de pagamentos", tipo: "projeto" });
-  await nav.ir(`/pdi/${pdiDiego.id}`);
-  await formulario(nav, "f.querySelector('input[name=acao][value=ativar]')");
-  checar("PDI ativado após objetivo e ação", (await um("select status from pdis where id=$1", [pdiDiego.id])).status === "ativo");
+  // Concluir no PDI a ação que veio de um compromisso de 1:1 conclui também o compromisso.
+  const apresentar = await compromisso("Apresentar o roadmap de design para a liderança de produto");
+  const acaoApresentar = await um("select id, descricao from acoes_pdi where compromisso_origem_id=$1", [apresentar.id]);
+  await nav.ir(`/pdi/${pdiCarla.id}`);
+  const form = `form[aria-label="Atualizar ${acaoApresentar.descricao}"]`;
+  await nav.avaliar(`(()=>{const s=document.querySelector('${form} select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'concluida');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await esperar(300);
+  await nav.avaliar(`document.querySelector('${form}').requestSubmit()`);
+  const concluido = await (async () => {
+    for (let i = 0; i < 40; i++) {
+      if ((await compromisso(apresentar.descricao ?? "Apresentar o roadmap de design para a liderança de produto")).status === "concluido") return true;
+      await esperar(400);
+    }
+    return false;
+  })();
+  checar("Ação de PDI concluída conclui o compromisso de origem", concluido);
+  const pdiDiego = await um("select p.id from pdis p where p.colaborador_id=$1", [diego.id]);
 
   // ── 3. Colaboradora ──
   e = await nav.entrar("carla@aurora.test");
   e = await nav.ir(`/feedback/${reuniao.id}`);
   // Nesta versão o colaborador não acessa o Feedback 1:1 (as anotações dele continuam preservadas e privadas no banco).
   checar("Colaboradora não acessa o Feedback 1:1 (nem pela URL da reunião)", e.url.startsWith("/inicio?sem_permissao=feedback") && !/avaliar a Carla/.test(e.texto), e.url);
-  const apresentar = await compromisso("Apresentar o roadmap de design para a liderança de produto");
-  // Concluir a ação de PDI (sem evidência → recusado; com evidência → conclui também o compromisso de origem)
-  const acaoApresentar = await um("select id from acoes_pdi where compromisso_origem_id=$1", [apresentar.id]);
-  await nav.ir(`/pdi/${pdiCarla.id}`);
-  await formulario(nav, `f.querySelector('input[name=acaoId][value="${acaoApresentar.id}"]')`, { status: "concluida" });
-  checar("Concluir ação sem evidência é recusado", /evidência/.test(await nav.mensagem()), await nav.mensagem());
-  await nav.ir(`/pdi/${pdiCarla.id}`);
-  await formulario(nav, `f.querySelector('input[name=acaoId][value="${acaoApresentar.id}"]')`, { status: "concluida", evidencia: "Apresentação feita em 12/10 para a diretoria." });
-  checar("Ação concluída com evidência conclui o compromisso de origem", (await compromisso("Apresentar o roadmap de design para a liderança de produto")).status === "concluido");
-  checar("Colaboradora não vê ativar/concluir/arquivar o próprio PDI", !(await nav.avaliar("!!document.querySelector('input[name=acao][value=concluir]') || !!document.querySelector('input[name=acao][value=arquivar]')")));
-  await formulario(nav, "f.querySelector('textarea[name=texto]') && f.querySelector('input[name=pdiId]')", { texto: "Comentário E2E da colaboradora" });
-  checar("Colaboradora comenta no próprio PDI", !!(await um("select 1 from registros_pdi where texto='Comentário E2E da colaboradora' and tipo='comentario'")));
+  e = await nav.ir(`/pdi/${pdiCarla.id}`);
+  checar("Colaboradora não acessa o PDI nesta versão (nem o próprio)", e.url.startsWith("/inicio?sem_permissao=pdi"), e.url);
   e = await nav.ir(`/pdi/${pdiDiego.id}`);
-  checar("Colaboradora não abre o PDI de colega (404)", !/PDI E2E Diego/.test(e.texto));
+  checar("Colaboradora não abre o PDI de colega", e.url.startsWith("/inicio?sem_permissao=pdi"), e.url);
   e = await nav.ir("/feedback/modelos");
   checar("Colaboradora não acessa modelos de pauta", !e.url.startsWith("/feedback/modelos"), e.url);
 

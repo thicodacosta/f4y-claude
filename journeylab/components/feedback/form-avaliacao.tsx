@@ -9,7 +9,6 @@ import {
   CRITERIOS_PERFORMANCE,
   criteriosMaisBaixos,
   ESCALA,
-  focosPdi,
   mediaDimensao,
   PERIODICIDADE,
   SEMAFORO,
@@ -22,6 +21,7 @@ import { Campo, Selecao } from "@/components/admin/campos";
 import { Selo } from "@/components/app/lista";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { sugerirFocos } from "@/lib/pdi/focos";
 
 type Inicial = {
   id?: string;
@@ -91,7 +91,7 @@ export function FormAvaliacao({ inicial, pessoas, pdiDisponivel }: { inicial: In
   const alterar = (campo: string, v: number) => setNotas((n) => ({ ...n, [campo]: v }));
   const calc = calcularMedias(notas);
   const baixos = criteriosMaisBaixos(notas);
-  const focos = focosPdi(notas);
+  const focos = sugerirFocos(notas);
 
   return (
     <form action={acao} className="grid gap-4 xl:grid-cols-[1fr_minmax(0,340px)]">
@@ -196,7 +196,7 @@ export function FormAvaliacao({ inicial, pessoas, pdiDisponivel }: { inicial: In
         {focos.length > 0 && pdiDisponivel && (
           <p className="flex items-start gap-2 rounded-lg border border-teal/30 bg-teal-soft px-4 py-3 text-sm">
             <Target className="mt-0.5 size-4 shrink-0 text-teal-strong" aria-hidden />
-            {focos.length} critério(s) com nota até 2. Depois de salvar, você poderá revisar focos de PDI sugeridos.
+            {focos.length} foco(s) de desenvolvimento sugerido(s) por notas 1 ou 2. Depois de salvar, você poderá revisar a prévia do PDI.
           </p>
         )}
 

@@ -957,34 +957,27 @@ model AvaliacaoFeedback {
 }
 
 // ─── PDI ──────────────────────────────────────────────────────────────────
-
-enum StatusPdi {
-  rascunho
-  ativo
-  concluido
-  arquivado
-}
-
-enum StatusObjetivo {
-  em_andamento
-  concluido
-  cancelado
-}
+// Status e progresso do plano são CALCULADOS a partir das ações (lib/pdi/calculo.ts):
+// não há coluna de status do PDI. Acesso por papel e vínculo gestor→liderado
+// aplicado também no banco (jl_acesso_pdi em rls.sql).
 
 enum TipoAcaoPdi {
-  pratica
-  curso
+  treinamento
   mentoria
   leitura
-  projeto
-  outro
+  projeto_pratico
 }
 
 enum StatusAcaoPdi {
-  pendente
+  nao_iniciada
   em_andamento
   concluida
-  cancelada
+}
+
+enum ResponsavelAcaoPdi {
+  colaborador
+  gestor
+  ambos
 }
 
 enum TipoRegistroPdi {
@@ -993,73 +986,112 @@ enum TipoRegistroPdi {
   evento
 }
 
-/// Plano de desenvolvimento. No máximo um aberto (rascunho/ativo) por pessoa (índice parcial em rls.sql).
-model Pdi {
-  id            String    @id @default(uuid()) @db.Uuid
-  tenantId      String    @map("tenant_id") @db.Uuid
-  colaboradorId String    @map("colaborador_id") @db.Uuid
-  titulo        String
-  inicio        DateTime  @db.Date
-  fim           DateTime  @db.Date
-  status        StatusPdi @default(rascunho)
-  concluidoEm   DateTime? @map("concluido_em")
-  criadoPor     String    @map("criado_por")
-  criadoEm      DateTime  @default(now()) @map("criado_em")
-  atualizadoEm  DateTime  @updatedAt @map("atualizado_em")
+enum TipoComentarioAcaoPdi {
+  /// Comentário de quem acompanha (RH ou gestor).
+  comentario
+  /// Fala do colaborador registrada por RH/gestor (o colaborador não acessa o módulo).
+  fala_colaborador
+}
 
-  colaborador Colaborador   @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
-  objetivos   ObjetivoPdi[]
+model Pdi {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  colaboradorId String   @map("colaborador_id") @db.Uuid
+  titulo        String
+  descricao     String?
+  inicio        DateTime @db.Date
+  fim           DateTime @db.Date
+  criadoPor     String   @map("criado_por")
+  criadoEm      DateTime @default(now()) @map("criado_em")
+  atualizadoEm  DateTime @updatedAt @map("atualizado_em")
+
+  colaborador Colaborador         @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  focos       FocoPdi[]
   acoes       AcaoPdi[]
   registros   RegistroPdi[]
+  comentarios ComentarioAcaoPdi[]
 
-  @@index([tenantId, status])
   @@index([tenantId, colaboradorId])
   @@map("pdis")
 }
 
-model ObjetivoPdi {
-  id          String         @id @default(uuid()) @db.Uuid
-  tenantId    String         @map("tenant_id") @db.Uuid
-  pdiId       String         @map("pdi_id") @db.Uuid
-  titulo      String
-  descricao   String?
-  competencia String?
-  status      StatusObjetivo @default(em_andamento)
-  ordem       Int            @default(0)
-  criadoEm    DateTime       @default(now()) @map("criado_em")
+/// Foco de desenvolvimento do PDI. `focoChave` é o identificador estável do catálogo (lib/pdi/focos.ts); "outro" exige nome.
+model FocoPdi {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  pdiId             String   @map("pdi_id") @db.Uuid
+  focoChave         String   @map("foco_chave")
+  nomePersonalizado String?  @map("nome_personalizado")
+  descricao         String?
+  /// Por que desenvolver este foco.
+  importancia       String?
+  /// Comportamento ou resultado esperado.
+  objetivo          String?
+  ordem             Int      @default(0)
+  criadoEm          DateTime @default(now()) @map("criado_em")
 
   pdi   Pdi       @relation(fields: [pdiId], references: [id], onDelete: Cascade)
   acoes AcaoPdi[]
 
   @@index([pdiId, ordem])
-  @@map("objetivos_pdi")
+  @@map("focos_pdi")
 }
 
 model AcaoPdi {
-  id                  String        @id @default(uuid()) @db.Uuid
-  tenantId            String        @map("tenant_id") @db.Uuid
-  pdiId               String        @map("pdi_id") @db.Uuid
-  objetivoId          String        @map("objetivo_id") @db.Uuid
-  titulo              String
-  tipo                TipoAcaoPdi   @default(pratica)
-  prazo               DateTime?     @db.Date
-  status              StatusAcaoPdi @default(pendente)
-  /// Evidência de conclusão (texto e/ou link).
+  id                  String             @id @default(uuid()) @db.Uuid
+  tenantId            String             @map("tenant_id") @db.Uuid
+  pdiId               String             @map("pdi_id") @db.Uuid
+  focoId              String             @map("foco_id") @db.Uuid
+  descricao           String
+  tipo                TipoAcaoPdi        @default(projeto_pratico)
+  responsavel         ResponsavelAcaoPdi @default(colaborador)
+  inicio              DateTime?          @db.Date
+  prazo               DateTime?          @db.Date
+  status              StatusAcaoPdi      @default(nao_iniciada)
+  /// Progresso explícito (1–99) só em andamento; concluída = 100 (normalizado no banco).
+  progresso           Int?               @db.SmallInt
+  /// Investimento estimado em reais.
+  investimento        Decimal?           @db.Decimal(12, 2)
+  /// Impacto esperado — estimativa informada, não resultado comprovado.
+  impacto             String?
+  mentor              String?
+  ordem               Int                @default(0)
+  /// Evidência de conclusão (opcional).
   evidencia           String?
-  evidenciaUrl        String?       @map("evidencia_url")
-  concluidaEm         DateTime?     @map("concluida_em")
+  evidenciaUrl        String?            @map("evidencia_url")
+  concluidaEm         DateTime?          @map("concluida_em")
   /// Compromisso de 1:1 que originou a ação (integração Feedback → PDI).
-  compromissoOrigemId String?       @unique @map("compromisso_origem_id") @db.Uuid
-  criadoPor           String        @map("criado_por")
-  criadoEm            DateTime      @default(now()) @map("criado_em")
+  compromissoOrigemId String?            @unique @map("compromisso_origem_id") @db.Uuid
+  criadoPor           String             @map("criado_por")
+  criadoEm            DateTime           @default(now()) @map("criado_em")
 
-  pdi               Pdi          @relation(fields: [pdiId], references: [id], onDelete: Cascade)
-  objetivo          ObjetivoPdi  @relation(fields: [objetivoId], references: [id], onDelete: Cascade)
-  compromissoOrigem Compromisso? @relation(fields: [compromissoOrigemId], references: [id], onDelete: SetNull)
+  pdi               Pdi                 @relation(fields: [pdiId], references: [id], onDelete: Cascade)
+  foco              FocoPdi             @relation(fields: [focoId], references: [id], onDelete: Cascade)
+  compromissoOrigem Compromisso?        @relation(fields: [compromissoOrigemId], references: [id], onDelete: SetNull)
+  comentarios       ComentarioAcaoPdi[]
 
   @@index([pdiId])
+  @@index([focoId, ordem])
   @@index([tenantId, status, prazo])
   @@map("acoes_pdi")
+}
+
+model ComentarioAcaoPdi {
+  id             String                @id @default(uuid()) @db.Uuid
+  tenantId       String                @map("tenant_id") @db.Uuid
+  pdiId          String                @map("pdi_id") @db.Uuid
+  acaoId         String                @map("acao_id") @db.Uuid
+  tipo           TipoComentarioAcaoPdi @default(comentario)
+  texto          String
+  autorUsuarioId String                @map("autor_usuario_id") @db.Uuid
+  autorNome      String                @map("autor_nome")
+  criadoEm       DateTime              @default(now()) @map("criado_em")
+
+  pdi  Pdi     @relation(fields: [pdiId], references: [id], onDelete: Cascade)
+  acao AcaoPdi @relation(fields: [acaoId], references: [id], onDelete: Cascade)
+
+  @@index([acaoId, criadoEm])
+  @@map("comentarios_acao_pdi")
 }
 
 model RegistroPdi {

@@ -10,7 +10,9 @@ import { formatarData, formatarDataHora } from "@/lib/formato";
 import { filtroAvaliacoes, filtroReunioes } from "@/lib/feedback/regras";
 import { carregarCadencia, ordenarPorCadencia } from "@/lib/feedback/consultas";
 import { umaCasa } from "@/lib/feedback/avaliacao";
-import { filtroPdis, PDI_ABERTO, progressoPdi } from "@/lib/pdi/regras";
+import { COM_ACOES, filtroPdis } from "@/lib/pdi/regras";
+import { calcularPdi } from "@/lib/pdi/calculo";
+import { somarDias, hoje as hojeCivil } from "@/lib/datas";
 import { filtroParaResponder } from "@/lib/pulse/regras";
 import { adesaoPulse } from "@/lib/pulse/consultas";
 import { filtroCiclosParaResponder } from "@/lib/nr1/regras";
@@ -121,26 +123,32 @@ const PROVEDORES: Provedor[] = [
   {
     modulo: "pdi",
     async montar(ctx) {
+      // Alertas: uma linha por ação não concluída vencida (ou vencendo em 7 dias), no escopo do usuário.
       const escopo = pode(ctx, "pdi", "visualizar")!;
-      const hoje = hojeSemHora();
-      const acoes = await dbTenant(ctx.org.id, ctx.usuario.id).acaoPdi.findMany({
-        where: { status: { in: ["pendente", "em_andamento"] }, pdi: { AND: [filtroPdis(ctx, escopo), { status: "ativo" }] } },
-        include: { pdi: { select: { id: true, colaborador: { select: { id: true, nome: true } } } } },
-        orderBy: [{ prazo: { sort: "asc", nulls: "last" } }],
-        take: 5,
-      });
+      const h = hojeCivil();
+      const where = { status: { in: ["nao_iniciada" as const, "em_andamento" as const] }, prazo: { lte: somarDias(h, 7) }, pdi: filtroPdis(ctx, escopo) };
+      const db = dbTenant(ctx.org.id, ctx.usuario.id);
+      const [acoes, vencidas] = await Promise.all([
+        db.acaoPdi.findMany({
+          where,
+          include: { pdi: { select: { id: true, colaborador: { select: { nome: true } } } } },
+          orderBy: [{ prazo: "asc" }],
+          take: 5,
+        }),
+        db.acaoPdi.count({ where: { ...where, prazo: { lt: h } } }),
+      ]);
       return {
         modulo: "pdi",
-        titulo: "Ações de PDI em aberto",
-        href: "/pdi",
-        vazio: "Nenhuma ação de PDI em aberto.",
+        titulo: vencidas ? `Ações de PDI vencidas (${vencidas})` : "Ações de PDI com prazo próximo",
+        href: vencidas ? "/pdi?status=em_risco" : "/pdi",
+        vazio: "Nenhuma ação de PDI vencida ou vencendo nos próximos 7 dias.",
         itens: acoes.map((a) => {
-          const atrasada = !!a.prazo && a.prazo < hoje;
+          const vencida = !!a.prazo && a.prazo < h;
           return {
-            texto: a.titulo,
-            subtitulo: a.pdi.colaborador.id === ctx.colaboradorId ? "Meu PDI" : a.pdi.colaborador.nome,
-            detalhe: a.prazo ? (atrasada ? `Atrasada · ${formatarData(a.prazo)}` : `Prazo ${formatarData(a.prazo)}`) : "Sem prazo",
-            alerta: atrasada,
+            texto: a.descricao,
+            subtitulo: a.pdi.colaborador.nome,
+            detalhe: vencida ? `Vencida · ${formatarData(a.prazo!)}` : `Prazo ${formatarData(a.prazo!)}`,
+            alerta: vencida,
             href: `/pdi/${a.pdi.id}#acao-${a.id}`,
           };
         }),
@@ -322,20 +330,21 @@ const INDICADORES: ProvedorIndicadores[] = [
     modulo: "pdi",
     async montar(ctx) {
       const escopo = pode(ctx, "pdi", "visualizar")!;
-      const pdis = await dbTenant(ctx.org.id, ctx.usuario.id).pdi.findMany({
-        where: { AND: [filtroPdis(ctx, escopo), { status: { in: [...PDI_ABERTO] } }] },
-        select: { status: true, acoes: { select: { status: true } } },
-      });
-      const ativos = pdis.filter((p) => p.status === "ativo");
-      const media = ativos.length ? Math.round(ativos.reduce((n, p) => n + progressoPdi(p.acoes), 0) / ativos.length) : 0;
+      const pdis = await dbTenant(ctx.org.id, ctx.usuario.id).pdi.findMany({ where: filtroPdis(ctx, escopo), include: COM_ACOES, take: 500 });
+      const h = hojeCivil();
+      const calc = pdis.map((p) => calcularPdi(p.focos, h));
+      const abertos = calc.filter((c) => c.status !== "concluido");
+      const risco = calc.filter((c) => c.status === "em_risco").length;
+      const media = abertos.length ? Math.round(abertos.reduce((n, c) => n + c.progresso, 0) / abertos.length) : 0;
       return [
         {
           modulo: "pdi",
-          rotulo: "PDIs ativos",
-          valor: String(ativos.length),
-          detalhe: ativos.length ? `${media}% de progresso médio` : pdis.length ? `${pdis.length} em rascunho` : "Nenhum plano aberto",
-          href: "/pdi",
-          progresso: ativos.length ? media : undefined,
+          rotulo: "PDIs em andamento",
+          valor: String(abertos.length),
+          detalhe: abertos.length ? `${media}% de progresso médio${risco ? ` · ${risco} em risco` : ""}` : "Nenhum plano em andamento",
+          href: risco ? "/pdi?status=em_risco" : "/pdi",
+          progresso: abertos.length ? media : undefined,
+          alerta: risco > 0,
         },
       ];
     },

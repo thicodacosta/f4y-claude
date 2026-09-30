@@ -43,7 +43,8 @@ begin
     where c.table_schema = 'public' and c.column_name = 'tenant_id' and tb.table_type = 'BASE TABLE'
       and c.table_name not in ('entitlements', 'historico_entitlements', 'associacoes', 'auditoria', 'acessos_suporte', 'anotacoes_reuniao',
                              'participacoes_pulse', 'respostas_pulse', 'modelos_pulse',
-                             'participacoes_nr1', 'respostas_nr1')
+                             'participacoes_nr1', 'respostas_nr1',
+                             'pdis', 'focos_pdi', 'acoes_pdi', 'comentarios_acao_pdi', 'registros_pdi')
   loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists isolamento_tenant on public.%I', t);
@@ -198,8 +199,6 @@ create policy alteracao on public.anotacoes_reuniao for update to journeylab_app
 create policy exclusao on public.anotacoes_reuniao for delete to journeylab_app
   using (tenant_id = public.jl_tenant() and autor_usuario_id = public.jl_usuario());
 
--- PDI: no máximo um plano aberto (rascunho ou ativo) por pessoa.
-create unique index if not exists pdi_um_aberto on public.pdis (colaborador_id) where status in ('rascunho', 'ativo');
 
 -- ════════════════════════════════════════════════════════════════════════
 -- Pulse — anonimato e mínimo de respondentes aplicados NO BANCO.
@@ -744,3 +743,127 @@ drop trigger if exists mesmo_tenant on public.reunioes;
 create trigger mesmo_tenant before insert or update of colaborador_id, gestor_id, tenant_id on public.reunioes
   for each row execute function public.jl_reuniao_mesmo_tenant();
 create unique index if not exists reuniao_sem_duplicidade on public.reunioes (colaborador_id, data_hora) where status <> 'cancelada';
+
+-- ════════════════════════════════════════════════════════════════════════
+-- PDI — acesso por papel e vínculo gestor→liderado aplicado NO BANCO.
+--   escopo "todos" (RH/Admin) → qualquer pessoa da organização;
+--   escopo "equipe" (gestor)  → só liderados diretos (colaboradores.gestor_id);
+--   escopo "próprio" não dá acesso (colaborador não acessa o módulo nesta versão);
+--   acesso de suporte vigente → só leitura; módulo precisa estar liberado.
+-- Excluir exige "editar" com escopo "todos".
+-- ════════════════════════════════════════════════════════════════════════
+create or replace function public.jl_acesso_pdi(p_colaborador uuid, p_acao text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.jl_tenant() is not null
+     and public.jl_modulo_liberado(public.jl_tenant(), 'pdi')
+     and exists (select 1 from colaboradores c where c.id = p_colaborador and c.tenant_id = public.jl_tenant())
+     and (
+       exists (
+         select 1
+           from associacoes a
+           join papel_permissoes pp on pp.papel_id = a.papel_id and pp.area::text = 'pdi'
+                and pp.acao::text = case when p_acao = 'excluir' then 'editar' else p_acao end
+           join colaboradores c on c.id = p_colaborador
+          where a.tenant_id = public.jl_tenant() and a.usuario_id = public.jl_usuario() and a.status = 'ativa'
+            and (pp.escopo = 'todos'
+                 or (p_acao <> 'excluir' and pp.escopo = 'equipe' and a.colaborador_id is not null
+                     and c.gestor_id = a.colaborador_id and c.id <> a.colaborador_id))
+       )
+       or (p_acao = 'visualizar' and exists (
+         select 1 from acessos_suporte s
+          where s.tenant_id = public.jl_tenant() and s.superadmin_id = public.jl_usuario()
+            and s.encerrado_em is null and s.expira_em > now()
+       ))
+     )
+$$;
+revoke all on function public.jl_acesso_pdi(uuid, text) from public;
+grant execute on function public.jl_acesso_pdi(uuid, text) to journeylab_app;
+
+create or replace function public.jl_acesso_pdi_do_plano(p_pdi uuid, p_acao text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from pdis p where p.id = p_pdi and p.tenant_id = public.jl_tenant() and public.jl_acesso_pdi(p.colaborador_id, p_acao))
+$$;
+revoke all on function public.jl_acesso_pdi_do_plano(uuid, text) from public;
+grant execute on function public.jl_acesso_pdi_do_plano(uuid, text) to journeylab_app;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['pdis', 'focos_pdi', 'acoes_pdi', 'comentarios_acao_pdi', 'registros_pdi'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists isolamento_tenant on public.%I', t);
+    execute format('drop policy if exists leitura on public.%I', t);
+    execute format('drop policy if exists insercao on public.%I', t);
+    execute format('drop policy if exists alteracao on public.%I', t);
+    execute format('drop policy if exists exclusao on public.%I', t);
+    execute format('drop policy if exists plataforma on public.%I', t);
+    execute format('create policy plataforma on public.%I for all to journeylab_app using (public.jl_plataforma()) with check (public.jl_plataforma())', t);
+  end loop;
+end $$;
+
+create policy leitura on public.pdis for select to journeylab_app
+  using (tenant_id = public.jl_tenant() and public.jl_acesso_pdi(colaborador_id, 'visualizar'));
+create policy insercao on public.pdis for insert to journeylab_app
+  with check (tenant_id = public.jl_tenant() and public.jl_acesso_pdi(colaborador_id, 'criar'));
+create policy alteracao on public.pdis for update to journeylab_app
+  using (tenant_id = public.jl_tenant() and public.jl_acesso_pdi(colaborador_id, 'editar'))
+  with check (tenant_id = public.jl_tenant() and public.jl_acesso_pdi(colaborador_id, 'editar'));
+create policy exclusao on public.pdis for delete to journeylab_app
+  using (tenant_id = public.jl_tenant() and public.jl_acesso_pdi(colaborador_id, 'excluir'));
+
+-- Focos, ações, comentários e registros seguem o plano: ler = visualizar; gravar = editar ou criar.
+do $$
+declare t text;
+begin
+  foreach t in array array['focos_pdi', 'acoes_pdi', 'comentarios_acao_pdi', 'registros_pdi'] loop
+    execute format('create policy leitura on public.%I for select to journeylab_app
+      using (tenant_id = public.jl_tenant() and public.jl_acesso_pdi_do_plano(pdi_id, ''visualizar''))', t);
+    execute format('create policy insercao on public.%I for insert to journeylab_app
+      with check (tenant_id = public.jl_tenant() and (public.jl_acesso_pdi_do_plano(pdi_id, ''editar'') or public.jl_acesso_pdi_do_plano(pdi_id, ''criar'')))', t);
+    execute format('create policy alteracao on public.%I for update to journeylab_app
+      using (tenant_id = public.jl_tenant() and public.jl_acesso_pdi_do_plano(pdi_id, ''editar''))
+      with check (tenant_id = public.jl_tenant() and public.jl_acesso_pdi_do_plano(pdi_id, ''editar''))', t);
+    execute format('create policy exclusao on public.%I for delete to journeylab_app
+      using (tenant_id = public.jl_tenant() and public.jl_acesso_pdi_do_plano(pdi_id, ''editar''))', t);
+  end loop;
+end $$;
+
+-- Ação: foco do mesmo plano; progresso coerente com o status (concluída = 100;
+-- não iniciada = sem progresso; em andamento = 1–99 ou vazio, que vale 50%).
+create or replace function public.jl_normalizar_acao_pdi() returns trigger
+language plpgsql as $$
+begin
+  if not exists (select 1 from public.focos_pdi f where f.id = new.foco_id and f.pdi_id = new.pdi_id and f.tenant_id = new.tenant_id) then
+    raise exception 'JL: O foco não pertence a este PDI.';
+  end if;
+  if new.status = 'concluida' then
+    new.progresso := 100;
+    new.concluida_em := coalesce(new.concluida_em, now());
+  elsif new.status = 'nao_iniciada' then
+    new.progresso := null;
+    new.concluida_em := null;
+  else
+    if new.progresso is not null and (new.progresso < 1 or new.progresso > 99) then new.progresso := null; end if;
+    new.concluida_em := null;
+  end if;
+  return new;
+end $$;
+drop trigger if exists normalizar on public.acoes_pdi;
+create trigger normalizar before insert or update on public.acoes_pdi
+  for each row execute function public.jl_normalizar_acao_pdi();
+
+-- Comentário: ação do mesmo plano e autor = usuário da sessão.
+create or replace function public.jl_comentario_acao_pdi() returns trigger
+language plpgsql as $$
+begin
+  if not exists (select 1 from public.acoes_pdi a where a.id = new.acao_id and a.pdi_id = new.pdi_id and a.tenant_id = new.tenant_id) then
+    raise exception 'JL: A ação não pertence a este PDI.';
+  end if;
+  if not public.jl_plataforma() and new.autor_usuario_id is distinct from public.jl_usuario() then
+    raise exception 'JL: Autor do comentário inválido.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists consistente on public.comentarios_acao_pdi;
+create trigger consistente before insert or update on public.comentarios_acao_pdi
+  for each row execute function public.jl_comentario_acao_pdi();

@@ -1,229 +1,229 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 import { transacao, type Tx } from "@/lib/db";
 import { ErroAcesso, exigirPermissaoAcao, pode, type Contexto } from "@/lib/contexto";
 import { auditar } from "@/lib/auditoria";
-import { escopoCobre } from "@/lib/escopo";
+import { dataDeTexto } from "@/lib/datas";
 import type { Acao } from "@/lib/permissoes";
-import { PDI_ABERTO } from "./regras";
-import type { EstadoForm } from "@/lib/auth/actions";
+import { CHAVES_FOCO, nomeFoco } from "./focos";
+import { STATUS_ACAO } from "./calculo";
+import { cobrePdi } from "./regras";
 
-function erroDe(e: unknown): EstadoForm {
+export type RespostaPdi = { ok?: string; erro?: string; id?: string };
+
+function erroDe(e: unknown): RespostaPdi {
   if (e instanceof z.ZodError) return { erro: e.issues[0].message };
-  if (e && typeof e === "object" && "code" in e && (e as { code: string }).code === "P2002") {
-    return { erro: "Esta pessoa já tem um PDI em rascunho ou ativo." };
-  }
-  return { erro: e instanceof Error ? e.message : "Não foi possível concluir." };
+  const msg = e instanceof Error ? e.message : "";
+  if (/row-level security/i.test(msg)) return { erro: "Você não tem permissão para esta operação neste PDI." };
+  const doBanco = msg.match(/JL: ([^\n"]+)/);
+  if (doBanco) return { erro: doBanco[1].trim() };
+  if (e && typeof e === "object" && "code" in e && (e as { code: string }).code === "P2002") return { erro: "Há focos repetidos neste PDI." };
+  return { erro: msg && !/prisma|invocation/i.test(msg) ? msg : "Não foi possível concluir. Tente novamente." };
 }
 
-const texto = z.string().trim().transform((v) => v || null);
-const data = (msg: string) => z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, msg).transform((v) => new Date(`${v}T12:00:00`));
-const dataOpcional = z
-  .string()
-  .trim()
-  .transform((v) => (v ? new Date(`${v}T12:00:00`) : null));
-const urlOpcional = z
-  .string()
-  .trim()
-  .transform((v) => v || null)
-  .pipe(z.string().url("Link inválido.").refine((u) => u.startsWith("https://"), "Use um link https://").nullable());
 const escopoTx = (ctx: Contexto) => ({ escopo: "tenant" as const, tenantId: ctx.org.id, usuarioId: ctx.usuario.id });
 const quem = (ctx: Contexto) => ({ id: ctx.usuario.id, nome: ctx.usuario.nome });
+const uuid = z.string().uuid();
+const dataTxt = (msg: string) => z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, msg);
+const opcional = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .nullable()
+    .transform((v) => v || null);
 
-async function registro(tx: Tx, ctx: Contexto, pdiId: string, tipo: "comentario" | "revisao" | "evento", t: string) {
-  await tx.registroPdi.create({ data: { tenantId: ctx.org.id, pdiId, tipo, texto: t, autorNome: ctx.usuario.nome } });
-}
-
-/** Carrega o PDI e confere se o escopo da ação cobre a pessoa dona do plano. */
-async function pdiPermitido(tx: Tx, ctx: Contexto, pdiId: string, acao: Acao, escopo: ReturnType<typeof pode>) {
-  const p = await tx.pdi.findUnique({ where: { id: pdiId }, include: { colaborador: true } });
-  if (!p) throw new ErroAcesso("PDI não encontrado.");
-  if (!escopoCobre(ctx, escopo, p.colaborador)) {
-    throw new ErroAcesso(acao === "visualizar" ? "PDI não encontrado." : "Você não tem permissão para alterar este PDI.");
-  }
-  return p;
-}
-
-function exigirAberto(p: { status: string }) {
-  if (!(PDI_ABERTO as readonly string[]).includes(p.status)) throw new ErroAcesso("O PDI está encerrado. Reabra-o para alterar.");
-}
-
-export async function criarPdi(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
-  let id: string;
-  try {
-    const { ctx, escopo } = await exigirPermissaoAcao("pdi", "criar");
-    const colaboradorId = z.string().uuid("Selecione a pessoa.").parse(fd.get("colaboradorId"));
-    const titulo = z.string().trim().min(3, "Informe o título do plano.").max(120).parse(fd.get("titulo"));
-    const inicio = data("Informe o início.").parse(fd.get("inicio"));
-    const fim = data("Informe o fim.").parse(fd.get("fim"));
-    if (fim <= inicio) throw new ErroAcesso("O fim deve ser depois do início.");
-    id = await transacao(escopoTx(ctx), async (tx) => {
-      const pessoa = await tx.colaborador.findUnique({ where: { id: colaboradorId } });
-      if (!pessoa || !escopoCobre(ctx, escopo, pessoa)) throw new ErroAcesso("Você não pode criar PDI para esta pessoa.");
-      if (pessoa.status !== "ativo") throw new ErroAcesso("PDI é para pessoas ativas (conclua o onboarding antes).");
-      const p = await tx.pdi.create({ data: { tenantId: ctx.org.id, colaboradorId, titulo, inicio, fim, criadoPor: ctx.usuario.nome } });
-      await registro(tx, ctx, p.id, "evento", "PDI criado em rascunho.");
-      await auditar(tx, { tenantId: ctx.org.id, usuario: quem(ctx), acao: "pdi.criar", entidade: "pdi", entidadeId: p.id });
-      return p.id;
-    });
-  } catch (e) {
-    return erroDe(e);
-  }
-  revalidatePath("/pdi");
-  redirect(`/pdi/${id}`);
-}
-
-export async function editarPdi(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
-  try {
-    const { ctx, escopo } = await exigirPermissaoAcao("pdi", "editar");
-    const id = z.string().uuid().parse(fd.get("pdiId"));
-    const titulo = z.string().trim().min(3, "Informe o título do plano.").max(120).parse(fd.get("titulo"));
-    const inicio = data("Informe o início.").parse(fd.get("inicio"));
-    const fim = data("Informe o fim.").parse(fd.get("fim"));
-    if (fim <= inicio) throw new ErroAcesso("O fim deve ser depois do início.");
-    await transacao(escopoTx(ctx), async (tx) => {
-      const p = await pdiPermitido(tx, ctx, id, "editar", escopo);
-      exigirAberto(p);
-      await tx.pdi.update({ where: { id }, data: { titulo, inicio, fim } });
-    });
-    revalidatePath(`/pdi/${id}`);
-    return { ok: "PDI atualizado." };
-  } catch (e) {
-    return erroDe(e);
-  }
-}
-
-/**
- * Ciclo de vida: rascunho → ativo → concluído; arquivar a qualquer momento;
- * reabrir concluído/arquivado. Exige "concluir" (gestor/RH/admin conforme papel).
- */
-export async function alterarStatusPdi(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
-  try {
-    const { ctx, escopo } = await exigirPermissaoAcao("pdi", "concluir");
-    const id = z.string().uuid().parse(fd.get("pdiId"));
-    const acao = z.enum(["ativar", "concluir", "arquivar", "reabrir"]).parse(fd.get("acao"));
-    const msg = await transacao(escopoTx(ctx), async (tx) => {
-      const p = await pdiPermitido(tx, ctx, id, "concluir", escopo);
-      if (acao === "ativar") {
-        if (p.status !== "rascunho") throw new ErroAcesso("Só um rascunho pode ser ativado.");
-        const acoes = await tx.acaoPdi.count({ where: { pdiId: id, status: { not: "cancelada" } } });
-        if (!acoes) throw new ErroAcesso("Inclua ao menos um objetivo com uma ação antes de ativar.");
-        await tx.pdi.update({ where: { id }, data: { status: "ativo" } });
-      } else if (acao === "concluir") {
-        if (p.status !== "ativo") throw new ErroAcesso("Só um PDI ativo pode ser concluído.");
-        await tx.pdi.update({ where: { id }, data: { status: "concluido", concluidoEm: new Date() } });
-      } else if (acao === "arquivar") {
-        if (p.status === "arquivado") throw new ErroAcesso("O PDI já está arquivado.");
-        await tx.pdi.update({ where: { id }, data: { status: "arquivado" } });
-      } else {
-        if ((PDI_ABERTO as readonly string[]).includes(p.status)) throw new ErroAcesso("O PDI já está aberto.");
-        await tx.pdi.update({ where: { id }, data: { status: "ativo", concluidoEm: null } });
+const acaoSchema = z.object({
+  id: uuid.optional().nullable(),
+  descricao: z.string().trim().min(3, "Descreva cada ação (mínimo 3 caracteres).").max(300),
+  tipo: z.enum(["treinamento", "mentoria", "leitura", "projeto_pratico"], { message: "Escolha o tipo da ação." }),
+  responsavel: z.enum(["colaborador", "gestor", "ambos"], { message: "Escolha o responsável pela ação." }),
+  inicio: dataTxt("Início da ação inválido.").optional().nullable().or(z.literal("")),
+  prazo: dataTxt("Informe o prazo de cada ação."),
+  investimento: z
+    .union([z.number(), z.string()])
+    .optional()
+    .nullable()
+    .transform((v, c) => {
+      if (v === null || v === undefined || v === "") return null;
+      const n = typeof v === "number" ? v : Number(String(v).replace(/\./g, "").replace(",", "."));
+      if (!Number.isFinite(n) || n < 0 || n > 10_000_000) {
+        c.addIssue({ code: "custom", message: "Investimento estimado inválido." });
+        return z.NEVER;
       }
-      const t = { ativar: "PDI ativado.", concluir: "PDI concluído.", arquivar: "PDI arquivado.", reabrir: "PDI reaberto." }[acao];
-      await registro(tx, ctx, id, "evento", t);
-      await auditar(tx, { tenantId: ctx.org.id, usuario: quem(ctx), acao: `pdi.${acao}`, entidade: "pdi", entidadeId: id });
-      return t;
+      return Math.round(n * 100) / 100;
+    }),
+  impacto: opcional(500),
+  mentor: opcional(120),
+});
+
+const focoSchema = z
+  .object({
+    id: uuid.optional().nullable(),
+    chave: z.enum(CHAVES_FOCO, { message: "Foco inválido." }),
+    nomePersonalizado: opcional(80),
+    descricao: opcional(1000),
+    importancia: opcional(1000),
+    objetivo: opcional(1000),
+    acoes: z.array(acaoSchema).max(30, "No máximo 30 ações por foco."),
+  })
+  .superRefine((f, c) => {
+    if (f.chave === "outro" && (f.nomePersonalizado ?? "").length < 2) c.addIssue({ code: "custom", message: "Dê um nome ao foco “Outro”." });
+  });
+
+const pdiSchema = z
+  .object({
+    id: uuid.optional().nullable(),
+    colaboradorId: uuid.or(z.literal("")).refine((v) => !!v, "Selecione o colaborador."),
+    titulo: z.string().trim().min(3, "Informe o título do plano.").max(120),
+    descricao: opcional(2000),
+    inicio: dataTxt("Informe a data de início."),
+    fim: dataTxt("Informe a data prevista de término."),
+    origem: z.enum(["manual", "feedback", "onboarding"]).default("manual"),
+    origemId: uuid.optional().nullable(),
+    focos: z.array(focoSchema).min(1, "Escolha ao menos um foco de desenvolvimento.").max(10, "No máximo 10 focos."),
+  })
+  .superRefine((d, c) => {
+    if (d.fim < d.inicio) c.addIssue({ code: "custom", message: "O término previsto deve ser igual ou posterior ao início." });
+    const chaves = d.focos.filter((f) => f.chave !== "outro").map((f) => f.chave);
+    if (new Set(chaves).size !== chaves.length) c.addIssue({ code: "custom", message: "Há focos repetidos no plano." });
+    for (const f of d.focos)
+      for (const a of f.acoes) if (a.inicio && a.inicio > a.prazo) c.addIssue({ code: "custom", message: `O prazo da ação “${a.descricao}” é anterior ao início.` });
+  });
+
+/** Pessoa e escopo conferidos no servidor (o banco repete a regra em jl_acesso_pdi). */
+async function pessoaPermitida(tx: Tx, ctx: Contexto, colaboradorId: string, acao: Acao) {
+  const pessoa = await tx.colaborador.findUnique({ where: { id: colaboradorId } });
+  if (!pessoa || !cobrePdi(ctx, pode(ctx, "pdi", acao), pessoa)) throw new ErroAcesso("Você não pode gerir PDI desta pessoa.");
+  return pessoa;
+}
+
+async function registro(tx: Tx, ctx: Contexto, pdiId: string, tipo: "comentario" | "revisao" | "evento", texto: string) {
+  await tx.registroPdi.create({ data: { tenantId: ctx.org.id, pdiId, tipo, texto, autorNome: ctx.usuario.nome } });
+}
+
+/**
+ * Cria ou edita o PDI completo (fluxo guiado). Na edição, focos e ações são
+ * atualizados pelo id; os que saíram do formulário são removidos. Status e
+ * progresso das ações existentes são preservados (mudam no detalhe).
+ */
+export async function salvarPdi(payload: string): Promise<RespostaPdi> {
+  try {
+    let bruto: { id?: unknown };
+    try {
+      bruto = JSON.parse(payload);
+    } catch {
+      throw new ErroAcesso("Dados do formulário inválidos.");
+    }
+    // Sessão, módulo e permissão antes de qualquer validação de conteúdo.
+    const { ctx } = await exigirPermissaoAcao("pdi", bruto?.id ? "editar" : "criar");
+    const d = pdiSchema.parse(bruto);
+    const id = await transacao(escopoTx(ctx), async (tx) => {
+      let pdiId = d.id ?? null;
+      const cabecalho = { titulo: d.titulo, descricao: d.descricao, inicio: dataDeTexto(d.inicio), fim: dataDeTexto(d.fim) };
+      if (pdiId) {
+        const atual = await tx.pdi.findUnique({ where: { id: pdiId }, include: { focos: { include: { acoes: { select: { id: true } } } } } });
+        if (!atual) throw new ErroAcesso("PDI não encontrado.");
+        await pessoaPermitida(tx, ctx, atual.colaboradorId, "editar");
+        if (atual.colaboradorId !== d.colaboradorId) throw new ErroAcesso("O colaborador de um PDI não pode ser trocado.");
+        await tx.pdi.update({ where: { id: pdiId }, data: cabecalho });
+        const focosMantidos = new Set(d.focos.map((f) => f.id).filter(Boolean));
+        const acoesMantidas = new Set(d.focos.flatMap((f) => f.acoes.map((a) => a.id)).filter(Boolean));
+        const idsFocos = new Set(atual.focos.map((f) => f.id));
+        const idsAcoes = new Set(atual.focos.flatMap((f) => f.acoes.map((a) => a.id)));
+        for (const f of d.focos) if (f.id && !idsFocos.has(f.id)) throw new ErroAcesso("Foco não pertence a este PDI.");
+        for (const f of d.focos) for (const a of f.acoes) if (a.id && !idsAcoes.has(a.id)) throw new ErroAcesso("Ação não pertence a este PDI.");
+        await tx.acaoPdi.deleteMany({ where: { pdiId, id: { notIn: [...acoesMantidas] as string[] } } });
+        await tx.focoPdi.deleteMany({ where: { pdiId, id: { notIn: [...focosMantidos] as string[] } } });
+      } else {
+        const pessoa = await pessoaPermitida(tx, ctx, d.colaboradorId, "criar");
+        if (pessoa.status !== "ativo") throw new ErroAcesso("PDI é para colaboradores ativos.");
+        const p = await tx.pdi.create({ data: { ...cabecalho, tenantId: ctx.org.id, colaboradorId: d.colaboradorId, criadoPor: ctx.usuario.nome } });
+        pdiId = p.id;
+      }
+      for (const [i, f] of d.focos.entries()) {
+        const dadosFoco = { focoChave: f.chave, nomePersonalizado: f.chave === "outro" ? f.nomePersonalizado : null, descricao: f.descricao, importancia: f.importancia, objetivo: f.objetivo, ordem: i };
+        const focoId = f.id
+          ? (await tx.focoPdi.update({ where: { id: f.id }, data: dadosFoco })).id
+          : (await tx.focoPdi.create({ data: { ...dadosFoco, tenantId: ctx.org.id, pdiId: pdiId! } })).id;
+        for (const [j, a] of f.acoes.entries()) {
+          const dadosAcao = {
+            focoId,
+            descricao: a.descricao,
+            tipo: a.tipo,
+            responsavel: a.responsavel,
+            inicio: a.inicio ? dataDeTexto(a.inicio) : null,
+            prazo: dataDeTexto(a.prazo),
+            investimento: a.investimento,
+            impacto: a.impacto,
+            mentor: a.mentor,
+            ordem: j,
+          };
+          if (a.id) await tx.acaoPdi.update({ where: { id: a.id }, data: dadosAcao });
+          else await tx.acaoPdi.create({ data: { ...dadosAcao, tenantId: ctx.org.id, pdiId: pdiId!, criadoPor: ctx.usuario.nome } });
+        }
+      }
+      const origem = d.origem === "feedback" ? " a partir de um feedback 1:1" : d.origem === "onboarding" ? " a partir do onboarding" : "";
+      await registro(tx, ctx, pdiId!, "evento", d.id ? "Plano editado." : `PDI criado${origem} com ${d.focos.length} foco(s): ${d.focos.map((f) => nomeFoco(f.chave, f.nomePersonalizado)).join(", ")}.`);
+      await auditar(tx, {
+        tenantId: ctx.org.id,
+        usuario: quem(ctx),
+        acao: d.id ? "pdi.editar" : "pdi.criar",
+        entidade: "pdi",
+        entidadeId: pdiId!,
+        detalhes: { focos: d.focos.length, acoes: d.focos.reduce((n, f) => n + f.acoes.length, 0), origem: d.origem, origemId: d.origemId ?? null },
+      });
+      return pdiId!;
     });
-    revalidatePath(`/pdi/${id}`);
     revalidatePath("/pdi");
-    return { ok: msg };
+    revalidatePath(`/pdi/${id}`);
+    return { ok: d.id ? "PDI atualizado." : "PDI criado.", id };
   } catch (e) {
     return erroDe(e);
   }
 }
 
-export async function adicionarObjetivo(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
+/** Excluir: RH/Admin (editar com escopo "todos"); o banco exige o mesmo. */
+export async function excluirPdi(id: string): Promise<RespostaPdi> {
   try {
     const { ctx, escopo } = await exigirPermissaoAcao("pdi", "editar");
-    const pdiId = z.string().uuid().parse(fd.get("pdiId"));
-    const titulo = z.string().trim().min(3, "Informe o objetivo.").max(200).parse(fd.get("titulo"));
-    const competencia = texto.parse(fd.get("competencia") ?? "");
-    const descricao = texto.parse(fd.get("descricao") ?? "");
+    if (escopo !== "todos") throw new ErroAcesso("Somente RH e administradores excluem PDIs.");
     await transacao(escopoTx(ctx), async (tx) => {
-      const p = await pdiPermitido(tx, ctx, pdiId, "editar", escopo);
-      exigirAberto(p);
-      const ordem = await tx.objetivoPdi.count({ where: { pdiId } });
-      await tx.objetivoPdi.create({ data: { tenantId: ctx.org.id, pdiId, titulo, competencia, descricao, ordem } });
-      await registro(tx, ctx, pdiId, "evento", `Objetivo incluído: “${titulo}”.`);
+      const p = await tx.pdi.findUnique({ where: { id: uuid.parse(id) }, include: { colaborador: { select: { nome: true } } } });
+      if (!p) throw new ErroAcesso("PDI não encontrado.");
+      await tx.pdi.delete({ where: { id } });
+      await auditar(tx, { tenantId: ctx.org.id, usuario: quem(ctx), acao: "pdi.excluir", entidade: "pdi", entidadeId: id, detalhes: { titulo: p.titulo, colaborador: p.colaborador.nome } });
     });
-    revalidatePath(`/pdi/${pdiId}`);
-    return { ok: "Objetivo incluído." };
-  } catch (e) {
-    return erroDe(e);
-  }
-}
-
-export async function alterarObjetivo(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
-  try {
-    const { ctx, escopo } = await exigirPermissaoAcao("pdi", "editar");
-    const id = z.string().uuid().parse(fd.get("objetivoId"));
-    const status = z.enum(["em_andamento", "concluido", "cancelado"]).parse(fd.get("status"));
-    const pdiId = await transacao(escopoTx(ctx), async (tx) => {
-      const o = await tx.objetivoPdi.findUnique({ where: { id } });
-      if (!o) throw new ErroAcesso("Objetivo não encontrado.");
-      const p = await pdiPermitido(tx, ctx, o.pdiId, "editar", escopo);
-      exigirAberto(p);
-      await tx.objetivoPdi.update({ where: { id }, data: { status } });
-      await registro(tx, ctx, o.pdiId, "evento", `Objetivo “${o.titulo}” marcado como ${status === "concluido" ? "concluído" : status === "cancelado" ? "cancelado" : "em andamento"}.`);
-      return o.pdiId;
-    });
-    revalidatePath(`/pdi/${pdiId}`);
-    return { ok: "Objetivo atualizado." };
-  } catch (e) {
-    return erroDe(e);
-  }
-}
-
-export async function adicionarAcao(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
-  try {
-    const { ctx, escopo } = await exigirPermissaoAcao("pdi", "editar");
-    const objetivoId = z.string().uuid().parse(fd.get("objetivoId"));
-    const titulo = z.string().trim().min(3, "Descreva a ação.").max(300).parse(fd.get("titulo"));
-    const tipo = z.enum(["pratica", "curso", "mentoria", "leitura", "projeto", "outro"]).parse(fd.get("tipo"));
-    const prazo = dataOpcional.parse(fd.get("prazo") ?? "");
-    const pdiId = await transacao(escopoTx(ctx), async (tx) => {
-      const o = await tx.objetivoPdi.findUnique({ where: { id: objetivoId } });
-      if (!o) throw new ErroAcesso("Objetivo não encontrado.");
-      const p = await pdiPermitido(tx, ctx, o.pdiId, "editar", escopo);
-      exigirAberto(p);
-      await tx.acaoPdi.create({ data: { tenantId: ctx.org.id, pdiId: o.pdiId, objetivoId, titulo, tipo, prazo, criadoPor: ctx.usuario.nome } });
-      return o.pdiId;
-    });
-    revalidatePath(`/pdi/${pdiId}`);
-    return { ok: "Ação incluída." };
+    revalidatePath("/pdi");
+    return { ok: "PDI excluído." };
   } catch (e) {
     return erroDe(e);
   }
 }
 
 /**
- * Progresso de uma ação. Concluir exige evidência (texto ou link). Se a ação
- * veio de um compromisso de 1:1, o compromisso é concluído junto.
+ * Atualiza status/progresso de uma ação. Progresso 100 conclui; 0 volta para
+ * "não iniciada"; entre 1 e 99 fica "em andamento". Concluir = 100%.
  */
-export async function alterarAcao(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
+export async function atualizarAcao(acaoId: string, status: string, progresso: number | null): Promise<RespostaPdi> {
   try {
-    const { ctx, escopo } = await exigirPermissaoAcao("pdi", "editar");
-    const id = z.string().uuid().parse(fd.get("acaoId"));
-    const status = z.enum(["pendente", "em_andamento", "concluida", "cancelada"]).parse(fd.get("status"));
-    const evidencia = texto.parse(fd.get("evidencia") ?? "");
-    const evidenciaUrl = urlOpcional.parse(fd.get("evidenciaUrl") ?? "");
+    const { ctx } = await exigirPermissaoAcao("pdi", "editar");
+    let st = z.enum(["nao_iniciada", "em_andamento", "concluida"]).parse(status);
+    let pr = progresso === null || progresso === undefined ? null : z.number().int("Progresso inválido.").min(0).max(100, "Progresso entre 0 e 100.").parse(progresso);
+    if (pr === 100) st = "concluida";
+    else if (pr === 0) st = "nao_iniciada";
+    else if (pr !== null && st !== "em_andamento") st = "em_andamento";
+    if (st !== "em_andamento") pr = null;
     const pdiId = await transacao(escopoTx(ctx), async (tx) => {
-      const a = await tx.acaoPdi.findUnique({ where: { id } });
+      const a = await tx.acaoPdi.findUnique({ where: { id: uuid.parse(acaoId) }, include: { pdi: { select: { colaboradorId: true } } } });
       if (!a) throw new ErroAcesso("Ação não encontrada.");
-      const p = await pdiPermitido(tx, ctx, a.pdiId, "editar", escopo);
-      exigirAberto(p);
-      const ev = evidencia ?? a.evidencia;
-      const evUrl = evidenciaUrl ?? a.evidenciaUrl;
-      if (status === "concluida" && !ev && !evUrl) throw new ErroAcesso("Para concluir, registre uma evidência (descrição ou link).");
-      await tx.acaoPdi.update({
-        where: { id },
-        data: { status, evidencia: ev, evidenciaUrl: evUrl, concluidaEm: status === "concluida" ? (a.concluidaEm ?? new Date()) : null },
-      });
-      if (status !== a.status) await registro(tx, ctx, a.pdiId, "evento", `Ação “${a.titulo}”: ${status.replace("_", " ")}.`);
-      if (status === "concluida" && a.compromissoOrigemId) {
+      await pessoaPermitida(tx, ctx, a.pdi.colaboradorId, "editar");
+      await tx.acaoPdi.update({ where: { id: a.id }, data: { status: st, progresso: pr } });
+      if (st !== a.status) await registro(tx, ctx, a.pdiId, "evento", `Ação “${a.descricao}”: ${STATUS_ACAO[st].nome.toLowerCase()}.`);
+      if (st === "concluida" && a.compromissoOrigemId) {
         await tx.compromisso.updateMany({
           where: { id: a.compromissoOrigemId, status: "aberto" },
           data: { status: "concluido", concluidoEm: new Date(), concluidoPor: `${ctx.usuario.nome} (via PDI)` },
@@ -232,28 +232,47 @@ export async function alterarAcao(_: EstadoForm, fd: FormData): Promise<EstadoFo
       return a.pdiId;
     });
     revalidatePath(`/pdi/${pdiId}`);
+    revalidatePath("/pdi");
     revalidatePath("/inicio");
-    return { ok: "Ação atualizada." };
+    return { ok: st === "concluida" ? "Ação concluída (100%)." : "Ação atualizada." };
   } catch (e) {
     return erroDe(e);
   }
 }
 
-/** Comentário (quem vê o PDI) ou revisão formal (quem edita com escopo de equipe/todos). */
-export async function registrarNoPdi(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
+/** Comentário de RH/gestor numa ação — ou fala do colaborador registrada por quem acompanha. */
+export async function comentarAcao(acaoId: string, tipo: string, texto: string): Promise<RespostaPdi> {
   try {
-    const tipo = z.enum(["comentario", "revisao"]).parse(fd.get("tipo"));
-    const { ctx, escopo } = await exigirPermissaoAcao("pdi", tipo === "revisao" ? "editar" : "visualizar");
-    if (ctx.suporte) throw new ErroAcesso("Acesso de suporte é somente leitura.");
-    if (tipo === "revisao" && escopo === "proprio") throw new ErroAcesso("Revisões são registradas pelo gestor ou pelo RH.");
-    const pdiId = z.string().uuid().parse(fd.get("pdiId"));
-    const conteudo = z.string().trim().min(2, "Escreva o texto.").max(5000).parse(fd.get("texto"));
-    await transacao(escopoTx(ctx), async (tx) => {
-      await pdiPermitido(tx, ctx, pdiId, tipo === "revisao" ? "editar" : "visualizar", escopo);
-      await registro(tx, ctx, pdiId, tipo, conteudo);
+    const { ctx } = await exigirPermissaoAcao("pdi", "editar");
+    const t = z.enum(["comentario", "fala_colaborador"]).parse(tipo);
+    const conteudo = z.string().trim().min(2, "Escreva o comentário.").max(2000).parse(texto);
+    const pdiId = await transacao(escopoTx(ctx), async (tx) => {
+      const a = await tx.acaoPdi.findUnique({ where: { id: uuid.parse(acaoId) }, include: { pdi: { select: { colaboradorId: true } } } });
+      if (!a) throw new ErroAcesso("Ação não encontrada.");
+      await pessoaPermitida(tx, ctx, a.pdi.colaboradorId, "editar");
+      await tx.comentarioAcaoPdi.create({ data: { tenantId: ctx.org.id, pdiId: a.pdiId, acaoId: a.id, tipo: t, texto: conteudo, autorUsuarioId: ctx.usuario.id, autorNome: ctx.usuario.nome } });
+      return a.pdiId;
     });
     revalidatePath(`/pdi/${pdiId}`);
-    return { ok: tipo === "revisao" ? "Revisão registrada." : "Comentário registrado." };
+    return { ok: t === "fala_colaborador" ? "Fala do colaborador registrada." : "Comentário registrado." };
+  } catch (e) {
+    return erroDe(e);
+  }
+}
+
+/** Revisão do plano (histórico). */
+export async function registrarRevisao(pdiId: string, texto: string): Promise<RespostaPdi> {
+  try {
+    const { ctx } = await exigirPermissaoAcao("pdi", "editar");
+    const conteudo = z.string().trim().min(2, "Escreva a revisão.").max(5000).parse(texto);
+    await transacao(escopoTx(ctx), async (tx) => {
+      const p = await tx.pdi.findUnique({ where: { id: uuid.parse(pdiId) } });
+      if (!p) throw new ErroAcesso("PDI não encontrado.");
+      await pessoaPermitida(tx, ctx, p.colaboradorId, "editar");
+      await registro(tx, ctx, pdiId, "revisao", conteudo);
+    });
+    revalidatePath(`/pdi/${pdiId}`);
+    return { ok: "Revisão registrada." };
   } catch (e) {
     return erroDe(e);
   }

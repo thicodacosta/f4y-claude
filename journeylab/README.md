@@ -13,8 +13,8 @@ O site comercial é outro projeto (Claude Design).
 | 2. CRM de Candidatos (cadastro, duplicidade, currículo/anexos em storage privado, tags, histórico, vagas, candidaturas, exportação CSV auditada, conversão em colaborador) | **Funcional e testada** |
 | 3. Onboarding v2 (templates 30/60/90 por organização e por área, fases com marco, tarefas com status/bloqueio/anexos, lista·Kanban·painel, linha do tempo e Kanban de tarefas com arrastar, progresso e conclusão automáticos, criação automática no cadastro, alertas, lembrete por e-mail ao gestor) | **Funcional e testada** |
 | 4. Feedback 1:1 (avaliação de Performance × Cultura com 16 critérios, médias e semáforo pelo banco, cadência, agenda com recorrência e links de calendário, PDI sugerido com confirmação, pautas, anotações com privacidade no banco, compromissos) | **Funcional e testada** |
-| 5. PDI (rascunho → ativo → concluído/arquivado, objetivos, ações com evidência, revisões e comentários, integração com compromissos) | **Funcional e testada** |
-| 6. Pulse (templates globais e da empresa, 16 tipos de pergunta, assistente em 3 passos, audiência por departamento/equipe/pessoa, envio white-label com link pessoal, página pública de resposta, anônima ou identificada, eNPS, mapa de calor por departamento, Insights IA, lembretes, mínimo de respondentes e regra do complemento no banco) | **Funcional e testada** (IA: sem chave, testado só o estado indisponível) |
+| 5. PDI (focos de desenvolvimento do catálogo, ações com responsável/prazo/progresso/investimento/impacto/mentor, status e progresso calculados, lista·Kanban·Dashboard, fluxo guiado em 5 etapas, comentários, permissões e vínculo gestor→liderado no banco, sugestões do Feedback 1:1 e do Onboarding com confirmação) | **Funcional e testada** |
+| 6. Pulse (templates globais e da empresa, 16 tipos de pergunta, assistente em 3 passos, audiência por departamento/equipe/pessoa, envio white-label com link pessoal, página pública de resposta, anônima ou identificada, eNPS, mapa de calor por departamento, Insights IA, lembretes, mínimo de respondentes e regra do complemento no banco) | **Funcional e testada** (IA testada com servidor falso; sem chamada à API real) |
 | 7. Diagnóstico NR-1 (questionário de referência editável, participação anônima, índices por dimensão, riscos, plano de ação, relatório CSV auditado) | **Funcional e testada** |
 | 8. Painel integrado, jornada da pessoa entre módulos, exportações com permissão, retenção configurável, rotina diária, compra Kiwify/site → ativação | **Funcional e testada** |
 
@@ -69,9 +69,11 @@ node scripts/e2e/base.mjs            # isolamento entre organizações, escopos,
 node scripts/e2e/administracao.mjs   # módulos, histórico, suporte, convites, permissões
 node scripts/e2e/crm.mjs             # CRM: cadastro, duplicidade, upload, conversão, exportação, isolamento
 node scripts/e2e/onboarding.mjs      # Onboarding: acesso, status por data, Kanban, conclusão automática, cadastro → onboarding, lembrete
-node scripts/e2e/feedback-pdi.mjs    # 1:1 (privacidade das anotações no banco) e PDI (ciclo, evidências, 1:1 → PDI)
+node scripts/e2e/feedback-pdi.mjs    # 1:1 (privacidade das anotações no banco) e compromisso de 1:1 → ação do PDI
 node scripts/e2e/feedback-avaliacoes.mjs # Feedback avaliado: regra de médias/semáforo, acesso, cadência, agenda, PDI
 node scripts/e2e/pulse.mjs           # Pulse: banco (anonimato, mínimo, complemento), assistente, e-mails, resposta pública, abas, permissões, rotina
+node scripts/e2e/pdi.mjs             # PDI: RLS por papel/vínculo, cálculo de status, fluxo guiado, Feedback/Onboarding → PDI
+npx tsx --conditions=react-server scripts/e2e/ia.mts   # IA: cliente contra servidor falso (sem chave real) e dados enviados só agregados
 node scripts/e2e/nr1.mjs             # NR-1: agregação, acesso restrito, riscos, plano de ação, relatório
 node scripts/e2e/etapa8.mjs          # Compra → ativação, rotina diária, retenção, exportações, jornada
 ```

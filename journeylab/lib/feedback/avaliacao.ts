@@ -84,8 +84,8 @@ export function criteriosMaisBaixos(notas: Notas, limite = 3) {
     .slice(0, limite);
 }
 
-/** Critérios com nota ≤ 2 → focos sugeridos para PDI. */
-export const focosPdi = (notas: Notas) => TODOS_CRITERIOS.filter((c) => (notas[c.campo] ?? 5) <= 2);
+/** Notas de um registro de avaliação (colunas p_*, c_*) no formato { campo: nota }. */
+export const notasDe = (a: object) => Object.fromEntries(TODOS_CRITERIOS.map((c) => [c.campo, (a as Record<string, number>)[c.campo]])) as Notas;
 
 // ─── Cadência ─────────────────────────────────────────────────────────────
 

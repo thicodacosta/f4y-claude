@@ -163,11 +163,11 @@ export async function exigirContexto(): Promise<Contexto> {
 }
 
 /**
- * Escopo mínimo por área: Onboarding e Feedback 1:1 (nesta versão) são de RH/Admin e gestores —
+ * Escopo mínimo por área: Onboarding, Feedback 1:1, Pulse e PDI (nesta versão) são de RH/Admin e gestores —
  * uma permissão com escopo "próprio" (colaborador) não dá acesso, mesmo se
  * concedida no editor de papéis.
  */
-const ESCOPO_MINIMO: Partial<Record<AreaPermissao, Escopo>> = { onboarding: "equipe", feedback: "equipe", pulse: "equipe" };
+const ESCOPO_MINIMO: Partial<Record<AreaPermissao, Escopo>> = { onboarding: "equipe", feedback: "equipe", pulse: "equipe", pdi: "equipe" };
 
 function escopoEfetivo(ctx: Contexto, area: AreaPermissao, acao: Acao): Escopo | null {
   const e = escopoDe(ctx.permissoes, area, acao);
