@@ -1,381 +1,409 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { Download, EyeOff, Trash2, Users } from "lucide-react";
-import { exigirContexto, pode } from "@/lib/contexto";
-import { dbTenant } from "@/lib/db";
-import { auditar } from "@/lib/auditoria";
-import { equipesLideradas } from "@/lib/pulse/regras";
-import { AVISO_NR1, faixa, filtroCiclos, PRIORIDADE, STATUS_ACAO_NR1, STATUS_CICLO, STATUS_RISCO } from "@/lib/nr1/regras";
-import { adesaoNr1, indicesPorDimensao, resultadoNr1 } from "@/lib/nr1/consultas";
-import {
-  adicionarAcaoNr1,
-  adicionarDimensao,
-  adicionarPerguntaNr1,
-  alterarAcaoNr1,
-  alterarRisco,
-  alterarStatusCiclo,
-  excluirItemNr1,
-  registrarRisco,
-  salvarCiclo,
-} from "@/lib/nr1/actions";
-import { formatarData } from "@/lib/formato";
-import { BarraProgresso } from "@/components/secao";
+import { Download, FileText, Pencil, Sparkles } from "lucide-react";
+import { exigirModulo, pode } from "@/lib/contexto";
+import { formatarData, formatarDataHora } from "@/lib/formato";
+import { valorPermitido } from "@/lib/validacao";
+import { iaDisponivel } from "@/lib/ia";
+import { adesaoNr1 } from "@/lib/nr1/consultas";
+import { carregarRelatorioNr1, type Recorte } from "@/lib/nr1/relatorio";
+import { faixaDe, LIMITACOES, MOTIVO_OCULTO } from "@/lib/nr1/calculo";
+import { AUDIENCIA_NR1, AVISO_NR1, PRIORIDADE, STATUS_ACAO_NR1, STATUS_CICLO } from "@/lib/nr1/regras";
+import { ESCALA_NR1, TIPO_DIAGNOSTICO } from "@/lib/nr1/questionario";
+import type { SugestoesNr1 } from "@/lib/nr1/actions";
 import { Selo } from "@/components/app/lista";
 import { Cartao, CabecalhoCartao } from "@/components/app/painel";
-import { FormAcao } from "@/components/admin/form-acao";
-import { Area, Campo, Interruptor, Marcadores, Selecao } from "@/components/admin/campos";
+import { BarrasFatores, Evolucao, LegendaFaixas, MatrizIndicativa, RadarFatores } from "@/components/nr1/graficos";
+import { AtualizarAcao, BotaoNr1, NovaAcao, NovoRisco, PreviaSugestoes, RevisarMatriz, StatusRisco } from "@/components/nr1/acoes";
+import { cn } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "Ciclo NR-1" };
+export const metadata: Metadata = { title: "Diagnóstico · NR-1" };
 
-const MOTIVO = {
-  aberta: "Os resultados ficam disponíveis após o encerramento do ciclo.",
-  minimo: "Este recorte não atingiu o mínimo de participantes para preservar o anonimato.",
-  complemento: "Este recorte não pode ser exibido: combinado ao total, permitiria deduzir respostas de um grupo pequeno.",
-} as const;
+const ABAS = { visao: "Visão geral", departamentos: "Departamentos", matriz: "Matriz indicativa", evolucao: "Evolução", plano: "Plano de ação", convites: "Convites" } as const;
 
-export default async function CicloPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
-  const { id } = await params;
-  const sp = await searchParams;
-  const ctx = await exigirContexto();
-  const escopo = pode(ctx, "nr1", "visualizar");
-  if (!escopo) redirect("/nr1");
+function Oculto({ resumo }: { resumo: Recorte["resumo"] }) {
+  return <p className="rounded-lg border border-dashed border-input bg-card p-6 text-sm text-muted-foreground">{resumo?.motivo ? (MOTIVO_OCULTO[resumo.motivo] ?? MOTIVO_OCULTO.minimo) : "Aguardando respostas."}</p>;
+}
+
+function Metodologia({ c }: { c: { metodologiaVersao: string; faixas: number[] } }) {
+  return (
+    <details className="rounded-lg border border-border bg-card p-4 text-sm">
+      <summary className="cursor-pointer font-semibold">Metodologia de pontuação ({c.metodologiaVersao})</summary>
+      <div className="mt-2 flex flex-col gap-2 text-muted-foreground">
+        <p>
+          Escala de frequência: {ESCALA_NR1.map((e) => `${e.valor} = ${e.rotulo}`).join(", ")}. Itens redigidos de forma positiva têm pontuação reversa (6 − resposta), para que valores maiores sempre indiquem
+          mais exposição. “Prefiro não responder” não entra no cálculo (não vira nota 1).
+        </p>
+        <p>Score do fator = arredondar(((média ajustada − 1) ÷ 4) × 100). Score geral = média simples dos fatores exibidos. Fatores ou recortes com menos respostas que o mínimo da organização não são exibidos.</p>
+        <LegendaFaixas faixas={c.faixas} />
+        <p>As faixas são critérios internos do produto, configuráveis por diagnóstico — não são classificação oficial da NR-1.</p>
+      </div>
+    </details>
+  );
+}
+
+export default async function DiagnosticoPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
+  const [{ id }, sp] = await Promise.all([params, searchParams]);
+  const { ctx, escopo } = await exigirModulo("nr1");
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const db = dbTenant(ctx.org.id, ctx.usuario.id);
-  const minhas = escopo === "equipe" ? await equipesLideradas(ctx) : [];
-  const c = await db.cicloNr1.findFirst({
-    where: { AND: [{ id }, filtroCiclos(escopo, minhas.map((e) => e.id))] },
-    include: {
-      dimensoes: { orderBy: { ordem: "asc" }, include: { perguntas: { orderBy: { ordem: "asc" } } } },
-      riscos: { orderBy: [{ prioridade: "asc" }, { criadoEm: "asc" }], include: { dimensao: { select: { nome: true } }, acoes: { orderBy: { criadoEm: "asc" } } } },
-    },
-  });
-  if (!c) notFound();
+  const rel = await carregarRelatorioNr1(ctx, id);
+  if (!rel) notFound();
+  const { ciclo: c, organizacao, departamentos, evolucao } = rel;
+  const gestao = escopo === "todos" && pode(ctx, "nr1", "editar") === "todos" && !ctx.suporte;
+  const abasVisiveis = (Object.keys(ABAS) as (keyof typeof ABAS)[]).filter((a) => (escopo === "todos" ? true : a === "departamentos"));
+  const aba = (valorPermitido(sp.tab, ABAS) as keyof typeof ABAS | undefined) ?? abasVisiveis[0];
+  const adesao = escopo === "todos" && c.status !== "rascunho" ? await adesaoNr1(ctx, c.id) : null;
+  const fatoresSimples = c.dimensoes.map((d) => ({ id: d.id, nome: d.nome }));
 
-  const gestao = escopo === "todos" && !ctx.suporte;
-  const podeEditar = gestao && pode(ctx, "nr1", "editar") === "todos";
-  const rascunho = c.status === "rascunho";
-  const todasEquipes = await db.equipe.findMany({ select: { id: true, nome: true }, orderBy: { nome: "asc" } });
-  const doPublico = (e: { id: string }) => c.publicoTodos || c.equipeIds.includes(e.id);
-  const recortes = escopo === "todos" ? todasEquipes.filter(doPublico) : minhas.filter(doPublico);
-  const equipeSel = recortes.find((e) => e.id === sp.equipe)?.id ?? (escopo === "todos" ? null : (recortes[0]?.id ?? null));
-
-  const adesao = !rascunho && escopo === "todos" ? await adesaoNr1(ctx, c.id) : null;
-  const resultado = c.status === "encerrado" && (escopo === "todos" || equipeSel) ? await resultadoNr1(ctx, c.id, equipeSel) : null;
-  const indices = resultado ? indicesPorDimensao(resultado.linhas) : new Map<string, number>();
-  if (resultado?.resumo?.liberado) {
-    // Dado sensível: cada visualização de resultado fica registrada na auditoria.
-    await auditar(db, { tenantId: ctx.org.id, usuario: { id: ctx.usuario.id, nome: ctx.usuario.nome }, acao: "nr1.resultado.visualizar", entidade: "ciclo_nr1", entidadeId: c.id, detalhes: { recorte: equipeSel ?? "organizacao" }, suporte: !!ctx.suporte });
+  let conteudo: React.ReactNode = null;
+  if (c.status === "rascunho") {
+    conteudo = (
+      <div className="flex flex-col gap-4">
+        <Cartao className="p-5">
+          <h3 className="font-heading font-bold">Revisão do questionário ({c.dimensoes.reduce((n, d) => n + d.perguntas.length, 0)} perguntas)</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Biblioteca do JourneyLab, criada para o produto — não é questionário oficial do MTE. “Reversa” = item positivo (pontua 6 − resposta).</p>
+          <ol className="mt-3 flex flex-col gap-3">
+            {c.dimensoes.map((d) => (
+              <li key={d.id}>
+                <p className="font-semibold">{d.nome}</p>
+                <ul className="mt-1 flex flex-col gap-0.5 text-sm">
+                  {d.perguntas.map((q) => (
+                    <li key={q.id} className="flex justify-between gap-3">
+                      <span>{q.texto}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{q.reversa ? "reversa" : "direta"}</span>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ol>
+        </Cartao>
+        <Cartao className="p-5 text-sm">
+          <h3 className="font-heading font-bold">Convite por e-mail</h3>
+          <p className="mt-1 text-muted-foreground">{c.mensagemConvite || "Sem mensagem adicional."}</p>
+          <p className="mt-2 text-xs text-muted-foreground">O e-mail inclui prazo, link pessoal de uso único e a explicação de privacidade exibida também na página de resposta.</p>
+        </Cartao>
+        <Metodologia c={c} />
+      </div>
+    );
+  } else if (aba === "visao") {
+    const org = organizacao!;
+    conteudo = (
+      <div className="flex flex-col gap-4">
+        {adesao && (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {(
+              [
+                ["Pessoas elegíveis", adesao.elegiveis],
+                ["Convites enviados", adesao.enviados],
+                ["Falhas de envio", adesao.falhas],
+                ["Respostas recebidas", adesao.respostas],
+              ] as const
+            ).map(([r, v]) => (
+              <div key={r} className="rounded-lg border border-border bg-card p-4 shadow-surface">
+                <p className="text-[13px] font-medium text-muted-foreground">{r}</p>
+                <p className="font-heading text-[28px] font-bold tabular-nums">{v}</p>
+              </div>
+            ))}
+            <p className="text-xs text-muted-foreground lg:col-span-4">
+              Participação agregada: {adesao.elegiveis ? Math.round((adesao.respostas / adesao.elegiveis) * 100) : 0}% das pessoas elegíveis. O sistema não registra quais pessoas responderam.
+            </p>
+          </div>
+        )}
+        {org.resumo?.liberado ? (
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <Cartao className="p-5">
+              <p className="text-[13px] font-medium text-muted-foreground">Score indicativo geral da pesquisa</p>
+              <p className="font-heading text-[40px] leading-tight font-bold tabular-nums">{org.geral ?? "—"}</p>
+              {org.geral !== null && <Selo tom={faixaDe(org.geral, c.faixas).tom}>{faixaDe(org.geral, c.faixas).nome}</Selo>}
+              <p className="mt-2 text-xs text-muted-foreground">Amostra: {org.resumo.respondentes} resposta(s). Indicativo de percepção — não é avaliação técnica do GRO/PGR.</p>
+              <div className="mt-4">
+                <RadarFatores fatores={org.fatores} />
+              </div>
+            </Cartao>
+            <Cartao className="p-5">
+              <h3 className="mb-3 font-heading font-bold">Scores por fator (0–100, maior = mais exposição)</h3>
+              <BarrasFatores fatores={org.fatores} faixas={c.faixas} />
+            </Cartao>
+          </div>
+        ) : (
+          <Oculto resumo={org.resumo} />
+        )}
+        <Metodologia c={c} />
+      </div>
+    );
+  } else if (aba === "departamentos") {
+    conteudo = !c.coletarDepartamento ? (
+      <p className="rounded-lg border border-dashed border-input bg-card p-6 text-sm text-muted-foreground">{MOTIVO_OCULTO.sem_departamento}</p>
+    ) : c.status !== "encerrado" ? (
+      <Oculto resumo={{ respondentes: null, minimo: 0, liberado: false, motivo: "aberta" }} />
+    ) : departamentos.length === 0 ? (
+      <p className="rounded-lg border border-dashed border-input bg-card p-6 text-sm text-muted-foreground">{escopo === "todos" ? "Nenhum departamento na audiência." : "Nenhuma área sob sua liderança nesta pesquisa."}</p>
+    ) : (
+      <Cartao aria-labelledby="deps">
+        <CabecalhoCartao id="deps" titulo="Comparativo entre departamentos" descricao="Exibido só quando o grupo e o restante da organização têm respostas suficientes. Recortes ocultos não mostram números." />
+        <div className="overflow-x-auto px-5 pb-5">
+          <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+            <thead>
+              <tr>
+                <th scope="col" className="border border-border p-2 text-xs">
+                  Fator
+                </th>
+                {departamentos.map((d) => (
+                  <th key={d.id} scope="col" className="border border-border p-2 text-center text-xs">
+                    {d.nome}
+                    {d.resumo?.liberado && <span className="block font-normal text-muted-foreground">amostra {d.resumo.respondentes}</span>}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {c.dimensoes.map((dim) => (
+                <tr key={dim.id}>
+                  <th scope="row" className="border border-border p-2 text-xs font-medium">
+                    {dim.nome}
+                  </th>
+                  {departamentos.map((d) => {
+                    const f = d.fatores.find((x) => x.id === dim.id);
+                    if (!d.resumo?.liberado || f?.score === null || f?.score === undefined)
+                      return (
+                        <td key={d.id} className="border border-border p-2 text-center text-xs text-muted-foreground" title={MOTIVO_OCULTO[d.resumo?.motivo ?? "minimo"] ?? ""}>
+                          —
+                        </td>
+                      );
+                    const fx = faixaDe(f.score, c.faixas);
+                    return (
+                      <td key={d.id} className="border border-border p-2 text-center text-sm font-semibold tabular-nums">
+                        {f.score} <span className="block text-[11px] font-normal text-muted-foreground">{fx.nome}</span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-xs text-muted-foreground">“—” = dados insuficientes para exibição segura.</p>
+        </div>
+      </Cartao>
+    );
+  } else if (aba === "matriz") {
+    conteudo = (
+      <div className="flex flex-col gap-4">
+        <p className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+          <strong>Matriz indicativa da pesquisa.</strong> Cruza a exposição relatada com uma severidade de referência do produto. Não é a matriz de risco oficial da organização até ser revisada e validada
+          conforme a metodologia do GRO/PGR.{" "}
+          {c.matrizRevisadaEm ? `Última revisão: ${c.matrizRevisadaPor} em ${formatarDataHora(c.matrizRevisadaEm.toISOString())}.` : "Ainda não revisada."}
+        </p>
+        {organizacao?.resumo?.liberado ? (
+          <Cartao className="p-5">
+            <MatrizIndicativa fatores={organizacao.fatores} faixas={c.faixas} />
+          </Cartao>
+        ) : (
+          <Oculto resumo={organizacao?.resumo ?? null} />
+        )}
+        {gestao && (
+          <Cartao className="p-5">
+            <h3 className="mb-3 font-heading font-bold">Revisar severidade de referência por fator</h3>
+            <RevisarMatriz id={c.id} fatores={c.dimensoes.map((d) => ({ id: d.id, nome: d.nome, severidade: d.severidade }))} />
+          </Cartao>
+        )}
+      </div>
+    );
+  } else if (aba === "evolucao") {
+    conteudo = (
+      <Cartao className="p-5">
+        <h3 className="mb-1 font-heading font-bold">Evolução entre diagnósticos comparáveis</h3>
+        <p className="mb-3 text-xs text-muted-foreground">Mesma metodologia ({c.metodologiaVersao}). Compare com cautela quando o tipo de questionário ou a audiência mudarem.</p>
+        <Evolucao pontos={evolucao.map((x) => ({ rotulo: formatarData(x.encerradoEm ?? new Date()), valor: x.geral }))} />
+      </Cartao>
+    );
+  } else if (aba === "plano") {
+    const sug = c.aiSugestoes as SugestoesNr1 | null;
+    conteudo = (
+      <div className="flex flex-col gap-4">
+        {c.status !== "encerrado" ? (
+          <p className="rounded-lg border border-dashed border-input bg-card p-6 text-sm text-muted-foreground">O plano de ação é elaborado após o encerramento da pesquisa.</p>
+        ) : (
+          <>
+            <Cartao className="flex flex-col gap-3 p-5">
+              <div className="flex flex-wrap items-center gap-3">
+                <Sparkles className="size-5 text-teal-strong" aria-hidden />
+                <p className="flex-1 text-sm text-muted-foreground">
+                  {iaDisponivel()
+                    ? "A IA recebe apenas os scores agregados que passaram pelas regras de proteção — nunca respostas individuais, nomes ou recortes ocultos. As sugestões ficam em prévia até a sua revisão."
+                    : "Sugestões com IA indisponíveis: a integração não está configurada. A análise e o plano manuais continuam disponíveis."}
+                </p>
+                {gestao && iaDisponivel() && organizacao?.resumo?.liberado && <BotaoNr1 acao="ia" id={c.id} variante="primario" />}
+              </div>
+              {sug && (
+                <div className="flex flex-col gap-3 border-t border-border pt-3 text-sm">
+                  <p className="text-xs text-muted-foreground">Sugestões geradas em {c.aiSugestoesEm ? formatarDataHora(c.aiSugestoesEm.toISOString()) : "—"} — apoio à análise, sem validação técnica.</p>
+                  <p className="whitespace-pre-line">{sug.resumo_executivo}</p>
+                  <div className="grid gap-3 lg:grid-cols-3">
+                    <div>
+                      <p className="font-semibold">Fatores para investigar</p>
+                      <ul className="list-disc pl-5">
+                        {sug.fatores_investigar.map((f, i) => (
+                          <li key={i}>
+                            {f.fator}: {f.motivo}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="font-semibold">Hipóteses a verificar</p>
+                      <ul className="list-disc pl-5">
+                        {sug.hipoteses.map((h, i) => (
+                          <li key={i}>{h}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="font-semibold">Medidas organizacionais sugeridas</p>
+                      <ul className="list-disc pl-5">
+                        {sug.medidas.map((m, i) => (
+                          <li key={i}>{m}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                  {gestao && sug.plano_acao.length > 0 && <PreviaSugestoes id={c.id} sugestoes={sug} fatores={fatoresSimples} />}
+                </div>
+              )}
+            </Cartao>
+            {gestao && (
+              <Cartao className="p-5">
+                <h3 className="mb-3 font-heading font-bold">Registrar fator priorizado</h3>
+                <NovoRisco cicloId={c.id} fatores={fatoresSimples} />
+              </Cartao>
+            )}
+            {c.riscos.length === 0 && <p className="text-sm text-muted-foreground">Nenhum item no plano de ação ainda.</p>}
+            {c.riscos.map((r) => (
+              <Cartao key={r.id} className="flex flex-col gap-3 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-heading font-bold">{r.titulo}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.dimensao?.nome ?? "Geral"} · origem {r.origem === "ia" ? "sugestão de IA revisada" : "humana"} · revisado por {r.revisadoPor ?? "—"}
+                      {r.revisadoEm && ` em ${formatarData(r.revisadoEm)}`}
+                    </p>
+                  </div>
+                  <span className="flex items-center gap-2">
+                    <Selo tom={PRIORIDADE[r.prioridade].tom}>Prioridade {PRIORIDADE[r.prioridade].nome.toLowerCase()}</Selo>
+                    {gestao ? <StatusRisco id={r.id} status={r.status} /> : null}
+                  </span>
+                </div>
+                {r.descricao && <p className="text-sm text-muted-foreground">{r.descricao}</p>}
+                <ul className="flex flex-col gap-2">
+                  {r.acoes.map((a) => (
+                    <li key={a.id} className="rounded-md border border-border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">{a.titulo}</span>
+                        <Selo tom={STATUS_ACAO_NR1[a.status].tom}>{STATUS_ACAO_NR1[a.status].nome}</Selo>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {a.responsavelNome} · prazo {a.prazo ? formatarData(a.prazo) : "—"} · origem {a.origem === "ia" ? "IA (revisada)" : "humana"} · revisado por {a.revisadoPor ?? "—"}
+                        {a.evidencia && ` · evidência: ${a.evidencia}`}
+                      </p>
+                      {gestao && (
+                        <div className="mt-2">
+                          <AtualizarAcao id={a.id} status={a.status} evidencia={a.evidencia} rotulo={a.titulo} />
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {gestao && <NovaAcao riscoId={r.id} />}
+              </Cartao>
+            ))}
+          </>
+        )}
+      </div>
+    );
+  } else if (aba === "convites") {
+    conteudo = (
+      <Cartao className="flex flex-col gap-3 p-5 text-sm">
+        {adesao && (
+          <p className="tabular-nums">
+            {adesao.convites} convite(s) criado(s) · {adesao.enviados} enviado(s) · {adesao.falhas} falha(s) · {adesao.respostas} resposta(s) recebida(s)
+          </p>
+        )}
+        <p className="text-muted-foreground">
+          Os convites registram só o envio do e-mail. O uso do link fica numa tabela separada que a aplicação não lê: por isso esta tela não mostra quem respondeu, e os lembretes vão apenas para quem ainda
+          não respondeu sem que a lista seja exibida.{c.lembreteEm && ` Último lembrete: ${formatarDataHora(c.lembreteEm.toISOString())}.`}
+        </p>
+        {gestao && c.status === "aberto" && (
+          <div className="flex flex-wrap gap-2">
+            <BotaoNr1 acao="enviar" id={c.id} />
+            <BotaoNr1 acao="lembrete" id={c.id} />
+          </div>
+        )}
+      </Cartao>
+    );
   }
-  const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
 
   return (
     <>
-      <div className="flex flex-col gap-3">
-        <Link href="/nr1" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Ciclos
-        </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="font-heading text-2xl font-bold">{c.titulo}</h2>
-          <Selo tom={STATUS_CICLO[c.status].tom}>{STATUS_CICLO[c.status].nome}</Selo>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <Link href="/nr1" className="text-sm text-muted-foreground hover:text-foreground">
+            ← Diagnóstico NR-1
+          </Link>
+          <h2 className="flex flex-wrap items-center gap-2 font-heading text-xl font-bold">
+            {c.titulo} <Selo tom={STATUS_CICLO[c.status].tom}>{STATUS_CICLO[c.status].nome}</Selo>
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {c.metodologiaVersao === "legado" ? "Questionário anterior" : `Questionário ${TIPO_DIAGNOSTICO[c.tipo].nome.toLowerCase()}`} · {AUDIENCIA_NR1[c.audienciaTipo as keyof typeof AUDIENCIA_NR1] ?? c.audienciaTipo}
+            {c.dataInicio && ` · ${formatarData(c.dataInicio)}`}
+            {c.encerraEm && ` – ${formatarData(c.encerraEm)}`} · metodologia {c.metodologiaVersao}
+          </p>
         </div>
-        <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <Users className="size-4" aria-hidden />
-          {c.publicoTodos ? "Toda a organização" : todasEquipes.filter((e) => c.equipeIds.includes(e.id)).map((e) => e.nome).join(", ")}
-          {c.encerraEm && !c.encerradoEm && ` · encerramento previsto ${formatarData(c.encerraEm)}`}
-          {c.encerradoEm && ` · encerrado em ${formatarData(c.encerradoEm)}`}
-        </p>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[1fr_minmax(0,360px)]">
-        <div className="flex min-w-0 flex-col gap-4">
-          {c.status === "encerrado" && (
-            <Cartao aria-labelledby="resultados">
-              <div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-5 pb-3">
-                <div>
-                  <h3 id="resultados" className="font-heading text-base font-bold">
-                    Resultados por dimensão
-                  </h3>
-                  <p className="text-[13px] text-muted-foreground">
-                    Índice de favorabilidade de 0 (desfavorável) a 100 (favorável)
-                    {resultado?.resumo && ` · ${resultado.resumo.respondentes} participante(s) · mínimo ${resultado.resumo.minimo}`}
-                  </p>
-                </div>
-                <div className="flex items-end gap-2">
-                  {recortes.length > 0 && (
-                    <form className="flex items-end gap-2">
-                      <div className="flex flex-col gap-1">
-                        <label htmlFor="recorte" className="text-xs font-semibold text-muted-foreground">
-                          Recorte
-                        </label>
-                        <select id="recorte" name="equipe" defaultValue={equipeSel ?? ""} className="h-10 rounded-lg border border-input bg-background px-3 text-sm">
-                          {escopo === "todos" && <option value="">Toda a organização</option>}
-                          {recortes.map((e) => (
-                            <option key={e.id} value={e.id}>
-                              {e.nome}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <button type="submit" className="h-10 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-                        Ver
-                      </button>
-                    </form>
-                  )}
-                  {pode(ctx, "nr1", "exportar") === "todos" && (
-                    <a href={`/nr1/${c.id}/exportar`} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted">
-                      <Download className="size-4" aria-hidden /> Relatório CSV
-                    </a>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-col gap-4 px-5 pb-5">
-                {!resultado?.resumo?.liberado ? (
-                  <p className="flex items-start gap-2 rounded-md bg-muted px-4 py-3 text-sm text-muted-foreground">
-                    <EyeOff className="mt-0.5 size-4 shrink-0" aria-hidden />
-                    {resultado?.resumo?.motivo ? MOTIVO[resultado.resumo.motivo] : "Nenhum recorte disponível para você neste ciclo."}
-                  </p>
-                ) : (
-                  c.dimensoes.map((d) => {
-                    const ind = indices.get(d.id);
-                    const f = ind !== undefined ? faixa(ind) : null;
-                    return (
-                      <details key={d.id} className="group rounded-md border border-border p-4">
-                        <summary className="flex cursor-pointer list-none flex-col gap-2 [&::-webkit-details-marker]:hidden">
-                          <span className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="font-medium">{d.nome}</span>
-                            <span className="flex items-center gap-2">
-                              <span className="font-heading text-lg font-bold tabular-nums">{ind !== undefined ? ind.toFixed(0) : "—"}</span>
-                              {f && <Selo tom={f.tom}>{f.nome}</Selo>}
-                            </span>
-                          </span>
-                          <BarraProgresso valor={ind ?? 0} rotulo={`Índice de ${d.nome}`} />
-                          <span className="text-xs text-muted-foreground group-open:hidden">Ver perguntas</span>
-                        </summary>
-                        <ul className="mt-3 flex flex-col gap-2 border-t border-border pt-3 text-sm">
-                          {d.perguntas.map((q) => {
-                            const l = resultado.linhas.find((x) => x.pergunta_id === q.id);
-                            return (
-                              <li key={q.id} className="flex items-start justify-between gap-3">
-                                <span>
-                                  {q.texto}
-                                  {q.invertida && <span className="ml-1 text-xs text-muted-foreground">(frequência alta é desfavorável)</span>}
-                                </span>
-                                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                                  índice {l ? Number(l.indice).toFixed(0) : "—"} · média {l ? Number(l.media).toFixed(1).replace(".", ",") : "—"}
-                                </span>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </details>
-                    );
-                  })
-                )}
-                <p className="text-xs leading-relaxed text-muted-foreground">{AVISO_NR1}</p>
-              </div>
-            </Cartao>
+        <div className="flex flex-wrap gap-2">
+          {gestao && c.status === "rascunho" && (
+            <>
+              <Link href={`/nr1/${c.id}/editar`} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border bg-card px-4 text-sm font-medium hover:bg-muted">
+                <Pencil className="size-4" aria-hidden /> Editar
+              </Link>
+              <BotaoNr1 acao="ativar_enviar" id={c.id} variante="primario" />
+              <BotaoNr1 acao="ativar" id={c.id} />
+              <BotaoNr1 acao="excluir" id={c.id} variante="perigo" />
+            </>
           )}
-
-          {c.status === "encerrado" && escopo === "todos" && (
-            <Cartao aria-labelledby="riscos">
-              <CabecalhoCartao id="riscos" titulo="Fatores de risco e plano de ação" descricao="Registrados pela gestão a partir dos resultados agregados." />
-              <div className="flex flex-col gap-4 px-5 pb-5">
-                {c.riscos.length === 0 && <p className="text-sm text-muted-foreground">Nenhum fator de risco registrado.</p>}
-                {c.riscos.map((r) => (
-                  <div key={r.id} className="rounded-md border border-border p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-medium">{r.titulo}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {r.dimensao?.nome ?? "Sem dimensão"} · {STATUS_RISCO[r.status]} · registrado por {r.criadoPor}
-                        </p>
-                        {r.descricao && <p className="mt-1 text-sm text-muted-foreground">{r.descricao}</p>}
-                      </div>
-                      <Selo tom={PRIORIDADE[r.prioridade].tom}>Prioridade {PRIORIDADE[r.prioridade].nome.toLowerCase()}</Selo>
-                    </div>
-                    <ul className="mt-3 flex flex-col divide-y divide-border border-t border-border">
-                      {r.acoes.map((a) => (
-                        <li key={a.id} className="flex flex-col gap-2 py-2.5 text-sm">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className={a.status === "cancelada" ? "text-muted-foreground line-through" : ""}>{a.titulo}</span>
-                            <Selo tom={STATUS_ACAO_NR1[a.status].tom}>{STATUS_ACAO_NR1[a.status].nome}</Selo>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Responsável: {a.responsavelNome}
-                            {a.prazo && ` · prazo ${formatarData(a.prazo)}`}
-                            {a.evidencia && ` · evidência: ${a.evidencia}`}
-                          </p>
-                          {podeEditar && (
-                            <details className="text-xs">
-                              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Atualizar…</summary>
-                              <FormAcao action={alterarAcaoNr1} textoBotao="Salvar" variante="outline" className="mt-2">
-                                <input type="hidden" name="acaoId" value={a.id} />
-                                <Selecao nome="status" idCampo={`st-${a.id}`} rotulo="Situação" defaultValue={a.status} opcoes={Object.entries(STATUS_ACAO_NR1).map(([valor, s]) => ({ valor, rotulo: s.nome }))} />
-                                <Area nome="evidencia" idCampo={`ev-${a.id}`} rotulo="Evidência" ajuda="Obrigatória para concluir." defaultValue={a.evidencia ?? ""} rows={2} />
-                              </FormAcao>
-                            </details>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                    {podeEditar && (
-                      <div className="mt-2 flex flex-col gap-3">
-                        <details className="text-sm">
-                          <summary className="cursor-pointer font-medium text-teal-strong">+ Incluir medida</summary>
-                          <FormAcao action={adicionarAcaoNr1} textoBotao="Incluir medida" limparAoConcluir className="mt-2">
-                            <input type="hidden" name="riscoId" value={r.id} />
-                            <Campo nome="titulo" idCampo={`med-${r.id}`} rotulo="Medida" required />
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <Campo nome="responsavelNome" idCampo={`resp-${r.id}`} rotulo="Responsável" required />
-                              <Campo nome="prazo" idCampo={`prazo-${r.id}`} rotulo="Prazo" type="date" />
-                            </div>
-                          </FormAcao>
-                        </details>
-                        <details className="text-sm">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Alterar situação/prioridade…</summary>
-                          <FormAcao action={alterarRisco} textoBotao="Salvar" variante="outline" className="mt-2">
-                            <input type="hidden" name="riscoId" value={r.id} />
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <Selecao nome="status" idCampo={`sr-${r.id}`} rotulo="Situação" defaultValue={r.status} opcoes={Object.entries(STATUS_RISCO).map(([valor, rotulo]) => ({ valor, rotulo }))} />
-                              <Selecao nome="prioridade" idCampo={`pr-${r.id}`} rotulo="Prioridade" defaultValue={r.prioridade} opcoes={Object.entries(PRIORIDADE).map(([valor, p]) => ({ valor, rotulo: p.nome }))} />
-                            </div>
-                          </FormAcao>
-                        </details>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {podeEditar && (
-                  <FormAcao action={registrarRisco} textoBotao="Registrar fator de risco" limparAoConcluir className="border-t border-border pt-4">
-                    <input type="hidden" name="cicloId" value={c.id} />
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Campo nome="titulo" rotulo="Fator de risco" required placeholder="Ex.: Sobrecarga recorrente no fechamento mensal" />
-                      <Selecao nome="dimensaoId" rotulo="Dimensão" opcoes={[{ valor: "", rotulo: "Sem dimensão" }, ...c.dimensoes.map((d) => ({ valor: d.id, rotulo: d.nome }))]} />
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
-                      <Area nome="descricao" rotulo="Descrição" rows={2} />
-                      <Selecao nome="prioridade" rotulo="Prioridade" opcoes={Object.entries(PRIORIDADE).map(([valor, p]) => ({ valor, rotulo: p.nome }))} />
-                    </div>
-                  </FormAcao>
-                )}
-              </div>
-            </Cartao>
-          )}
-
-          <Cartao aria-labelledby="questionario">
-            <CabecalhoCartao id="questionario" titulo="Questionário" descricao={rascunho ? "Editável até a abertura. Escala de frequência: nunca a sempre." : "Fixo desde a abertura."} />
-            <div className="flex flex-col gap-4 px-5 pb-5">
-              {c.dimensoes.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma dimensão ainda.</p>}
-              {c.dimensoes.map((d) => (
-                <div key={d.id} className="rounded-md border border-border">
-                  <div className="flex items-start justify-between gap-2 border-b border-border px-4 py-3">
-                    <div>
-                      <p className="font-medium">{d.nome}</p>
-                      {d.descricao && <p className="text-xs text-muted-foreground">{d.descricao}</p>}
-                    </div>
-                    {rascunho && podeEditar && (
-                      <form action={excluirItemNr1.bind(null, "dimensao", d.id)}>
-                        <button type="submit" aria-label={`Excluir dimensão ${d.nome}`} className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                          <Trash2 className="size-4" aria-hidden />
-                        </button>
-                      </form>
-                    )}
-                  </div>
-                  <ol className="flex flex-col divide-y divide-border">
-                    {d.perguntas.map((q) => (
-                      <li key={q.id} className="flex items-start justify-between gap-2 px-4 py-2.5 text-sm">
-                        <span>
-                          {q.texto}
-                          {q.invertida && <span className="ml-1 text-xs text-muted-foreground">(invertida)</span>}
-                        </span>
-                        {rascunho && podeEditar && (
-                          <form action={excluirItemNr1.bind(null, "pergunta", q.id)}>
-                            <button type="submit" aria-label="Excluir pergunta" className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                              <Trash2 className="size-3.5" aria-hidden />
-                            </button>
-                          </form>
-                        )}
-                      </li>
-                    ))}
-                  </ol>
-                  {rascunho && podeEditar && (
-                    <details className="border-t border-border px-4 py-2.5 text-sm">
-                      <summary className="cursor-pointer font-medium text-teal-strong">+ Incluir pergunta</summary>
-                      <FormAcao action={adicionarPerguntaNr1} textoBotao="Incluir" limparAoConcluir className="mt-2">
-                        <input type="hidden" name="dimensaoId" value={d.id} />
-                        <Campo nome="texto" idCampo={`q-${d.id}`} rotulo="Pergunta (afirmação de frequência)" required />
-                        <Interruptor nome="invertida" rotulo="Invertida" ajuda="Marque quando responder “sempre” indica situação desfavorável." />
-                      </FormAcao>
-                    </details>
-                  )}
-                </div>
-              ))}
-              {rascunho && podeEditar && (
-                <FormAcao action={adicionarDimensao} textoBotao="Incluir dimensão" variante="outline" limparAoConcluir>
-                  <input type="hidden" name="cicloId" value={c.id} />
-                  <Campo nome="nome" rotulo="Nova dimensão" placeholder="Ex.: Equilíbrio entre trabalho e vida pessoal" />
-                </FormAcao>
-              )}
-            </div>
-          </Cartao>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          {adesao && (
-            <Cartao className="p-5">
-              <p className="text-[13px] font-medium text-muted-foreground">Participação</p>
-              <p className="font-heading text-[28px] font-bold tabular-nums">{adesao.publico ? Math.round((adesao.respondentes / adesao.publico) * 100) : 0}%</p>
-              <BarraProgresso valor={adesao.publico ? Math.round((adesao.respondentes / adesao.publico) * 100) : 0} rotulo="Participação no ciclo" />
-              <p className="mt-2 text-xs text-muted-foreground">
-                {adesao.respondentes} de {adesao.publico} pessoas do público. Não mostramos quem participou.
-              </p>
-            </Cartao>
-          )}
-
-          {rascunho && podeEditar && (
-            <Cartao aria-labelledby="config">
-              <CabecalhoCartao id="config" titulo="Configuração" />
-              <div className="px-5 pb-5">
-                <FormAcao action={salvarCiclo} textoBotao="Salvar">
-                  <input type="hidden" name="cicloId" value={c.id} />
-                  <Campo nome="titulo" rotulo="Título" defaultValue={c.titulo} required />
-                  <Area nome="descricao" rotulo="Mensagem aos participantes" defaultValue={c.descricao ?? ""} rows={3} />
-                  <fieldset className="flex flex-col gap-2 text-sm">
-                    <legend className="mb-1 text-[13px] font-semibold text-foreground/85">Público</legend>
-                    <label className="flex items-center gap-2">
-                      <input type="radio" name="publico" value="todos" defaultChecked={c.publicoTodos} className="accent-[var(--primary)]" /> Toda a organização
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <input type="radio" name="publico" value="equipes" defaultChecked={!c.publicoTodos} className="accent-[var(--primary)]" /> Equipes selecionadas
-                    </label>
-                  </fieldset>
-                  <Marcadores nome="equipeIds" rotulo="Equipes" opcoes={todasEquipes.map((e) => ({ valor: e.id, rotulo: e.nome }))} marcados={c.equipeIds} />
-                  <Campo nome="encerraEm" rotulo="Encerramento previsto" type="date" defaultValue={iso(c.encerraEm)} />
-                </FormAcao>
-              </div>
-            </Cartao>
-          )}
-
-          {gestao && (rascunho ? podeEditar : c.status === "aberto" && pode(ctx, "nr1", "concluir") === "todos") && (
-            <Cartao className="flex flex-col gap-3 p-5">
-              <h3 className="font-heading text-base font-bold">Ciclo</h3>
-              {rascunho ? (
-                <FormAcao action={alterarStatusCiclo} textoBotao="Abrir para participação">
-                  <input type="hidden" name="cicloId" value={c.id} />
-                  <input type="hidden" name="acao" value="abrir" />
-                  <p className="text-xs text-muted-foreground">Ao abrir, questionário e público ficam fixos.</p>
-                </FormAcao>
-              ) : (
-                <FormAcao action={alterarStatusCiclo} textoBotao="Encerrar e liberar resultados">
-                  <input type="hidden" name="cicloId" value={c.id} />
-                  <input type="hidden" name="acao" value="encerrar" />
-                </FormAcao>
-              )}
-            </Cartao>
+          {gestao && c.status === "aberto" && <BotaoNr1 acao="encerrar" id={c.id} variante="perigo" />}
+          {c.status === "encerrado" && pode(ctx, "nr1", "exportar") && (
+            <>
+              <Link href={`/nr1/${c.id}/relatorio`} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border bg-card px-4 text-sm font-medium hover:bg-muted">
+                <FileText className="size-4" aria-hidden /> Relatório (PDF)
+              </Link>
+              <a href={`/nr1/${c.id}/exportar`} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border bg-card px-4 text-sm font-medium hover:bg-muted">
+                <Download className="size-4" aria-hidden /> CSV
+              </a>
+            </>
           )}
         </div>
       </div>
+      <p className="text-xs text-muted-foreground">{AVISO_NR1}</p>
+
+      {c.status !== "rascunho" && abasVisiveis.length > 1 && (
+        <nav aria-label="Seções do diagnóstico" className="max-w-full overflow-x-auto">
+          <ul className="flex w-max gap-1 rounded-md border border-border bg-card p-1 shadow-surface">
+            {abasVisiveis.map((a) => (
+              <li key={a}>
+                <Link
+                  href={`/nr1/${c.id}?tab=${a}`}
+                  aria-current={aba === a ? "page" : undefined}
+                  className={cn("inline-flex h-8 items-center rounded-sm px-3.5 text-[13px] font-medium whitespace-nowrap text-muted-foreground hover:bg-muted hover:text-foreground", aba === a && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground")}
+                >
+                  {ABAS[a]}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
+      {conteudo}
+      <p className="text-xs text-muted-foreground">{LIMITACOES}</p>
     </>
   );
 }

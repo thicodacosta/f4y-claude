@@ -248,3 +248,12 @@
     box-shadow: none;
   }
 }
+
+/* Relatórios (NR-1) — impressão/PDF só da folha do relatório (classe aplicada durante window.print) */
+@media print {
+  html.modo-relatorio body * { visibility: hidden !important; }
+  html.modo-relatorio .relatorio-folha,
+  html.modo-relatorio .relatorio-folha * { visibility: visible !important; }
+  html.modo-relatorio .relatorio-folha { position: absolute; inset: 0 auto auto 0; width: 100%; box-shadow: none; border: 0; }
+  html.modo-relatorio .relatorio-folha section { break-inside: avoid; }
+}

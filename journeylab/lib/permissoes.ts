@@ -75,7 +75,7 @@ export const PAPEIS_PADRAO: { nome: string; base: PapelBase; regras: Regra[] }[]
       ["feedback", ["visualizar", "criar", "editar", "concluir", "exportar"], "todos"],
       ["pulse", ["visualizar", "criar", "editar", "concluir", "exportar"], "todos"],
       ["pdi", ["visualizar", "criar", "editar", "exportar"], "todos"],
-      // NR-1: sem acesso por padrão — o administrador concede se necessário.
+      ["nr1", ["visualizar", "criar", "editar", "concluir", "exportar"], "todos"],
     ],
   },
   {
@@ -98,7 +98,7 @@ export const PAPEIS_PADRAO: { nome: string; base: PapelBase; regras: Regra[] }[]
       // Onboarding: colaborador não acessa nesta versão (tarefas dele são acompanhadas por RH e gestor).
       // Feedback 1:1 e PDI: colaborador não acessa nesta versão.
       // Pulse: sem acesso ao módulo — responde pelo link pessoal (e-mail) ou pelo Início.
-      // NR-1: responder é permitido a quem está no público do ciclo.
+      // NR-1: sem acesso ao módulo interno — responde só pela página pública do convite.
     ],
   },
 ];

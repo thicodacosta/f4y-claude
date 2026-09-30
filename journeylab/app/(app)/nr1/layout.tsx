@@ -1,15 +1,17 @@
-import { redirect } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
-import { exigirContexto } from "@/lib/contexto";
+import { exigirModulo } from "@/lib/contexto";
 import { CabecalhoModulo } from "@/components/app/painel";
 
-/** NR-1: participar é permitido a quem está no público; a gestão exige permissão (checada em cada página). */
+/**
+ * Diagnóstico NR-1 (interno): RH/Admin administram; gestores, se a empresa
+ * conceder, veem agregados das áreas que lideram. Colaborador não acessa —
+ * responde pela página pública do convite (/nr1/responder/:token).
+ */
 export default async function LayoutNr1({ children }: { children: React.ReactNode }) {
-  const ctx = await exigirContexto();
-  if (!ctx.modulos.has("nr1")) redirect("/inicio?bloqueado=nr1");
+  await exigirModulo("nr1");
   return (
     <>
-      <CabecalhoModulo titulo="Diagnóstico NR-1" icone={ShieldCheck} descricao="Fatores de risco psicossociais · resultados anônimos e agregados" />
+      <CabecalhoModulo titulo="Diagnóstico NR-1" icone={ShieldCheck} descricao="Fatores de risco psicossociais relacionados ao trabalho · resultados agregados e plano de ação" />
       {children}
     </>
   );

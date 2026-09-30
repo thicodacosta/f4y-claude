@@ -78,7 +78,8 @@ try {
   await nav.avaliar(`[...document.querySelectorAll('[data-trocar-org] form button')].find(b=>b.textContent.includes('Aurora')).closest('form').requestSubmit()`);
   await new Promise((r) => setTimeout(r, 3000));
   e = await nav.estado();
-  checar("Consultor troca para Aurora (RH) e vê os módulos do papel RH", produtos(e.texto).includes("PDI") && !produtos(e.texto).includes("Diagnóstico NR-1"));
+  // RH administra PDI e Diagnóstico NR-1 por padrão; CRM também faz parte do papel.
+  checar("Consultor troca para Aurora (RH) e vê os módulos do papel RH", produtos(e.texto).includes("PDI") && produtos(e.texto).includes("Diagnóstico NR-1") && produtos(e.texto).includes("CRM"));
 } finally {
   nav.fechar();
   await adm.end();

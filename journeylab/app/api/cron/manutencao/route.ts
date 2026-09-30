@@ -5,6 +5,7 @@ import { alterarEntitlement } from "@/lib/entitlements";
 import { executarRetencao } from "@/lib/retencao";
 import { SISTEMA } from "@/lib/integracoes/processar";
 import { rotinaPulse } from "@/lib/pulse/rotina";
+import { rotinaNr1 } from "@/lib/nr1/rotina";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,8 @@ function autorizado(request: NextRequest) {
  *  1. marca como "expirado" o módulo cujo período terminou (com histórico —
  *     o acesso já era bloqueado pela data; os dados são preservados);
  *  2. aplica a política de retenção de cada organização que a configurou;
- *  3. Pulse: encerra pesquisas vencidas e envia o lembrete automático.
+ *  3. Pulse: encerra pesquisas vencidas e envia o lembrete automático;
+ *  4. Diagnóstico NR-1: encerra diagnósticos cuja data de fim passou.
  */
 export async function GET(request: NextRequest) {
   if (!autorizado(request)) return NextResponse.json({ erro: "Não autorizado" }, { status: 401 });
@@ -51,5 +53,11 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     pulse = { erro: e instanceof Error ? e.message : "falha" };
   }
-  return NextResponse.json({ expirados, retencao, pulse });
+  let nr1: unknown;
+  try {
+    nr1 = await rotinaNr1(plataforma, sistema);
+  } catch (e) {
+    nr1 = { erro: e instanceof Error ? e.message : "falha" };
+  }
+  return NextResponse.json({ expirados, retencao, pulse, nr1 });
 }

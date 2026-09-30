@@ -15,7 +15,9 @@ import { calcularPdi } from "@/lib/pdi/calculo";
 import { somarDias, hoje as hojeCivil } from "@/lib/datas";
 import { filtroParaResponder } from "@/lib/pulse/regras";
 import { adesaoPulse } from "@/lib/pulse/consultas";
-import { filtroCiclosParaResponder } from "@/lib/nr1/regras";
+import { transacao } from "@/lib/db";
+import { urlRespostaNr1 } from "@/lib/nr1/links";
+import { plataformaNr1 } from "@/lib/nr1/publico";
 import type { Modulo } from "@/lib/permissoes";
 
 export type BlocoPendencias = {
@@ -186,23 +188,33 @@ const PROVEDORES: Provedor[] = [
   {
     modulo: "nr1",
     paraTodos: true,
+    // Convites pendentes da própria pessoa: o link leva à página pública (o colaborador não acessa o módulo interno).
     async montar(ctx) {
       if (!ctx.colaboradorId || ctx.suporte) return null;
-      const db = dbTenant(ctx.org.id, ctx.usuario.id);
-      const eu = await db.colaborador.findUnique({ where: { id: ctx.colaboradorId }, select: { id: true, equipeId: true, status: true } });
-      if (!eu || eu.status !== "ativo") return null;
-      const lista = await db.cicloNr1.findMany({ where: filtroCiclosParaResponder(eu.id, eu.equipeId), take: 5 });
-      if (!lista.length) return null;
+      const h = hojeCivil();
+      const convites = await dbTenant(ctx.org.id, ctx.usuario.id).conviteNr1.findMany({
+        where: {
+          colaboradorId: ctx.colaboradorId,
+          ciclo: { status: "aberto", AND: [{ OR: [{ encerraEm: null }, { encerraEm: { gte: h } }] }, { OR: [{ dataInicio: null }, { dataInicio: { lte: h } }] }] },
+        },
+        select: { id: true, ciclo: { select: { titulo: true, encerraEm: true } } },
+        take: 5,
+      });
+      const usados = await transacao(plataformaNr1, (tx) =>
+        Promise.all(convites.map((c) => tx.$queryRaw<{ usado: boolean }[]>`select public.jl_convite_nr1_usado(${c.id}::uuid) as usado`)),
+      );
+      const pendentes = convites.filter((_, i) => !usados[i][0]?.usado);
+      if (!pendentes.length) return null;
       return {
         modulo: "nr1",
-        titulo: "Diagnóstico para participar",
-        href: "/nr1",
+        titulo: "Pesquisa sobre condições de trabalho",
+        href: urlRespostaNr1(pendentes[0].id),
         vazio: "",
-        itens: lista.map((c) => ({
-          texto: c.titulo,
-          subtitulo: "Anônimo · cerca de 5 minutos",
-          detalhe: c.encerraEm ? `Até ${formatarData(c.encerraEm)}` : "Participar",
-          href: `/nr1/responder/${c.id}`,
+        itens: pendentes.map((c) => ({
+          texto: c.ciclo.titulo,
+          subtitulo: "Respostas sem identificação · cerca de 10 minutos",
+          detalhe: c.ciclo.encerraEm ? `Até ${formatarData(c.ciclo.encerraEm)}` : "Responder",
+          href: urlRespostaNr1(c.id),
         })),
       };
     },

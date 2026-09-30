@@ -59,8 +59,11 @@ Pulse ── modelos_pulse (globais: tenant nulo · da empresa) → pesquisas �
          audiência (todos | departamentos | equipes | pessoas) · convites (link pessoal por e-mail)
          participações (quem respondeu)  ≠  respostas (anônimas: sem pessoa nem horário)
 
-NR-1 ── ciclos → dimensões → perguntas · público
-        participações  ≠  respostas (anônimas) · riscos → ações
+NR-1 ── diagnósticos (completo · rápido · personalizado; questionário, escala e faixas congelados ao ativar)
+        → fatores (13, severidade de referência) → perguntas (direta | reversa)
+        convites (envio) ≠ usos do convite (sem data, ilegível) ≠ respostas (lote aleatório, departamento opcional)
+        fatores priorizados → ações (origem humana | IA revisada, revisor, evidência)
+
 ```
 
 Respostas de Pulse e NR-1 **não têm vínculo com a pessoa** e ficam em tabelas
@@ -96,7 +99,7 @@ pelo administrador da organização):
 | Feedback 1:1 | tudo* | registrar e administrar (todos)* | registrar e administrar (subordinados diretos)* | — (não acessa nesta versão) |
 | Pulse | tudo | tudo (criar, enviar, encerrar, exportar) | ver resultados agregados da empresa (somente leitura) | — (responde pelo link/Início) |
 | PDI | tudo (inclui excluir) | criar/ver/editar/exportar/excluir (todos) | criar/ver/editar (só liderados diretos; não exclui) | — (não acessa nesta versão) |
-| Diagnóstico NR-1 | administrar | — (só se concedido) | — | responder |
+| Diagnóstico NR-1 | tudo | administrar (criar, ativar, enviar, encerrar, analisar, exportar) | — por padrão; se concedido (escopo equipe): agregados só das áreas que lidera | — (responde só pela página pública do convite) |
 
 \* **Anotações de 1:1:** as *compartilhadas* são vistas só pelos dois
 participantes; as *privadas* só pelo autor. Nem RH nem administrador leem
@@ -165,10 +168,10 @@ Situação: etapas 1 a 8 implementadas e cobertas por testes E2E
 | Dado | Regra | Onde |
 |---|---|---|
 | Anotações de 1:1 | Compartilhada: só os dois participantes. Privada: só o autor. Ninguém mais lê — nem administração, RH, plataforma ou suporte. | Policy de `anotacoes_reuniao` + `jl_participa_reuniao` |
-| Respostas de Pulse e NR-1 | Sem pessoa e sem horário; a aplicação não tem permissão de leitura nem de escrita. Gravação só por `jl_registrar_resposta_pulse` / `jl_responder_nr1`, que validam organização, módulo, situação e prazo, público, pessoa ativa e resposta única. Pesquisa **identificada** grava a pessoa (avisada antes de responder); gatilho impede pessoa em pesquisa anônima. | `respostas_pulse`, `respostas_nr1` (sem GRANT) |
+| Respostas de Pulse e NR-1 | Sem pessoa e sem horário; a aplicação não tem permissão de leitura nem de escrita. Gravação só por `jl_registrar_resposta_pulse` / `jl_registrar_resposta_nr1` (esta, no escopo da plataforma a partir do link assinado), que validam organização, módulo, situação e prazo, público, pessoa ativa e resposta única. Pesquisa **identificada** grava a pessoa (avisada antes de responder); gatilho impede pessoa em pesquisa anônima. | `respostas_pulse`, `respostas_nr1` (sem GRANT) |
 | Participação (quem respondeu) | Só a data; cada pessoa lê apenas a própria. Adesão agregada por função. | Policy `propria` |
 | PDI | Leitura e escrita validadas no banco por `jl_acesso_pdi`: módulo liberado, papel com a ação, escopo "todos" ou liderado direto (`colaboradores.gestor_id`), nunca o próprio PDI do gestor; excluir só com escopo "todos"; suporte só lê. Gatilhos mantêm ação × foco do mesmo plano e progresso coerente com o status. | Policies de `pdis`, `focos_pdi`, `acoes_pdi`, `comentarios_acao_pdi`, `registros_pdi` |
-| Resultados | Só por funções agregadas (`jl_resumo_pulse`, `jl_distribuicao_pulse`, `jl_comentarios_pulse`); anônimas **após o encerramento**, com mínimo de respondentes da organização (`minimo_recorte`) e **regra do complemento** em recortes por departamento/equipe (o restante da organização também precisa atingir o mínimo). Identificadas: a qualquer momento. Comentários do Pulse só em recorte liberado, em ordem aleatória. NR-1 não tem texto livre. | `jl_resumo_*`, `jl_resultado_*`, `jl_comentarios_pulse` |
+| Resultados | Só por funções agregadas (`jl_resumo_pulse`, `jl_distribuicao_pulse`, `jl_comentarios_pulse`); anônimas **após o encerramento**, com mínimo de respondentes da organização (`minimo_recorte`) e **regra do complemento** em recortes por departamento/equipe (o restante da organização também precisa atingir o mínimo). Identificadas: a qualquer momento. Comentários do Pulse só em recorte liberado, em ordem aleatória. NR-1 não tem texto livre; recortes por departamento exigem público ≥ 2× o mínimo, fatores com poucas respostas ficam ocultos e as funções conferem a permissão (gestor só áreas que lidera). | `jl_resumo_*`, `jl_distribuicao_pulse`, `jl_fatores_nr1`, `jl_comentarios_pulse` |
 
 Visualizações de resultado do NR-1 e todas as exportações ficam na auditoria.
 
@@ -306,3 +309,45 @@ aplica a política de retenção de cada organização.
   a ação conclui o compromisso.
 - **Alertas:** ações não concluídas vencidas ou vencendo em 7 dias aparecem no
   painel de pendências (uma linha por ação), no escopo de cada usuário.
+
+## 14. Diagnóstico NR-1 — regras
+
+- **Limite do produto:** instrumento de apoio ao levantamento de fatores de risco
+  psicossociais relacionados ao trabalho. Scores são indicativos da pesquisa — não
+  são laudo, diagnóstico clínico, certificação nem prova de conformidade, e não
+  substituem a avaliação dos profissionais de SST no GRO/PGR (aviso em todas as telas,
+  relatório e CSV).
+- **Questionário:** biblioteca própria (`lib/nr1/questionario.ts`, não oficial do MTE)
+  com 50 perguntas em 13 fatores; versão rápida com 26 (2 por fator) ou seleção
+  personalizada. Escala 1 Nunca … 5 Sempre + "prefiro não responder / não se aplica".
+  Cada item é **direto** ou **reverso** (positivo: 6 − resposta). Ao ativar, perguntas,
+  escala, faixas, tipo, audiência e metodologia (`jl-nr1-2026.1`) ficam congelados
+  por gatilho; só a severidade de referência da matriz pode ser revisada depois.
+- **Cálculo** (`jl_fatores_nr1`): score do fator = arredondar(((média ajustada − 1) ÷ 4) × 100),
+  maior = mais exposição; itens sem resposta não entram. Score geral = média dos
+  fatores exibidos. Faixas (0–20, 21–40, 41–60, 61–80, 81–100) são critério interno
+  configurável. Matriz indicativa = faixa de exposição × severidade de referência
+  (1–3), com registro de quem revisou.
+- **Convites de uso único sem ligação com a resposta:** o link é `id do convite + HMAC`
+  (`NR1_LINK_SECRET` ou `PULSE_LINK_SECRET`, contexto próprio). `convites_nr1` guarda
+  só o envio; o uso fica em `usos_convite_nr1` (sem data; a aplicação não lê); as
+  respostas ficam em `respostas_nr1` com lote aleatório, sem convite, pessoa ou
+  horário. A gravação é uma função atômica (uso + respostas) chamada pela página
+  pública após validar a assinatura, com limite de tentativas por IP e por link.
+  O RH vê só totais (elegíveis, enviados, falhas, respostas). Lembretes vão a quem
+  não usou o convite sem que a lista seja exibida nem registrada por pessoa.
+- **Departamento:** pergunta opcional ao respondente (nunca inferido). Recortes só
+  com público ≥ 2× o mínimo, recorte ≥ mínimo e complemento ≥ mínimo; valores
+  ocultos não saem do banco. Tela, relatório (PDF por impressão), CSV e IA usam a
+  mesma fonte (`lib/nr1/relatorio.ts`).
+- **IA** (se `ANTHROPIC_API_KEY` e `IA_MODELO` configurados): recebe só scores de
+  fatores exibíveis; sugestões ficam em prévia e entram no plano apenas após
+  revisão (origem "IA", revisor e data registrados).
+- **Rotina diária:** encerra diagnósticos na data de fim.
+- **Limitações conhecidas do anonimato:** (1) no instante da submissão o servidor
+  conhece o convite (necessário para uso único) — ele não é gravado com as
+  respostas; (2) quem administra o banco com superusuário pode tentar correlacionar
+  pela ordem física de gravação; (3) o servidor sabe quais convites estão pendentes
+  para enviar lembretes (a tela não mostra); (4) o total de respostas é atualizado
+  durante a coleta; (5) grupos pequenos continuam sujeitos a inferência por contexto
+  — o mínimo é piso operacional, não garantia absoluta.

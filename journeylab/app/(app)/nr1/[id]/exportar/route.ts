@@ -2,64 +2,64 @@ import { NextResponse } from "next/server";
 import { ErroAcesso, exigirPermissaoAcao } from "@/lib/contexto";
 import { auditar } from "@/lib/auditoria";
 import { respostaCsv } from "@/lib/csv";
-import { indicesPorDimensao, resultadoNr1 } from "@/lib/nr1/consultas";
-import { faixa, PRIORIDADE, STATUS_ACAO_NR1, STATUS_RISCO } from "@/lib/nr1/regras";
+import { data } from "@/lib/exportar";
+import { carregarRelatorioNr1 } from "@/lib/nr1/relatorio";
+import { faixaDe, LIMITACOES, MOTIVO_OCULTO } from "@/lib/nr1/calculo";
+import { PRIORIDADE, STATUS_ACAO_NR1, STATUS_RISCO } from "@/lib/nr1/regras";
 
 /**
- * Relatório do ciclo (NR-1 › Exportar, escopo "todos"): índices agregados da
- * organização (só se liberados pelo banco), fatores de risco e plano de ação.
- * Nunca contém respostas individuais. Auditado.
+ * CSV com os MESMOS dados e ocultações da tela e do relatório (carregarRelatorioNr1):
+ * scores agregados por fator e recorte liberado, e o plano de ação. Nunca contém
+ * respostas individuais. Auditado.
  */
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let acesso;
   try {
     acesso = await exigirPermissaoAcao("nr1", "exportar");
-    if (acesso.escopo !== "todos") throw new ErroAcesso("Exportação restrita.");
   } catch (e) {
     return NextResponse.json({ erro: e instanceof ErroAcesso ? e.message : "Não autorizado" }, { status: 403 });
   }
   const { ctx, db } = acesso;
   if (!/^[0-9a-f-]{36}$/.test(id)) return NextResponse.json({ erro: "Não encontrado" }, { status: 404 });
-  const c = await db.cicloNr1.findUnique({
-    where: { id },
-    include: {
-      dimensoes: { orderBy: { ordem: "asc" } },
-      riscos: { include: { dimensao: { select: { nome: true } }, acoes: true }, orderBy: { criadoEm: "asc" } },
-    },
-  });
-  if (!c) return NextResponse.json({ erro: "Não encontrado" }, { status: 404 });
-  const r = await resultadoNr1(ctx, c.id, null);
-  const indices = indicesPorDimensao(r.linhas);
+  const rel = await carregarRelatorioNr1(ctx, id);
+  if (!rel || rel.ciclo.status !== "encerrado") return NextResponse.json({ erro: "Não encontrado" }, { status: 404 });
+  const { ciclo: c, organizacao, departamentos } = rel;
 
   const linhas: unknown[][] = [
-    ["Diagnóstico NR-1", c.titulo],
-    ["Organização", ctx.org.nome],
-    ["Situação", c.status],
-    ["Participantes", r.resumo?.liberado ? r.resumo.respondentes : "resultados não liberados"],
-    ["Aviso", "Ferramenta de apoio à gestão de fatores psicossociais; não constitui avaliação clínica, laudo técnico nem parecer jurídico."],
+    ["Diagnóstico", c.titulo],
+    ["Período", `${data(c.dataInicio)} a ${data(c.encerradoEm ?? c.encerraEm)}`],
+    ["Metodologia", c.metodologiaVersao],
+    ["Gerado em", new Date().toISOString().slice(0, 10)],
+    ["Limitações", LIMITACOES],
     [],
-    ["Dimensão", "Índice (0-100)", "Faixa"],
-    ...c.dimensoes.map((d) => {
-      const i = indices.get(d.id);
-      return [d.nome, i ?? "—", i !== undefined ? faixa(i).nome : "—"];
-    }),
-    [],
-    ["Fator de risco", "Dimensão", "Prioridade", "Situação", "Medida", "Responsável", "Prazo", "Situação da medida", "Evidência"],
-    ...c.riscos.flatMap((x) =>
-      (x.acoes.length ? x.acoes : [null]).map((a) => [
-        x.titulo,
-        x.dimensao?.nome ?? "",
-        PRIORIDADE[x.prioridade].nome,
-        STATUS_RISCO[x.status],
+    ["Recorte", "Respostas consideradas", "Fator", "Score indicativo (0–100)", "Faixa", "Observação"],
+  ];
+  for (const r of [...(organizacao ? [organizacao] : []), ...departamentos]) {
+    if (!r.resumo?.liberado) {
+      linhas.push([r.nome, "", "", "", "", MOTIVO_OCULTO[r.resumo?.motivo ?? "minimo"]]);
+      continue;
+    }
+    for (const f of r.fatores)
+      linhas.push([r.nome, r.resumo.respondentes, f.nome, f.score ?? "", f.score !== null ? faixaDe(f.score, c.faixas).nome : "", f.score === null ? "Dados insuficientes para exibição segura" : ""]);
+  }
+  linhas.push([], ["Plano de ação"], ["Fator priorizado", "Fator", "Prioridade", "Status", "Ação", "Responsável", "Prazo", "Status da ação", "Origem", "Revisado por", "Revisado em", "Evidência"]);
+  for (const r of c.riscos)
+    for (const a of r.acoes.length ? r.acoes : [null])
+      linhas.push([
+        r.titulo,
+        r.dimensao?.nome ?? "Geral",
+        PRIORIDADE[r.prioridade].nome,
+        STATUS_RISCO[r.status],
         a?.titulo ?? "",
         a?.responsavelNome ?? "",
-        a?.prazo ? a.prazo.toISOString().slice(0, 10) : "",
+        data(a?.prazo),
         a ? STATUS_ACAO_NR1[a.status].nome : "",
+        a ? (a.origem === "ia" ? "IA (revisada)" : "Humana") : r.origem === "ia" ? "IA (revisada)" : "Humana",
+        a?.revisadoPor ?? r.revisadoPor ?? "",
+        data(a?.revisadoEm ?? r.revisadoEm),
         a?.evidencia ?? "",
-      ]),
-    ),
-  ];
+      ]);
   await auditar(db, { tenantId: ctx.org.id, usuario: { id: ctx.usuario.id, nome: ctx.usuario.nome }, acao: "nr1.exportar", entidade: "ciclo_nr1", entidadeId: c.id });
   return respostaCsv(linhas, "diagnostico-nr1");
 }

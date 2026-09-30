@@ -167,7 +167,7 @@ export async function exigirContexto(): Promise<Contexto> {
  * uma permissão com escopo "próprio" (colaborador) não dá acesso, mesmo se
  * concedida no editor de papéis.
  */
-const ESCOPO_MINIMO: Partial<Record<AreaPermissao, Escopo>> = { onboarding: "equipe", feedback: "equipe", pulse: "equipe", pdi: "equipe" };
+const ESCOPO_MINIMO: Partial<Record<AreaPermissao, Escopo>> = { onboarding: "equipe", feedback: "equipe", pulse: "equipe", pdi: "equipe", nr1: "equipe" };
 
 function escopoEfetivo(ctx: Contexto, area: AreaPermissao, acao: Acao): Escopo | null {
   const e = escopoDe(ctx.permissoes, area, acao);

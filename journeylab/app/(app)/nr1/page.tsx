@@ -1,126 +1,134 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { CheckCircle2, Info, ShieldCheck } from "lucide-react";
-import { exigirContexto, pode } from "@/lib/contexto";
-import { dbTenant } from "@/lib/db";
-import { equipesLideradas } from "@/lib/pulse/regras";
-import { AVISO_NR1, filtroCiclos, filtroCiclosParaResponder, STATUS_CICLO } from "@/lib/nr1/regras";
-import { criarCiclo } from "@/lib/nr1/actions";
+import { redirect } from "next/navigation";
+import { AlertTriangle, ClipboardList, Plus, Users } from "lucide-react";
+import { exigirModulo, pode } from "@/lib/contexto";
 import { formatarData } from "@/lib/formato";
+import { adesaoNr1, resultadoNr1 } from "@/lib/nr1/consultas";
+import { faixaDe, LIMITACOES } from "@/lib/nr1/calculo";
+import { AUDIENCIA_NR1, AVISO_NR1, filtroCiclos, STATUS_CICLO } from "@/lib/nr1/regras";
+import { TIPO_DIAGNOSTICO } from "@/lib/nr1/questionario";
 import { EstadoVazio, Selo } from "@/components/app/lista";
-import { Celula, Tabela } from "@/components/app/tabela";
-import { Cartao, CabecalhoCartao, ItemAtividade } from "@/components/app/painel";
-import { FormAcao } from "@/components/admin/form-acao";
-import { Campo, Selecao } from "@/components/admin/campos";
+import { Cartao, CabecalhoCartao, CartaoKpi } from "@/components/app/painel";
+import { Evolucao } from "@/components/nr1/graficos";
 
 export const metadata: Metadata = { title: "Diagnóstico NR-1" };
 
 export default async function Nr1Page({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  const ctx = await exigirContexto();
-  const db = dbTenant(ctx.org.id, ctx.usuario.id);
+  const { ctx, escopo, db } = await exigirModulo("nr1");
   const sp = await searchParams;
-  const escopo = pode(ctx, "nr1", "visualizar");
+  const gestao = pode(ctx, "nr1", "criar") === "todos" && !ctx.suporte;
+  if (sp.action === "create" && gestao) redirect("/nr1/novo");
+  const ciclos = await db.cicloNr1.findMany({ where: filtroCiclos(escopo), include: { dimensoes: { select: { id: true, nome: true, fatorChave: true } } }, orderBy: { criadoEm: "desc" }, take: 60 });
+  const porStatus = (s: keyof typeof STATUS_CICLO) => ciclos.filter((c) => c.status === s).length;
 
-  const eu = ctx.colaboradorId ? await db.colaborador.findUnique({ where: { id: ctx.colaboradorId }, select: { id: true, equipeId: true, status: true } }) : null;
-  const paraResponder = eu?.status === "ativo" && !ctx.suporte ? await db.cicloNr1.findMany({ where: filtroCiclosParaResponder(eu.id, eu.equipeId), take: 10 }) : [];
-  const minhas = escopo === "equipe" ? (await equipesLideradas(ctx)).map((e) => e.id) : [];
-  const ciclos = escopo
-    ? await db.cicloNr1.findMany({
-        where: filtroCiclos(escopo, minhas),
-        include: { _count: { select: { perguntas: true, dimensoes: true, riscos: true } } },
-        orderBy: { criadoEm: "desc" },
-        take: 50,
-      })
+  // Participação agregada (só para quem administra) e resultados dos encerrados (regras de proteção no banco).
+  const adesoes = escopo === "todos" ? new Map(await Promise.all(ciclos.filter((c) => c.status !== "rascunho").map(async (c) => [c.id, await adesaoNr1(ctx, c.id)] as const))) : new Map();
+  const encerrados = ciclos.filter((c) => c.status === "encerrado").slice(0, 8);
+  const resultados = escopo === "todos" ? new Map(await Promise.all(encerrados.map(async (c) => [c.id, await resultadoNr1(ctx, c.id, null)] as const))) : new Map();
+  const ativos = ciclos.filter((c) => c.status === "aberto");
+  const respostasAtivas = ativos.reduce((n, c) => n + (adesoes.get(c.id)?.respostas ?? 0), 0);
+  const elegiveisAtivos = ativos.reduce((n, c) => n + (adesoes.get(c.id)?.elegiveis ?? 0), 0);
+
+  const ultimo = encerrados.find((c) => resultados.get(c.id)?.resumo?.liberado);
+  const alertas = ultimo
+    ? resultados
+        .get(ultimo.id)!
+        .fatores.filter((f: { score: number | null }) => f.score !== null && faixaDe(f.score, ultimo.faixas).indice >= 3)
+        .map((f: { dimensao_id: string; score: number }) => ({ nome: ultimo.dimensoes.find((d) => d.id === f.dimensao_id)?.nome ?? "", score: f.score }))
     : [];
-  const podeCriar = pode(ctx, "nr1", "criar") === "todos" && !ctx.suporte;
+  const comparaveis = ultimo ? encerrados.filter((c) => c.metodologiaVersao === ultimo.metodologiaVersao && resultados.get(c.id)?.geral !== null && resultados.get(c.id)?.geral !== undefined) : [];
 
   return (
     <>
-      {sp.respondido && (
-        <p role="status" className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm">
-          <CheckCircle2 className="size-4 text-success" aria-hidden /> Participação registrada de forma anônima. Obrigado!
-        </p>
-      )}
-      <div className="grid gap-4 lg:grid-cols-[1fr_minmax(0,360px)]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <Cartao aria-labelledby="participar">
-            <CabecalhoCartao id="participar" titulo="Para participar" descricao="Ciclos abertos dos quais você faz parte." />
-            <div className="px-3 pb-3">
-              {paraResponder.length === 0 ? (
-                <p className="px-2 pb-3 text-sm text-muted-foreground">Nenhum ciclo pendente para você.</p>
-              ) : (
-                <ul>
-                  {paraResponder.map((c) => (
-                    <ItemAtividade key={c.id} href={`/nr1/responder/${c.id}`} icone={ShieldCheck} titulo={c.titulo} subtitulo="Anônimo · cerca de 5 minutos" valor={c.encerraEm ? `Até ${formatarData(c.encerraEm)}` : "Participar"} />
-                  ))}
-                </ul>
-              )}
-            </div>
-          </Cartao>
+      <p className="rounded-lg border border-border bg-card px-4 py-3 text-xs text-muted-foreground">{AVISO_NR1}</p>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <CartaoKpi rotulo="Rascunhos" valor={String(porStatus("rascunho"))} detalhe="Em preparação" href="/nr1#lista" icone={ClipboardList} />
+        <CartaoKpi rotulo="Ativos" valor={String(porStatus("aberto"))} detalhe={ativos.length ? `${respostasAtivas} resposta(s) de ${elegiveisAtivos} elegíveis` : "Nenhum em coleta"} href="/nr1#lista" icone={Users} />
+        <CartaoKpi rotulo="Encerrados" valor={String(porStatus("encerrado"))} detalhe="Com resultados agregados" href="/nr1#lista" icone={ClipboardList} />
+        <CartaoKpi rotulo="Fatores para análise" valor={String(alertas.length)} detalhe={ultimo ? `Exposição elevada no último diagnóstico` : "Aguardando resultados"} href={ultimo ? `/nr1/${ultimo.id}` : "/nr1"} icone={AlertTriangle} alerta={alertas.length > 0} />
+      </div>
 
-          {escopo && (
-            <section aria-labelledby="ciclos" className="flex flex-col gap-3">
-              <h2 id="ciclos" className="font-heading text-lg font-bold">
-                Ciclos de diagnóstico
-              </h2>
-              {ciclos.length === 0 ? (
-                <EstadoVazio titulo="Nenhum ciclo" descricao={podeCriar ? "Crie um ciclo a partir do questionário de referência e adapte-o com a sua equipe de SST." : "Não há ciclos visíveis para você."} />
-              ) : (
-                <Tabela colunas={["Ciclo", "Público", "Estrutura", "Situação", "Riscos"]} minWidth={700}>
-                  {ciclos.map((c) => (
-                    <tr key={c.id}>
-                      <Celula>
-                        <Link href={`/nr1/${c.id}`} className="font-medium hover:text-teal-strong">
-                          {c.titulo}
-                        </Link>
-                        <span className="block text-xs text-muted-foreground">
-                          {c.encerradoEm ? `Encerrado em ${formatarData(c.encerradoEm)}` : c.encerraEm ? `Encerramento previsto ${formatarData(c.encerraEm)}` : `Criado por ${c.criadoPor}`}
-                        </span>
-                      </Celula>
-                      <Celula className="text-muted-foreground">{c.publicoTodos ? "Toda a organização" : `${c.equipeIds.length} equipe(s)`}</Celula>
-                      <Celula className="text-muted-foreground">
-                        {c._count.dimensoes} dimensões · {c._count.perguntas} perguntas
-                      </Celula>
-                      <Celula>
-                        <Selo tom={STATUS_CICLO[c.status].tom}>{STATUS_CICLO[c.status].nome}</Selo>
-                      </Celula>
-                      <Celula className="tabular-nums text-muted-foreground">{c._count.riscos || "—"}</Celula>
-                    </tr>
-                  ))}
-                </Tabela>
-              )}
-            </section>
+      <div className="grid gap-4 xl:grid-cols-[1fr_minmax(0,380px)]">
+        <section id="lista" aria-labelledby="diagnosticos" className="flex min-w-0 flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="diagnosticos" className="font-heading text-lg font-bold">
+              Diagnósticos
+            </h2>
+            {gestao && (
+              <Link href="/nr1/novo" className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                <Plus className="size-4" aria-hidden /> Novo diagnóstico
+              </Link>
+            )}
+          </div>
+          {ciclos.length === 0 ? (
+            <EstadoVazio
+              titulo={escopo === "todos" ? "Nenhum diagnóstico" : "Nenhum resultado disponível"}
+              descricao={escopo === "todos" ? "Crie um diagnóstico com a biblioteca de 50 perguntas (13 fatores) ou uma versão rápida." : "Resultados das suas áreas aparecem após o encerramento, quando houver respostas suficientes."}
+            />
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {ciclos.map((c) => {
+                const a = adesoes.get(c.id);
+                const r = resultados.get(c.id);
+                return (
+                  <li key={c.id} className="rounded-lg border border-border bg-card p-4 shadow-surface">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <Link href={`/nr1/${c.id}`} className="font-heading font-bold hover:text-teal-strong">
+                        {c.titulo}
+                      </Link>
+                      <Selo tom={STATUS_CICLO[c.status].tom}>{STATUS_CICLO[c.status].nome}</Selo>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {c.metodologiaVersao === "legado" ? "Questionário anterior" : TIPO_DIAGNOSTICO[c.tipo].nome} · {AUDIENCIA_NR1[c.audienciaTipo as keyof typeof AUDIENCIA_NR1] ?? c.audienciaTipo}
+                      {c.dataInicio && ` · ${formatarData(c.dataInicio)}`}
+                      {c.encerraEm && ` – ${formatarData(c.encerraEm)}`}
+                    </p>
+                    {a && (
+                      <p className="mt-2 text-xs tabular-nums text-muted-foreground">
+                        {a.elegiveis} elegíveis · {a.enviados} convites enviados{a.falhas ? ` · ${a.falhas} falha(s)` : ""} · <strong className="text-foreground">{a.respostas} resposta(s) recebida(s)</strong>
+                      </p>
+                    )}
+                    {r && (
+                      <p className="mt-1 text-xs">
+                        {r.resumo?.liberado && r.geral !== null ? (
+                          <>
+                            Score indicativo geral <strong className="tabular-nums">{r.geral}</strong> · {faixaDe(r.geral, c.faixas).nome} · amostra de {r.resumo.respondentes}
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">Dados insuficientes para exibição segura.</span>
+                        )}
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           )}
-        </div>
+        </section>
 
         <div className="flex flex-col gap-4">
-          {podeCriar && (
-            <Cartao aria-labelledby="novo">
-              <CabecalhoCartao id="novo" titulo="Novo ciclo" descricao="Nasce como rascunho; o questionário fica fixo ao abrir." />
-              <div className="px-5 pb-5">
-                <FormAcao action={criarCiclo} textoBotao="Criar rascunho">
-                  <Campo nome="titulo" rotulo="Título" required placeholder="Ex.: Diagnóstico psicossocial 2026" />
-                  <Selecao
-                    nome="modelo"
-                    rotulo="Questionário"
-                    opcoes={[
-                      { valor: "referencia", rotulo: "Referência JourneyLab (7 dimensões, 21 perguntas)" },
-                      { valor: "branco", rotulo: "Em branco" },
-                    ]}
-                  />
-                </FormAcao>
+          <Cartao aria-labelledby="alertas">
+            <CabecalhoCartao id="alertas" titulo="Fatores que precisam de análise" descricao={ultimo ? `${ultimo.titulo} · faixa “exposição elevada” ou acima` : "Aparecem após um diagnóstico encerrado com respostas suficientes."} />
+            <ul className="flex flex-col gap-1 px-5 pb-5 text-sm">
+              {ultimo && alertas.length === 0 && <li className="text-muted-foreground">Nenhum fator na faixa de exposição elevada. Isso não substitui a avaliação técnica.</li>}
+              {alertas.map((f: { nome: string; score: number }) => (
+                <li key={f.nome} className="flex justify-between gap-2">
+                  <span>{f.nome}</span>
+                  <strong className="tabular-nums">{f.score}</strong>
+                </li>
+              ))}
+            </ul>
+          </Cartao>
+          {escopo === "todos" && (
+            <Cartao aria-labelledby="evolucao" className="pb-5">
+              <CabecalhoCartao id="evolucao" titulo="Evolução entre ciclos comparáveis" descricao="Score indicativo geral de diagnósticos com a mesma metodologia." />
+              <div className="px-5">
+                <Evolucao pontos={[...comparaveis].reverse().map((c) => ({ rotulo: formatarData(c.encerradoEm ?? c.criadoEm), valor: resultados.get(c.id)!.geral! }))} />
               </div>
             </Cartao>
           )}
-          <Cartao className="bg-brand-gradient-soft p-5">
-            <p className="flex items-center gap-2 font-heading font-bold">
-              <Info className="size-4 text-teal-strong" aria-hidden /> Sobre este diagnóstico
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{AVISO_NR1}</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Respostas anônimas; resultados só após o encerramento e com no mínimo <strong className="text-foreground">{ctx.org.minimoRecorte}</strong> participantes por recorte.
-            </p>
-          </Cartao>
+          <p className="text-xs text-muted-foreground">{LIMITACOES}</p>
         </div>
       </div>
     </>

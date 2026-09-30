@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 /** Tudo exige sessão, exceto estas rotas. */
 // "/api/cron" e "/api/webhooks" se autenticam por segredo próprio (não por sessão).
 // "/pesquisa" é a resposta pública do Pulse (identidade pelo link pessoal, sessão ou link aberto).
-const PUBLICAS = ["/entrar", "/recuperar-senha", "/auth", "/termos", "/privacidade", "/api/webhooks", "/api/cron", "/pesquisa"];
+const PUBLICAS = ["/entrar", "/recuperar-senha", "/auth", "/termos", "/privacidade", "/api/webhooks", "/api/cron", "/pesquisa", "/nr1/responder"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });

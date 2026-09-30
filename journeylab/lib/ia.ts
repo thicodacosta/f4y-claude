@@ -4,23 +4,24 @@ import { z } from "zod";
 
 /**
  * Chamada de IA (API Messages da Anthropic) — só no servidor, sem SDK extra.
- * Configuração: ANTHROPIC_API_KEY e IA_MODELO (padrão claude-sonnet-5-5).
- * Sem chave, `iaDisponivel()` é falso e as telas mostram o recurso indisponível.
+ * Configuração no servidor: ANTHROPIC_API_KEY e IA_MODELO (nenhum modelo fixo no código).
+ * Sem as duas, `iaDisponivel()` é falso e as telas mostram o recurso indisponível.
  */
 export class ErroIa extends Error {}
 
-export const iaDisponivel = () => !!process.env.ANTHROPIC_API_KEY;
+export const iaDisponivel = () => !!process.env.ANTHROPIC_API_KEY && !!process.env.IA_MODELO;
 
 export async function completarJson<T>(p: { sistema: string; usuario: string; schema: z.ZodType<T>; maxTokens?: number }): Promise<T> {
   const chave = process.env.ANTHROPIC_API_KEY;
-  if (!chave) throw new ErroIa("Nenhum serviço de IA está configurado nesta instalação.");
+  const modelo = process.env.IA_MODELO;
+  if (!chave || !modelo) throw new ErroIa("Nenhum serviço de IA está configurado nesta instalação.");
   let resp: Response;
   try {
     resp = await fetch(process.env.IA_URL ?? "https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": chave, "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
-        model: process.env.IA_MODELO ?? "claude-sonnet-5-5",
+        model: modelo,
         max_tokens: p.maxTokens ?? 2000,
         system: p.sistema,
         messages: [{ role: "user", content: p.usuario }],

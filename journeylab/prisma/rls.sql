@@ -43,7 +43,7 @@ begin
     where c.table_schema = 'public' and c.column_name = 'tenant_id' and tb.table_type = 'BASE TABLE'
       and c.table_name not in ('entitlements', 'historico_entitlements', 'associacoes', 'auditoria', 'acessos_suporte', 'anotacoes_reuniao',
                              'participacoes_pulse', 'respostas_pulse', 'modelos_pulse',
-                             'participacoes_nr1', 'respostas_nr1',
+                             'respostas_nr1', 'usos_convite_nr1',
                              'pdis', 'focos_pdi', 'acoes_pdi', 'comentarios_acao_pdi', 'registros_pdi')
   loop
     execute format('alter table public.%I enable row level security', t);
@@ -485,160 +485,282 @@ grant execute on function public.jl_na_audiencia_pulse(uuid, uuid) to journeylab
 grant execute on function public.jl_hoje() to journeylab_app;
 
 -- ════════════════════════════════════════════════════════════════════════
--- Diagnóstico NR-1 — mesmas garantias do Pulse, sem texto livre.
--- Índice de favorabilidade por resposta: (v−1)/4, ou (5−v)/4 se a pergunta é
--- invertida; 0 = desfavorável, 100 = favorável.
+-- Diagnóstico NR-1 — privacidade e permissões aplicadas NO BANCO.
+--  * respostas_nr1: sem pessoa, convite, e-mail ou horário; a aplicação não lê
+--    nem grava (só jl_registrar_resposta_nr1, no escopo da plataforma, a partir
+--    da página pública com link assinado);
+--  * usos_convite_nr1: marca o convite como usado (sem data); a aplicação não lê;
+--    o RH vê só contagens agregadas — nunca quem respondeu;
+--  * resultados por funções agregadas: só após o encerramento, com mínimo de
+--    respondentes (organizacoes.minimo_recorte), regra do complemento, bloqueio de
+--    recortes quando o público é pequeno e fator oculto se tiver poucas respostas;
+--  * permissão conferida nas funções: escopo "todos" vê a organização; escopo
+--    "equipe" (gestor, se a empresa conceder) só recortes das áreas que lidera.
+-- Pontuação de exposição por fator: média do valor ajustado (reversa: 6 − v),
+-- score = round(((média − 1) / 4) × 100). Sem resposta = sem linha (não vira 1).
 -- ════════════════════════════════════════════════════════════════════════
+
+drop function if exists public.jl_responder_nr1(uuid, jsonb);
+drop function if exists public.jl_resultado_nr1(uuid, uuid);
+drop function if exists public.jl_resumo_nr1(uuid, uuid);
+drop function if exists public.jl_adesao_nr1(uuid);
 
 revoke all on public.respostas_nr1 from journeylab_app;
 alter table public.respostas_nr1 enable row level security;
 drop policy if exists isolamento_tenant on public.respostas_nr1;
 
-revoke insert, update, delete on public.participacoes_nr1 from journeylab_app;
-alter table public.participacoes_nr1 enable row level security;
-drop policy if exists isolamento_tenant on public.participacoes_nr1;
-drop policy if exists propria on public.participacoes_nr1;
-create policy propria on public.participacoes_nr1 for select to journeylab_app
-  using (
-    public.jl_plataforma() or (tenant_id = public.jl_tenant() and colaborador_id = (
-      select a.colaborador_id from public.associacoes a
-      where a.tenant_id = public.jl_tenant() and a.usuario_id = public.jl_usuario() and a.status = 'ativa'
-    ))
-  );
+revoke all on public.usos_convite_nr1 from journeylab_app;
+alter table public.usos_convite_nr1 enable row level security;
+drop policy if exists isolamento_tenant on public.usos_convite_nr1;
 
-create or replace function public.jl_responder_nr1(p_ciclo uuid, p_respostas jsonb)
-returns void language plpgsql security definer set search_path = public as $$
-declare
-  v_tenant uuid := public.jl_tenant();
-  v_usuario uuid := public.jl_usuario();
-  v_colab uuid;
-  v_equipe uuid;
-  v_status text;
-  v_c record;
-  v_q record;
-  v_lote uuid := gen_random_uuid();
-  v_valor int;
-begin
-  if v_tenant is null or v_usuario is null or current_setting('app.escopo', true) <> 'tenant' then
-    raise exception 'JL: Sessão inválida.';
-  end if;
-  if not public.jl_modulo_liberado(v_tenant, 'nr1') then
-    raise exception 'JL: O Diagnóstico NR-1 não está ativo para esta organização.';
-  end if;
-  select a.colaborador_id into v_colab from associacoes a
-   where a.tenant_id = v_tenant and a.usuario_id = v_usuario and a.status = 'ativa';
-  if v_colab is null then
-    raise exception 'JL: Sua conta não está vinculada a um cadastro de pessoa nesta organização.';
-  end if;
-  select c.equipe_id, c.status::text into v_equipe, v_status from colaboradores c where c.id = v_colab and c.tenant_id = v_tenant;
-  if v_status is distinct from 'ativo' then
-    raise exception 'JL: Apenas pessoas ativas participam do diagnóstico.';
-  end if;
-  select * into v_c from ciclos_nr1 where id = p_ciclo and tenant_id = v_tenant;
-  if not found or v_c.status <> 'aberto' or (v_c.encerra_em is not null and v_c.encerra_em < current_date) then
-    raise exception 'JL: Este ciclo não está aberto.';
-  end if;
-  if not v_c.publico_todos and (v_equipe is null or not (v_equipe = any (v_c.equipe_ids))) then
-    raise exception 'JL: Você não faz parte do público deste ciclo.';
-  end if;
-  begin
-    insert into participacoes_nr1 (id, tenant_id, ciclo_id, colaborador_id, respondido_em)
-    values (gen_random_uuid(), v_tenant, p_ciclo, v_colab, current_date);
-  exception when unique_violation then
-    raise exception 'JL: Você já participou deste ciclo.';
-  end;
-  for v_q in select * from perguntas_nr1 where ciclo_id = p_ciclo and tenant_id = v_tenant loop
-    begin
-      v_valor := (p_respostas ->> v_q.id::text)::int;
-    exception when others then
-      raise exception 'JL: Resposta inválida.';
-    end;
-    if v_valor is null or v_valor not between 1 and 5 then
-      raise exception 'JL: Responda todas as perguntas.';
-    end if;
-    insert into respostas_nr1 (id, tenant_id, ciclo_id, pergunta_id, lote, equipe_id, valor)
-    values (gen_random_uuid(), v_tenant, p_ciclo, v_q.id, v_lote, v_equipe, v_valor);
-  end loop;
-end $$;
+/** Escopo do usuário da sessão para uma ação do NR-1 (null = sem permissão). Suporte vigente: só leitura, organização inteira. */
+create or replace function public.jl_escopo_nr1(p_acao text) returns text
+language sql stable security definer set search_path = public as $$
+  select case
+    when public.jl_tenant() is null or not public.jl_modulo_liberado(public.jl_tenant(), 'nr1') then null
+    else coalesce(
+      (select case when bool_or(pp.escopo = 'todos') then 'todos' when bool_or(pp.escopo = 'equipe') then 'equipe' end
+         from associacoes a
+         join papel_permissoes pp on pp.papel_id = a.papel_id and pp.area::text = 'nr1' and pp.acao::text = p_acao
+        where a.tenant_id = public.jl_tenant() and a.usuario_id = public.jl_usuario() and a.status = 'ativa'),
+      case when p_acao = 'visualizar' and exists (
+        select 1 from acessos_suporte s where s.tenant_id = public.jl_tenant() and s.superadmin_id = public.jl_usuario()
+           and s.encerrado_em is null and s.expira_em > now()) then 'todos' end)
+  end
+$$;
 
-create or replace function public.jl_resumo_nr1(p_ciclo uuid, p_equipe uuid default null)
+/** Áreas (departamentos) das equipes lideradas diretamente pelo usuário da sessão. */
+create or replace function public.jl_areas_lideradas() returns uuid[]
+language sql stable security definer set search_path = public as $$
+  select coalesce(array_agg(distinct e.area_id) filter (where e.area_id is not null), '{}')
+    from associacoes a join equipes e on e.gestor_id = a.colaborador_id and e.tenant_id = a.tenant_id
+   where a.tenant_id = public.jl_tenant() and a.usuario_id = public.jl_usuario() and a.status = 'ativa'
+$$;
+
+/**
+ * Pode exibir o recorte? motivo: sem_permissao · aberta · minimo · complemento ·
+ * audiencia_pequena · sem_departamento. Recorte por área exige pergunta de
+ * departamento ativa e público de ao menos 2× o mínimo.
+ */
+create or replace function public.jl_resumo_nr1(p_ciclo uuid, p_area uuid default null)
 returns table (respondentes int, minimo int, liberado boolean, motivo text)
 language plpgsql stable security definer set search_path = public as $$
 declare
   v_tenant uuid := public.jl_tenant();
-  v_status text;
+  v_c record;
+  v_escopo text := public.jl_escopo_nr1('visualizar');
   v_min int;
   v_total int;
   v_recorte int;
 begin
-  select c.status::text into v_status from ciclos_nr1 c where c.id = p_ciclo and c.tenant_id = v_tenant;
-  if v_status is null then
-    return;
-  end if;
+  select * into v_c from ciclos_nr1 c where c.id = p_ciclo and c.tenant_id = v_tenant;
+  if not found then return; end if;
   select o.minimo_recorte into v_min from organizacoes o where o.id = v_tenant;
+  minimo := v_min;
+  if v_escopo is null or (v_escopo = 'equipe' and (p_area is null or not (p_area = any (public.jl_areas_lideradas())))) then
+    respondentes := 0; liberado := false; motivo := 'sem_permissao'; return next; return;
+  end if;
   select count(distinct r.lote) into v_total from respostas_nr1 r where r.ciclo_id = p_ciclo and r.tenant_id = v_tenant;
-  if p_equipe is null then
+  if p_area is null then
     v_recorte := v_total;
   else
-    select count(distinct r.lote) into v_recorte from respostas_nr1 r
-     where r.ciclo_id = p_ciclo and r.tenant_id = v_tenant and r.equipe_id = p_equipe;
+    select count(distinct r.lote) into v_recorte from respostas_nr1 r where r.ciclo_id = p_ciclo and r.tenant_id = v_tenant and r.area_id = p_area;
   end if;
   respondentes := v_recorte;
-  minimo := v_min;
-  if v_status <> 'encerrado' then
+  if v_c.status <> 'encerrado' then
     liberado := false; motivo := 'aberta';
+  elsif p_area is not null and not v_c.coletar_departamento then
+    liberado := false; motivo := 'sem_departamento';
+  elsif p_area is not null and v_c.publico_total < 2 * v_min then
+    liberado := false; motivo := 'audiencia_pequena';
   elsif v_recorte < v_min then
     liberado := false; motivo := 'minimo';
-  elsif p_equipe is not null and (v_total - v_recorte) > 0 and (v_total - v_recorte) < v_min then
+  elsif p_area is not null and (v_total - v_recorte) > 0 and (v_total - v_recorte) < v_min then
     liberado := false; motivo := 'complemento';
   else
     liberado := true; motivo := null;
   end if;
+  -- Valores de recortes ocultos não saem da função.
+  if not liberado and motivo <> 'aberta' then respondentes := null; end if;
   return next;
 end $$;
 
-/** Por pergunta: índice de favorabilidade (0–100), média de frequência e nº de respostas. */
-create or replace function public.jl_resultado_nr1(p_ciclo uuid, p_equipe uuid default null)
-returns table (dimensao_id uuid, pergunta_id uuid, indice numeric, media numeric, respostas int)
+/** Score de exposição por fator (0–100). Fator com menos respondentes que o mínimo sai sem score. */
+create or replace function public.jl_fatores_nr1(p_ciclo uuid, p_area uuid default null)
+returns table (dimensao_id uuid, respondentes int, score int, media numeric)
 language plpgsql stable security definer set search_path = public as $$
 declare
   v_tenant uuid := public.jl_tenant();
+  v_min int;
 begin
-  if not coalesce((select s.liberado from public.jl_resumo_nr1(p_ciclo, p_equipe) s), false) then
+  if not coalesce((select s.liberado from public.jl_resumo_nr1(p_ciclo, p_area) s), false) then
     return;
   end if;
+  select o.minimo_recorte into v_min from organizacoes o where o.id = v_tenant;
   return query
-    select q.dimensao_id, q.id,
-           round(avg(case when q.invertida then (5 - r.valor) else (r.valor - 1) end) / 4.0 * 100, 1),
-           round(avg(r.valor)::numeric, 2),
-           count(r.valor)::int
-      from perguntas_nr1 q
-      join respostas_nr1 r on r.pergunta_id = q.id and r.tenant_id = v_tenant
-           and (p_equipe is null or r.equipe_id = p_equipe)
-     where q.ciclo_id = p_ciclo and q.tenant_id = v_tenant
-     group by q.dimensao_id, q.id;
+    with ajustado as (
+      select q.dimensao_id, r.lote, case when q.reversa then 6 - r.valor else r.valor end as v
+        from respostas_nr1 r join perguntas_nr1 q on q.id = r.pergunta_id
+       where r.ciclo_id = p_ciclo and r.tenant_id = v_tenant and (p_area is null or r.area_id = p_area)
+    )
+    select d.id,
+           count(distinct a.lote)::int,
+           case when count(distinct a.lote) >= v_min then round((avg(a.v) - 1) / 4.0 * 100)::int end,
+           case when count(distinct a.lote) >= v_min then round(avg(a.v)::numeric, 2) end
+      from dimensoes_nr1 d left join ajustado a on a.dimensao_id = d.id
+     where d.ciclo_id = p_ciclo and d.tenant_id = v_tenant
+     group by d.id;
 end $$;
 
+/** Participação agregada: elegíveis, convites, e-mails enviados, falhas e respostas recebidas (nunca por pessoa). */
 create or replace function public.jl_adesao_nr1(p_ciclo uuid)
-returns table (publico int, respondentes int)
+returns table (elegiveis int, convites int, enviados int, falhas int, respostas int)
 language sql stable security definer set search_path = public as $$
-  select
-    (select count(*)::int from colaboradores c
-      where c.tenant_id = x.tenant_id and c.status = 'ativo'
-        and (x.publico_todos or c.equipe_id = any (x.equipe_ids))),
-    (select count(*)::int from participacoes_nr1 pp where pp.ciclo_id = x.id)
-  from ciclos_nr1 x
-  where x.id = p_ciclo and x.tenant_id = public.jl_tenant()
+  select x.publico_total,
+         (select count(*)::int from convites_nr1 v where v.ciclo_id = x.id),
+         (select count(*)::int from convites_nr1 v where v.ciclo_id = x.id and v.enviado_em is not null),
+         (select count(*)::int from convites_nr1 v where v.ciclo_id = x.id and v.erro is not null),
+         (select count(distinct r.lote)::int from respostas_nr1 r where r.ciclo_id = x.id)
+    from ciclos_nr1 x
+   where x.id = p_ciclo and x.tenant_id = public.jl_tenant() and public.jl_escopo_nr1('visualizar') = 'todos'
 $$;
 
-revoke all on function public.jl_responder_nr1(uuid, jsonb) from public;
+/** Convites ainda não usados — só para o envio de lembretes pelo servidor (RH com "editar"). A tela mostra apenas a contagem. */
+create or replace function public.jl_convites_pendentes_nr1(p_ciclo uuid)
+returns setof uuid
+language sql stable security definer set search_path = public as $$
+  select v.id from convites_nr1 v
+   where v.ciclo_id = p_ciclo and v.tenant_id = public.jl_tenant() and public.jl_escopo_nr1('editar') = 'todos'
+     and not exists (select 1 from usos_convite_nr1 u where u.convite_id = v.id)
+$$;
+
+/** O convite já foi usado? Só no escopo da plataforma (página pública, a partir do link assinado). */
+create or replace function public.jl_convite_nr1_usado(p_convite uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.jl_plataforma() and exists (select 1 from usos_convite_nr1 u where u.convite_id = p_convite)
+$$;
+
+/**
+ * Registro atômico da resposta pela página pública (escopo plataforma, link
+ * assinado validado no servidor). Marca o convite como usado e grava as
+ * respostas num lote aleatório SEM ligação com o convite. p_respostas:
+ * { "<pergunta_id>": 1..5 | null } com todas as perguntas do ciclo.
+ */
+create or replace function public.jl_registrar_resposta_nr1(p_convite uuid, p_area uuid, p_respostas jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_conv record;
+  v_c record;
+  v_q record;
+  v_lote uuid := gen_random_uuid();
+  v_bruto jsonb;
+  v_valor int;
+  v_area uuid := null;
+  v_n int := 0;
+begin
+  if not public.jl_plataforma() then
+    raise exception 'JL: Operação não permitida.';
+  end if;
+  select * into v_conv from convites_nr1 where id = p_convite;
+  if not found then raise exception 'JL: Link inválido.'; end if;
+  select * into v_c from ciclos_nr1 where id = v_conv.ciclo_id and tenant_id = v_conv.tenant_id for share;
+  if not found or not public.jl_modulo_liberado(v_c.tenant_id, 'nr1') then
+    raise exception 'JL: Pesquisa indisponível.';
+  end if;
+  if v_c.status <> 'aberto' or (v_c.encerra_em is not null and v_c.encerra_em < public.jl_hoje()) then
+    raise exception 'JL: Esta pesquisa está encerrada.';
+  end if;
+  if v_c.data_inicio is not null and v_c.data_inicio > public.jl_hoje() then
+    raise exception 'JL: Esta pesquisa ainda não começou.';
+  end if;
+  if jsonb_typeof(p_respostas) <> 'object' then raise exception 'JL: Respostas inválidas.'; end if;
+  if p_area is not null then
+    if not v_c.coletar_departamento or not exists (select 1 from areas a where a.id = p_area and a.tenant_id = v_c.tenant_id)
+       or (v_c.audiencia_tipo = 'departamentos' and not (p_area = any (v_c.area_ids))) then
+      raise exception 'JL: Departamento inválido.';
+    end if;
+    v_area := p_area;
+  end if;
+  begin
+    insert into usos_convite_nr1 (convite_id, tenant_id, ciclo_id) values (v_conv.id, v_conv.tenant_id, v_conv.ciclo_id);
+  exception when unique_violation then
+    raise exception 'JL: Este link já foi utilizado. Cada convite permite uma única resposta.';
+  end;
+  if (select count(*) from jsonb_object_keys(p_respostas)) <> (select count(*) from perguntas_nr1 where ciclo_id = v_c.id) then
+    raise exception 'JL: Responda todas as perguntas (ou escolha “prefiro não responder”).';
+  end if;
+  for v_q in select * from perguntas_nr1 where ciclo_id = v_c.id loop
+    if not (p_respostas ? v_q.id::text) then
+      raise exception 'JL: Responda todas as perguntas (ou escolha “prefiro não responder”).';
+    end if;
+    v_bruto := p_respostas -> v_q.id::text;
+    if jsonb_typeof(v_bruto) = 'null' then continue; end if;
+    if jsonb_typeof(v_bruto) <> 'number' then raise exception 'JL: Resposta inválida.'; end if;
+    v_valor := (v_bruto #>> '{}')::int;
+    if v_valor not between 1 and 5 or (v_bruto #>> '{}')::numeric <> v_valor then raise exception 'JL: Resposta inválida.'; end if;
+    insert into respostas_nr1 (id, tenant_id, ciclo_id, pergunta_id, lote, area_id, valor)
+    values (gen_random_uuid(), v_c.tenant_id, v_c.id, v_q.id, v_lote, v_area, v_valor);
+    v_n := v_n + 1;
+  end loop;
+  if v_n = 0 then
+    raise exception 'JL: Responda ao menos uma pergunta.';
+  end if;
+end $$;
+
+-- Questionário congelado ao ativar: perguntas e fatores só mudam em rascunho (a severidade
+-- de referência da matriz pode ser revisada depois). Metodologia, escala, faixas, tipo,
+-- audiência e coleta de departamento também ficam fixos após a ativação.
+create or replace function public.jl_nr1_congelado() returns trigger
+language plpgsql as $$
+declare v_ciclo uuid := coalesce(new.ciclo_id, old.ciclo_id);
+begin
+  if (select status from public.ciclos_nr1 where id = v_ciclo) <> 'rascunho' then
+    if tg_table_name = 'dimensoes_nr1' and tg_op = 'UPDATE' then
+      -- Só a severidade de referência (matriz) pode ser revisada depois da ativação.
+      if (to_jsonb(new) - 'severidade') = (to_jsonb(old) - 'severidade') then
+        return new;
+      end if;
+    end if;
+    raise exception 'JL: O questionário não pode ser alterado depois que a pesquisa é ativada.';
+  end if;
+  return coalesce(new, old);
+end $$;
+drop trigger if exists congelado on public.perguntas_nr1;
+create trigger congelado before insert or update or delete on public.perguntas_nr1 for each row execute function public.jl_nr1_congelado();
+drop trigger if exists congelado on public.dimensoes_nr1;
+create trigger congelado before insert or update or delete on public.dimensoes_nr1 for each row execute function public.jl_nr1_congelado();
+
+create or replace function public.jl_nr1_ciclo_congelado() returns trigger
+language plpgsql as $$
+begin
+  if old.status <> 'rascunho' and (new.tipo, new.metodologia_versao, new.escala, new.faixas, new.coletar_departamento, new.audiencia_tipo, new.area_ids, new.colaborador_ids)
+     is distinct from (old.tipo, old.metodologia_versao, old.escala, old.faixas, old.coletar_departamento, old.audiencia_tipo, old.area_ids, old.colaborador_ids) then
+    raise exception 'JL: Metodologia, audiência e questionário ficam fixos depois da ativação.';
+  end if;
+  if new.status = 'rascunho' and old.status <> 'rascunho' then
+    raise exception 'JL: Uma pesquisa ativada não volta a rascunho.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists congelado on public.ciclos_nr1;
+create trigger congelado before update on public.ciclos_nr1 for each row execute function public.jl_nr1_ciclo_congelado();
+
+revoke all on function public.jl_escopo_nr1(text) from public;
+revoke all on function public.jl_areas_lideradas() from public;
 revoke all on function public.jl_resumo_nr1(uuid, uuid) from public;
-revoke all on function public.jl_resultado_nr1(uuid, uuid) from public;
+revoke all on function public.jl_fatores_nr1(uuid, uuid) from public;
 revoke all on function public.jl_adesao_nr1(uuid) from public;
-grant execute on function public.jl_responder_nr1(uuid, jsonb) to journeylab_app;
+revoke all on function public.jl_convites_pendentes_nr1(uuid) from public;
+revoke all on function public.jl_convite_nr1_usado(uuid) from public;
+revoke all on function public.jl_registrar_resposta_nr1(uuid, uuid, jsonb) from public;
+grant execute on function public.jl_escopo_nr1(text) to journeylab_app;
+grant execute on function public.jl_areas_lideradas() to journeylab_app;
 grant execute on function public.jl_resumo_nr1(uuid, uuid) to journeylab_app;
-grant execute on function public.jl_resultado_nr1(uuid, uuid) to journeylab_app;
+grant execute on function public.jl_fatores_nr1(uuid, uuid) to journeylab_app;
 grant execute on function public.jl_adesao_nr1(uuid) to journeylab_app;
+grant execute on function public.jl_convites_pendentes_nr1(uuid) to journeylab_app;
+grant execute on function public.jl_convite_nr1_usado(uuid) to journeylab_app;
+grant execute on function public.jl_registrar_resposta_nr1(uuid, uuid, jsonb) to journeylab_app;
 
 -- ════════════════════════════════════════════════════════════════════════
 -- Retenção: categorias que a aplicação não enxerga (anotações de 1:1,

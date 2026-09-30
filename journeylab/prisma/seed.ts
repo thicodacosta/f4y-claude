@@ -478,62 +478,74 @@ async function pulseDemo(tenantId: string) {
   await db.convitePulse.createMany({ data: ativos.map((c) => ({ tenantId, pesquisaId: aberta.id, colaboradorId: c.id, enviadoEm: new Date() })) });
 }
 
-/** NR-1 (Aurora): ciclo encerrado com respostas fictícias, riscos e plano de ação; e um ciclo aberto. */
+/**
+ * NR-1 (Aurora): um diagnóstico encerrado (completo, com departamento opcional)
+ * com respostas fictícias e plano de ação, e um diagnóstico rápido ativo com
+ * convites. Respostas em lotes aleatórios, sem ligação com os convites.
+ */
 async function nr1Demo(tenantId: string) {
-  if (await db.cicloNr1.findFirst({ where: { tenantId, titulo: "Diagnóstico psicossocial · 1º semestre" } })) return;
-  const { QUESTIONARIO_REFERENCIA } = await import("../lib/nr1/questionario");
-  const criarCiclo = async (titulo: string, status: "aberto" | "encerrado") => {
-    const d = new Date();
+  if (await db.cicloNr1.findFirst({ where: { tenantId, titulo: "Fatores psicossociais · 1º semestre" } })) return;
+  const { FATORES_NR1, itensDoTipo, METODOLOGIA_VERSAO, ESCALA_NR1, SEM_RESPOSTA } = await import("../lib/nr1/questionario");
+  const h = hojeCivil();
+  const ativos = await db.colaborador.findMany({ where: { tenantId, status: "ativo" }, select: { id: true }, orderBy: { nome: "asc" } });
+  const areas = Object.fromEntries((await db.area.findMany({ where: { tenantId }, select: { id: true, nome: true } })).map((a) => [a.nome, a.id]));
+
+  const criar = async (titulo: string, tipo: "completo" | "rapido") => {
     const c = await db.cicloNr1.create({
-      data: {
-        tenantId,
-        titulo,
-        status,
-        abertoEm: new Date(d.getTime() - (status === "encerrado" ? 60 : 2) * 86_400_000),
-        encerradoEm: status === "encerrado" ? new Date(d.getTime() - 30 * 86_400_000) : null,
-        encerraEm: status === "aberto" ? new Date(d.getTime() + 20 * 86_400_000) : null,
-        criadoPor: "Ana Souza",
-      },
+      data: { tenantId, titulo, tipo, criadoPor: "Ana Souza", metodologiaVersao: METODOLOGIA_VERSAO, coletarDepartamento: true, descricao: "Pesquisa sobre condições e organização do trabalho." },
     });
-    const perguntas: { id: string; dim: number; invertida: boolean }[] = [];
-    let ordemQ = 0;
-    for (const [i, dim] of QUESTIONARIO_REFERENCIA.entries()) {
-      const dd = await db.dimensaoNr1.create({ data: { tenantId, cicloId: c.id, nome: dim.nome, descricao: dim.descricao, ordem: i } });
-      for (const [texto, invertida] of dim.perguntas) {
-        const q = await db.perguntaNr1.create({ data: { tenantId, cicloId: c.id, dimensaoId: dd.id, texto, invertida, ordem: ordemQ++ } });
-        perguntas.push({ id: q.id, dim: i, invertida });
+    const perguntas: { id: string; fator: string; reversa: boolean }[] = [];
+    let ordem = 0;
+    for (const [i, f] of itensDoTipo(tipo).entries()) {
+      const d = await db.dimensaoNr1.create({ data: { tenantId, cicloId: c.id, fatorChave: f.chave, nome: f.nome, descricao: f.descricao, severidade: f.severidade, ordem: i } });
+      for (const q of f.itens) {
+        const p = await db.perguntaNr1.create({ data: { tenantId, cicloId: c.id, dimensaoId: d.id, chave: q.chave, texto: q.texto, reversa: q.reversa, ordem: ordem++ } });
+        perguntas.push({ id: p.id, fator: f.chave, reversa: q.reversa });
       }
     }
-    return { c, perguntas };
+    const convites = [];
+    for (const p of ativos) convites.push(await db.conviteNr1.create({ data: { tenantId, cicloId: c.id, colaboradorId: p.id, enviadoEm: new Date() } }));
+    return { c, perguntas, convites };
   };
 
-  const { c, perguntas } = await criarCiclo("Diagnóstico psicossocial · 1º semestre", "encerrado");
-  const ativos = await db.colaborador.findMany({ where: { tenantId, status: "ativo" }, select: { id: true, equipeId: true, email: true }, orderBy: { nome: "asc" } });
-  const respondentes = ativos.filter((p) => p.email !== "carla@aurora.test").slice(0, 11);
-  // Perfil fictício: "Demandas e ritmo" desfavorável; "Relações" favorável; demais intermediários.
-  const favorabilidade = [0.3, 0.55, 0.65, 0.85, 0.7, 0.5, 0.45];
-  for (const [n, p] of respondentes.entries()) {
-    await db.participacaoNr1.create({ data: { tenantId, cicloId: c.id, colaboradorId: p.id, respondidoEm: new Date(Date.now() - 45 * 86_400_000) } });
+  // Encerrado: 12 respostas (7 Tecnologia, 3 Negócios, 2 sem departamento).
+  const { c, perguntas, convites } = await criar("Fatores psicossociais · 1º semestre", "completo");
+  await db.cicloNr1.update({
+    where: { id: c.id },
+    data: { status: "encerrado", abertoEm: somarDias(h, -60), dataInicio: somarDias(h, -60), encerraEm: somarDias(h, -30), encerradoEm: somarDias(h, -30), publicoTotal: ativos.length, escala: { itens: ESCALA_NR1, semResposta: SEM_RESPOSTA } },
+  });
+  // Perfil fictício de exposição por fator (0–100).
+  const alvo: Record<string, number> = { sobrecarga: 78, clareza_papel: 45, comunicacao_dificil: 58, recompensas: 50, mudancas: 55, relacionamentos: 18, assedio: 10, suporte: 30, controle_autonomia: 35, justica: 40, eventos_traumaticos: 8, subcarga: 22, remoto_isolado: 30 };
+  const deps = [...Array(7).fill(areas["Tecnologia"]), ...Array(3).fill(areas["Negócios"]), null, null];
+  for (const [n, area] of deps.entries()) {
+    await db.usoConviteNr1.create({ data: { conviteId: convites[(n * 7) % convites.length].id, tenantId, cicloId: c.id } }).catch(() => undefined);
     const lote = crypto.randomUUID();
-    await db.respostaNr1.createMany({
-      data: perguntas.map((q, k) => {
-        const alvo = favorabilidade[q.dim] + (((n + k) % 3) - 1) * 0.12;
-        const fav = Math.min(4, Math.max(0, Math.round(alvo * 4)));
-        return { tenantId, cicloId: c.id, perguntaId: q.id, lote, equipeId: p.equipeId, valor: q.invertida ? 5 - fav : fav + 1 };
-      }),
-    });
+    const linhas = [];
+    for (const [k, q] of perguntas.entries()) {
+      if (q.fator === "remoto_isolado" && n % 3 === 0) continue; // "não se aplica"
+      const ajustado = Math.min(5, Math.max(1, Math.round(1 + (alvo[q.fator] / 100) * 4 + (((n + k) % 3) - 1) * 0.6)));
+      linhas.push({ tenantId, cicloId: c.id, perguntaId: q.id, lote, areaId: area, valor: q.reversa ? 6 - ajustado : ajustado });
+    }
+    await db.respostaNr1.createMany({ data: linhas });
   }
-  const demandas = await db.dimensaoNr1.findFirst({ where: { cicloId: c.id, nome: "Demandas e ritmo de trabalho" } });
+  const sobrecarga = await db.dimensaoNr1.findFirst({ where: { cicloId: c.id, fatorChave: "sobrecarga" } });
   const risco = await db.riscoNr1.create({
-    data: { tenantId, cicloId: c.id, dimensaoId: demandas?.id, titulo: "Ritmo intenso recorrente e metas percebidas como pouco alcançáveis", descricao: "Índice da dimensão na faixa prioritária em toda a organização.", prioridade: "alta", status: "em_tratamento", criadoPor: "Ana Souza" },
+    data: { tenantId, cicloId: c.id, dimensaoId: sobrecarga?.id, titulo: "Ritmo acelerado e extensão de jornada recorrentes", descricao: "Fator na faixa de exposição elevada; validar com SST e lideranças.", prioridade: "alta", status: "em_tratamento", origem: "humano", revisadoPor: "Ana Souza", revisadoEm: somarDias(h, -25), criadoPor: "Ana Souza" },
   });
   await db.acaoNr1.createMany({
     data: [
-      { tenantId, riscoId: risco.id, titulo: "Revisar distribuição de demandas nos fechamentos mensais", responsavelNome: "Diretoria de Operações", prazo: new Date(Date.now() + 15 * 86_400_000), status: "em_andamento", criadoPor: "Ana Souza" },
-      { tenantId, riscoId: risco.id, titulo: "Rodada de escuta com lideranças sobre metas do trimestre", responsavelNome: "Pessoas e Cultura", prazo: new Date(Date.now() - 5 * 86_400_000), status: "pendente", criadoPor: "Ana Souza" },
+      { tenantId, riscoId: risco.id, titulo: "Revisar distribuição de demandas nos fechamentos mensais", responsavelNome: "Diretoria de Operações", prazo: somarDias(h, 15), status: "em_andamento", origem: "humano", revisadoPor: "Ana Souza", revisadoEm: somarDias(h, -25), criadoPor: "Ana Souza" },
+      { tenantId, riscoId: risco.id, titulo: "Rodada de escuta com lideranças sobre prazos do trimestre", responsavelNome: "Pessoas e Cultura", prazo: somarDias(h, -5), status: "pendente", origem: "humano", revisadoPor: "Ana Souza", revisadoEm: somarDias(h, -25), criadoPor: "Ana Souza" },
     ],
   });
-  await criarCiclo("Diagnóstico psicossocial · 2º semestre", "aberto");
+
+  // Ativo: versão rápida, convites enviados, ainda sem respostas.
+  const ativo = await criar("Fatores psicossociais · 2º semestre", "rapido");
+  await db.cicloNr1.update({
+    where: { id: ativo.c.id },
+    data: { status: "aberto", abertoEm: new Date(), dataInicio: h, encerraEm: somarDias(h, 20), publicoTotal: ativos.length, escala: { itens: ESCALA_NR1, semResposta: SEM_RESPOSTA } },
+  });
+  void FATORES_NR1;
 }
 
 /** Feedback 1:1 avaliado (Aurora): cenários de semáforo e de cadência. Idempotente. */
