@@ -1,29 +1,41 @@
-/* Tokens da JourneyLab (design-system/assets/journeylab-logo.png):
-   azul-marinho #082043, verde-água #12C2B4, cinza #5F6470. */
+/* Tokens da JourneyLab, iguais aos da plataforma (journeylab/app/globals.css),
+   que traduz o "CRM UI Kit for SaaS Dashboards" do Figma: azul muito escuro,
+   verde-água de acento, cinza ardósia e superfícies claras. */
 :root {
-  --navy: #082043;
-  --teal: #12c2b4;
-  --primary: var(--teal); /* destaque não textual: abas, indicadores, barras */
-  --primary-ink: #087a70; /* verde-água escurecido para texto/links: 5,2:1 sobre branco */
-  --secondary: #5f6470;
-  --cta: var(--navy); /* botões: texto branco com contraste alto */
-  --cta-hover: #12305f;
+  --navy: #0b1f3a;
+  --teal: #14b8a6;
+  --primary: var(--teal); /* acento não textual: abas, indicadores, barras */
+  --primary-ink: #0b7a70; /* verde-água para texto e links (AA sobre branco) */
+  --secondary: #526173;
+  --cta: var(--navy); /* ação principal */
+  --cta-hover: #1e3a5f;
   --on-cta: #ffffff;
-  --focus: #087a70;
-  --accent-soft: rgba(18, 194, 180, 0.1);
-  --brand-gradient: linear-gradient(90deg, #082043, #12c2b4);
-  --bg: #f5f7fa;
+  --focus: #0b7a70;
+  --ring: rgba(20, 184, 166, 0.45);
+  --accent-soft: #e6f7f5;
+  --brand-gradient: linear-gradient(135deg, #14b8a6 0%, #0b1f3a 100%);
+  --bg: #f6f8fa;
   --surface: #ffffff;
-  --ink: #182338;
-  --muted: #5f6470;
-  --border: #e3e7ee;
-  --border-strong: #cfd5df;
+  --ink: #0b1f3a;
+  --muted: #526173;
+  --border: #e2e8ee;
+  --border-strong: #d5dde6;
   --success: #15a66b;
-  --warning-bg: #fff6e6;
-  --warning-ink: #8a5a00;
-  --danger: #c9353a;
-  --shadow: 0 1px 2px rgba(8, 32, 67, 0.06), 0 4px 12px rgba(8, 32, 67, 0.06);
-  --radius: 10px;
+  --warning-bg: #fdf3dd;
+  --warning-ink: #4a3208;
+  --danger: #d93a3f;
+  /* Elevação sutil com viés azulado — nunca sombra preta/dura. */
+  --shadow: 0 1px 2px rgba(27, 32, 48, 0.04), 0 1px 1px rgba(40, 110, 170, 0.04);
+  --shadow-hover: 0 6px 20px -6px rgba(40, 110, 170, 0.18), 0 2px 6px rgba(27, 32, 48, 0.05);
+  /* Raios do kit: 8 (itens), 12 (controles), 16 (cartões, sem exceção). */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius: 16px;
+  /* Barra superior no padrão do menu lateral do kit. */
+  --header-bg: #0b1f3a;
+  --header-fg: #d8e1ec;
+  --header-accent: #5eead4;
+  --header-border: #16294a;
   --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Plus Jakarta Sans", var(--font-body);
   color-scheme: light;
@@ -33,43 +45,53 @@
    (data-theme="dark" | "light" no <html>, ver theme-init.js). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --primary-ink: #5fe0d3;
-    --cta: var(--teal);
-    --cta-hover: #3cd3c6;
-    --on-cta: var(--navy);
-    --focus: #5fe0d3;
-    --accent-soft: rgba(18, 194, 180, 0.14);
-    --bg: #0b1426;
-    --surface: #13203a;
-    --ink: #e8ecf3;
-    --muted: #a3aab8;
-    --border: #25324d;
-    --border-strong: #33415f;
-    --warning-bg: #3a3020;
-    --warning-ink: #f5c77a;
-    --danger: #ff7b7f;
+    --primary-ink: #5eead4;
+    --secondary: #9aaabd;
+    --cta: #2dd4bf;
+    --cta-hover: #5eead4;
+    --on-cta: #06201c;
+    --focus: #5eead4;
+    --ring: rgba(45, 212, 191, 0.45);
+    --accent-soft: rgba(45, 212, 191, 0.12);
+    --bg: #0a1628;
+    --surface: #0f1f36;
+    --ink: #e8eef5;
+    --muted: #9aaabd;
+    --border: #1e3350;
+    --border-strong: #24395a;
+    --warning-bg: #3a2f18;
+    --warning-ink: #ffc163;
+    --danger: #ff7a7e;
     --shadow: none;
+    --shadow-hover: 0 6px 20px -6px rgba(0, 0, 0, 0.45);
+    --header-bg: #071427;
+    --header-border: #13243f;
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --primary-ink: #5fe0d3;
-  --cta: var(--teal);
-  --cta-hover: #3cd3c6;
-  --on-cta: var(--navy);
-  --focus: #5fe0d3;
-  --accent-soft: rgba(18, 194, 180, 0.14);
-  --bg: #0b1426;
-  --surface: #13203a;
-  --ink: #e8ecf3;
-  --muted: #a3aab8;
-  --border: #25324d;
-  --border-strong: #33415f;
-  --warning-bg: #3a3020;
-  --warning-ink: #f5c77a;
-  --danger: #ff7b7f;
+  --primary-ink: #5eead4;
+  --secondary: #9aaabd;
+  --cta: #2dd4bf;
+  --cta-hover: #5eead4;
+  --on-cta: #06201c;
+  --focus: #5eead4;
+  --ring: rgba(45, 212, 191, 0.45);
+  --accent-soft: rgba(45, 212, 191, 0.12);
+  --bg: #0a1628;
+  --surface: #0f1f36;
+  --ink: #e8eef5;
+  --muted: #9aaabd;
+  --border: #1e3350;
+  --border-strong: #24395a;
+  --warning-bg: #3a2f18;
+  --warning-ink: #ffc163;
+  --danger: #ff7a7e;
   --shadow: none;
+  --shadow-hover: 0 6px 20px -6px rgba(0, 0, 0, 0.45);
+  --header-bg: #071427;
+  --header-border: #13243f;
   color-scheme: dark;
 }
 
@@ -108,58 +130,41 @@ code {
   font-size: 13px;
 }
 
+/* Barra superior no padrão do menu lateral do kit: azul muito escuro, texto
+   claro e acento verde-água. O logo da empresa fica sobre um fundo branco
+   (logos costumam ser feitos para fundo claro). */
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  position: relative;
-}
-
-.topbar::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  background: var(--brand-gradient);
+  min-height: 60px;
+  padding: 10px 16px;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--header-border);
+  color: var(--header-fg);
 }
 
 .topbar__logo {
-  height: 32px;
-  width: auto;
-  max-width: 180px;
-  object-fit: contain;
   display: block;
-}
-
-/* Logos de clientes costumam ser feitos para fundo branco. */
-:root[data-theme="dark"] .topbar__logo {
-  padding: 4px 6px;
-  border-radius: 6px;
+  height: 36px;
+  width: auto;
+  max-width: 170px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
   background: #fff;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .topbar__logo {
-    padding: 4px 6px;
-    border-radius: 6px;
-    background: #fff;
-  }
+  object-fit: contain;
 }
 
 .topbar__brand {
   font: 700 16px/24px var(--font-display);
   letter-spacing: -0.01em;
+  color: #fff;
 }
 
 .topbar__actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .theme-toggle {
@@ -169,15 +174,23 @@ code {
   width: 32px;
   height: 32px;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--ink);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--header-fg);
   cursor: pointer;
+  transition: background-color 0.15s ease;
 }
 
 .theme-toggle:hover {
-  border-color: var(--primary);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.theme-toggle:focus-visible,
+.topbar__link:focus-visible {
+  outline: 2px solid var(--header-accent);
+  outline-offset: 2px;
 }
 
 .theme-toggle svg {
@@ -186,13 +199,20 @@ code {
 }
 
 .topbar__link {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  color: var(--header-accent);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   text-decoration: none;
+  transition: background-color 0.15s ease;
 }
 
 .topbar__link:hover {
-  text-decoration: underline;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .eyebrow {
@@ -225,7 +245,7 @@ code {
 .banner {
   margin-bottom: 20px;
   padding: 12px 14px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: var(--warning-bg);
   color: var(--warning-ink);
 }
@@ -280,9 +300,9 @@ input[type="text"],
 input[type="password"],
 textarea {
   width: 100%;
-  padding: 9px 11px;
+  padding: 9px 12px;
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--ink);
   font: inherit;
@@ -303,8 +323,13 @@ a:focus-visible {
 
 input[type="text"]:focus,
 input[type="password"]:focus,
-textarea:focus {
+textarea:focus,
+select:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+input[type="search"]:focus {
   border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 .hint {
@@ -334,7 +359,7 @@ textarea:focus {
 .error {
   margin: 0 0 12px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--danger);
   color: var(--danger);
   font-size: 13px;
@@ -345,11 +370,11 @@ textarea:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 38px;
-  padding: 8px 16px;
-  border-radius: 8px;
+  min-height: 36px;
+  padding: 7px 14px;
+  border-radius: var(--radius-md);
   border: 1px solid transparent;
-  font: 600 14px/20px var(--font-body);
+  font: 600 13.5px/20px var(--font-body);
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
@@ -457,7 +482,7 @@ textarea:focus {
 
 .card h2 {
   margin: 0 0 8px;
-  font: 700 15px/22px var(--font-display);
+  font: 700 16px/24px var(--font-display);
   letter-spacing: -0.01em;
 }
 
@@ -563,7 +588,7 @@ textarea:focus {
   margin: 0 0 20px;
   padding: 4px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 
@@ -581,7 +606,7 @@ textarea:focus {
 .segmented__option span {
   display: block;
   padding: 7px 8px;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   text-align: center;
   font-weight: 500;
   color: var(--muted);
@@ -697,7 +722,7 @@ textarea:focus {
 .warnings li {
   margin-bottom: 8px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--warning-bg);
   color: var(--warning-ink);
   font-size: 13px;
@@ -759,7 +784,7 @@ textarea:focus {
   height: 72px;
   padding: 8px;
   border: 1px dashed var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: #fff;
 }
 
@@ -786,37 +811,52 @@ input[type="color"] {
   height: 34px;
   padding: 2px;
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   cursor: pointer;
 }
 
 /* Abas do painel */
+/* Navegação no formato das abas do kit: faixa branca com borda, itens
+   compactos e o ativo preenchido com a cor da ação principal. */
 .tabs {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  padding: 0 6px;
+  gap: 4px;
+  margin: 12px 16px 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
 
 .tabs__tab {
-  padding: 9px 2px;
+  height: 32px;
+  padding: 0 2px;
   border: 0;
-  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
-  font: 600 12px/18px var(--font-body);
+  font: 500 12.5px/18px var(--font-body);
+  white-space: nowrap;
   cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .tabs__tab[aria-selected="true"] {
-  color: var(--ink);
-  border-bottom-color: var(--primary);
+  background: var(--cta);
+  color: var(--on-cta);
 }
 
 .tabs__tab:hover {
+  background: var(--bg);
   color: var(--ink);
+}
+
+.tabs__tab[aria-selected="true"]:hover {
+  background: var(--cta);
+  color: var(--on-cta);
 }
 
 /* Currículos */
@@ -957,7 +997,7 @@ input[type="color"] {
   width: 28px;
   height: 28px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
   font-size: 18px;
@@ -992,7 +1032,7 @@ select {
   width: 100%;
   padding: 9px 11px;
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--ink);
   font: inherit;
@@ -1002,9 +1042,9 @@ input[type="number"],
 input[type="date"],
 input[type="search"] {
   width: 100%;
-  padding: 9px 11px;
+  padding: 9px 12px;
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--ink);
   font: inherit;
@@ -1030,7 +1070,7 @@ input[type="search"] {
   margin: 8px 0 0;
   padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   font-size: 13px;
   overflow-wrap: anywhere;
@@ -1212,7 +1252,7 @@ input[type="search"] {
 
 .metric {
   padding: 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
 }
 
@@ -1327,7 +1367,7 @@ input[type="search"] {
 .prompt-item pre {
   margin: 8px 0;
   padding: 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
   white-space: pre-wrap;
   font: 400 12px/18px var(--font-body);
@@ -1384,9 +1424,6 @@ input[type="search"] {
   margin-bottom: 4px;
 }
 
-.topbar {
-  min-height: 57px;
-}
 
 .lang-label {
   margin: 16px 0 6px;
@@ -1409,7 +1446,7 @@ input[type="search"] {
   margin-bottom: 16px;
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 
 .linkedin-status .hint {
@@ -1496,7 +1533,7 @@ input[type="search"] {
   width: 32px;
   height: 32px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
   font-size: 20px;
@@ -1623,7 +1660,7 @@ input[type="search"] {
 
 .msg__bubble pre {
   padding: 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
   overflow-x: auto;
   font-size: 12px;
@@ -1684,6 +1721,8 @@ input[type="search"] {
 
 .chat__box textarea {
   flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
   min-height: 36px;
   max-height: 180px;
   padding: 8px 4px;
@@ -1704,7 +1743,7 @@ input[type="search"] {
   place-items: center;
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
@@ -1798,7 +1837,7 @@ input[type="search"] {
   width: 100%;
   padding: 8px 10px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--ink);
   text-align: left;
@@ -1839,4 +1878,15 @@ input[type="search"] {
 
 .msg__sources a {
   color: var(--primary-ink);
+}
+
+/* Elevação de hover do kit nos itens clicáveis de lista. */
+.cv-item,
+.prompt-item {
+  transition: box-shadow 0.15s ease;
+}
+
+.cv-item:hover,
+.prompt-item:hover {
+  box-shadow: var(--shadow-hover);
 }
