@@ -8,12 +8,11 @@ export default async function LayoutCrm({ children }: { children: React.ReactNod
   await exigirModulo("crm");
   return (
     <>
-      <CabecalhoModulo titulo="CRM de Candidatos" icone={Users} descricao="Candidatos, vagas e histórico de relacionamento">
+      <CabecalhoModulo titulo="CRM de Candidatos" icone={Users} descricao="Candidatos e histórico de relacionamento · vagas na Página de Carreiras">
         <Abas
           rotulo="CRM"
           abas={[
             { href: "/crm", rotulo: "Candidatos", exato: true },
-            { href: "/crm/vagas", rotulo: "Vagas" },
           ]}
         />
       </CabecalhoModulo>

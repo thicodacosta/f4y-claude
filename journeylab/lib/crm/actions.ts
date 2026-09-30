@@ -183,44 +183,7 @@ export async function removerAnexo(anexoId: string) {
 }
 
 // ─── Vagas e candidaturas ─────────────────────────────────────────────────
-
-export async function salvarVaga(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
-  let novoId: string | null = null;
-  try {
-    const id = uuidOpcional.parse(fd.get("id") ?? "");
-    const { ctx } = await exigirPermissaoAcao("crm", id ? "editar" : "criar");
-    const status = z.enum(["aberta", "pausada", "fechada", "cancelada"]).parse(fd.get("status") || "aberta");
-    const dados = {
-      titulo: z.string().trim().min(3, "Informe o título da vaga.").parse(fd.get("titulo")),
-      descricao: texto.parse(fd.get("descricao") ?? ""),
-      local: texto.parse(fd.get("local") ?? ""),
-      modelo: texto.parse(fd.get("modelo") ?? ""),
-      equipeId: uuidOpcional.parse(fd.get("equipeId") ?? ""),
-      gestorId: uuidOpcional.parse(fd.get("gestorId") ?? ""),
-      status,
-    };
-    await transacao(escopoTx(ctx), async (tx) => {
-      if (dados.equipeId && !(await tx.equipe.findUnique({ where: { id: dados.equipeId } }))) throw new ErroAcesso("Equipe inválida.");
-      if (dados.gestorId && !(await tx.colaborador.findUnique({ where: { id: dados.gestorId } }))) throw new ErroAcesso("Gestor inválido.");
-      if (id) {
-        const antes = await tx.vaga.findUnique({ where: { id } });
-        if (!antes) throw new ErroAcesso("Vaga não encontrada.");
-        const fechando = ["fechada", "cancelada"].includes(status) && !["fechada", "cancelada"].includes(antes.status);
-        await tx.vaga.update({ where: { id }, data: { ...dados, fechadaEm: fechando ? new Date() : ["aberta", "pausada"].includes(status) ? null : antes.fechadaEm } });
-        await auditar(tx, { tenantId: ctx.org.id, usuario: quem(ctx), acao: "crm.vaga.editar", entidade: "vaga", entidadeId: id, detalhes: dados });
-      } else {
-        const v = await tx.vaga.create({ data: { ...dados, tenantId: ctx.org.id, criadoPor: ctx.usuario.nome } });
-        novoId = v.id;
-        await auditar(tx, { tenantId: ctx.org.id, usuario: quem(ctx), acao: "crm.vaga.criar", entidade: "vaga", entidadeId: v.id, detalhes: dados });
-      }
-    });
-    revalidatePath("/crm/vagas");
-  } catch (e) {
-    return erroDe(e);
-  }
-  if (novoId) redirect(`/crm/vagas/${novoId}`);
-  return { ok: "Vaga atualizada." };
-}
+// Criação/edição/publicação de vagas: lib/carreiras/actions.ts (Página de Carreiras).
 
 export async function associarVaga(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
   try {

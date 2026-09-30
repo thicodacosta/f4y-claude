@@ -51,13 +51,13 @@ const PROVEDORES: Provedor[] = [
       return {
         modulo: "crm",
         titulo: "Vagas abertas",
-        href: "/crm/vagas?status=aberta",
+        href: "/pagina-carreiras",
         vazio: "Nenhuma vaga aberta no momento.",
         itens: vagas.map((v) => ({
           texto: v.titulo,
           subtitulo: `Aberta em ${formatarData(v.abertaEm)}`,
           detalhe: `${v._count.candidaturas} candidatos`,
-          href: `/crm/vagas/${v.id}`,
+          href: `/pagina-carreiras/vagas/${v.id}`,
         })),
       };
     },
@@ -278,7 +278,7 @@ const INDICADORES: ProvedorIndicadores[] = [
         db.candidatura.count({ where: { vaga: vagas, status: "contratado", atualizadoEm: { gte: ha30 } } }),
       ]);
       return [
-        { modulo: "crm", rotulo: "Vagas abertas", valor: String(abertas), detalhe: `${emProcesso} candidatos em processo`, href: "/crm/vagas?status=aberta" },
+        { modulo: "crm", rotulo: "Vagas abertas", valor: String(abertas), detalhe: `${emProcesso} candidatos em processo`, href: "/pagina-carreiras" },
         { modulo: "crm", rotulo: "Contratações", valor: String(contratacoes), detalhe: "nos últimos 30 dias", href: "/crm?status=contratado" },
       ];
     },

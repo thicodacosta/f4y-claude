@@ -989,3 +989,25 @@ end $$;
 drop trigger if exists consistente on public.comentarios_acao_pdi;
 create trigger consistente before insert or update on public.comentarios_acao_pdi
   for each row execute function public.jl_comentario_acao_pdi();
+
+-- ════════════════════════════════════════════════════════════════════════
+-- CRM / Página de Carreiras — consistência entre organizações: a candidatura,
+-- a vaga, o candidato e o currículo precisam ser da MESMA organização, e o
+-- currículo precisa ser do próprio candidato (FK sozinha não impede misturar).
+-- ════════════════════════════════════════════════════════════════════════
+create or replace function public.jl_candidatura_consistente() returns trigger
+language plpgsql as $$
+begin
+  if not exists (select 1 from public.vagas v where v.id = new.vaga_id and v.tenant_id = new.tenant_id)
+     or not exists (select 1 from public.candidatos c where c.id = new.candidato_id and c.tenant_id = new.tenant_id) then
+    raise exception 'JL: Vaga e candidato precisam ser da mesma organização.';
+  end if;
+  if new.anexo_id is not null and not exists (
+    select 1 from public.anexos_candidato a where a.id = new.anexo_id and a.candidato_id = new.candidato_id and a.tenant_id = new.tenant_id) then
+    raise exception 'JL: O currículo não pertence a este candidato.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists consistente on public.candidaturas;
+create trigger consistente before insert or update of vaga_id, candidato_id, anexo_id, tenant_id on public.candidaturas
+  for each row execute function public.jl_candidatura_consistente();

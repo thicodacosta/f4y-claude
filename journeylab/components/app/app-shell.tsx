@@ -7,6 +7,7 @@ import {
   Building2,
   Check,
   ChevronDown,
+  Globe,
   House,
   LifeBuoy,
   LogOut,
@@ -50,7 +51,11 @@ function montarGrupos(d: DadosShell): Grupo[] {
   if (d.modulos.length > 0) {
     grupos.push({
       titulo: "Produtos",
-      itens: d.modulos.map((m) => ({ href: `/${m.chave}`, rotulo: m.nome, icone: ICONE_MODULO[m.chave] ?? Target })),
+      // A Página de Carreiras faz parte do CRM: aparece logo abaixo dele, com a mesma permissão.
+      itens: d.modulos.flatMap((m) => [
+        { href: `/${m.chave}`, rotulo: m.nome, icone: ICONE_MODULO[m.chave] ?? Target },
+        ...(m.chave === "crm" ? [{ href: "/pagina-carreiras", rotulo: "Página de Carreiras", icone: Globe }] : []),
+      ]),
     });
   }
   const org: ItemNav[] = [];

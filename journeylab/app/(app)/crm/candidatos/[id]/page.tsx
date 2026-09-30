@@ -112,9 +112,21 @@ export default async function CandidatoPage({ params }: { params: Promise<{ id: 
                 {c.candidaturas.map((cd) => (
                   <li key={cd.id} className="rounded-lg border border-border bg-card p-4">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <Link href={`/crm/vagas/${cd.vaga.id}`} className="font-semibold hover:text-teal-strong">{cd.vaga.titulo}</Link>
+                      <Link href={`/pagina-carreiras/vagas/${cd.vaga.id}`} className="font-semibold hover:text-teal-strong">{cd.vaga.titulo}</Link>
                       <Selo tom={STATUS_CANDIDATURA[cd.status].tom}>{STATUS_CANDIDATURA[cd.status].nome}</Selo>
                     </div>
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      {cd.origem === "carreiras" ? "Candidatura pela Página de Carreiras" : "Associado internamente"} em {formatarData(cd.criadoEm)}
+                      {cd.atualizadoEm.getTime() - cd.criadoEm.getTime() > 60_000 && cd.origem === "carreiras" && ` · última candidatura em ${formatarData(cd.atualizadoEm)}`}
+                      {cd.anexoId && (
+                        <>
+                          {" · "}
+                          <a href={`/crm/anexos/${cd.anexoId}`} className="font-medium text-teal-strong hover:underline">
+                            currículo desta candidatura
+                          </a>
+                        </>
+                      )}
+                    </p>
                     {podeEditar ? (
                       <FormAcao action={alterarCandidatura} textoBotao="Atualizar situação">
                         <input type="hidden" name="id" value={cd.id} />

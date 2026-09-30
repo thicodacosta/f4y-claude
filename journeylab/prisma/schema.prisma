@@ -531,48 +531,77 @@ model AnexoCandidato {
   enviadoPor  String   @map("enviado_por")
   criadoEm    DateTime @default(now()) @map("criado_em")
 
-  candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+  candidato    Candidato     @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+  candidaturas Candidatura[]
 
   @@map("anexos_candidato")
 }
 
+/// Vaga do CRM — também publicada na Página de Carreiras (/carreiras/{org}/vagas/{slug}).
+/// Pública só quando `publicada` e status "aberta". Notificações vão ao criador, no e-mail confirmado antes de publicar.
 model Vaga {
-  id        String     @id @default(uuid()) @db.Uuid
-  tenantId  String     @map("tenant_id") @db.Uuid
-  titulo    String
-  descricao String?
-  equipeId  String?    @map("equipe_id") @db.Uuid
-  gestorId  String?    @map("gestor_id") @db.Uuid
-  local     String?
-  modelo    String?
-  status    StatusVaga @default(aberta)
-  abertaEm  DateTime   @default(now()) @map("aberta_em")
-  fechadaEm DateTime?  @map("fechada_em")
-  criadoPor String     @map("criado_por")
+  id                 String     @id @default(uuid()) @db.Uuid
+  tenantId           String     @map("tenant_id") @db.Uuid
+  titulo             String
+  /// Identificador estável da URL pública (único na organização).
+  slug               String
+  descricao          String?
+  requisitos         String?
+  equipeId           String?    @map("equipe_id") @db.Uuid
+  gestorId           String?    @map("gestor_id") @db.Uuid
+  local              String?
+  /// Modalidade: presencial · híbrido · remoto
+  modelo             String?
+  /// CLT · PJ · estágio · temporário · aprendiz
+  tipoContratacao    String?    @map("tipo_contratacao")
+  status             StatusVaga @default(aberta)
+  publicada          Boolean    @default(false)
+  publicadaEm        DateTime?  @map("publicada_em")
+  abertaEm           DateTime   @default(now()) @map("aberta_em")
+  fechadaEm          DateTime?  @map("fechada_em")
+  criadoPor          String     @map("criado_por")
+  criadoPorUsuarioId String?    @map("criado_por_usuario_id") @db.Uuid
+  /// E-mail do criador para avisos de candidatura (conferido antes de publicar).
+  emailNotificacao   String?    @map("email_notificacao")
+  emailConfirmadoEm  DateTime?  @map("email_confirmado_em")
+  atualizadoEm       DateTime   @default(now()) @updatedAt @map("atualizado_em")
 
   equipe       Equipe?       @relation(fields: [equipeId], references: [id], onDelete: SetNull)
   gestor       Colaborador?  @relation(fields: [gestorId], references: [id], onDelete: SetNull)
   candidaturas Candidatura[]
 
+  @@unique([tenantId, slug])
   @@index([tenantId, status])
+  @@index([tenantId, publicada])
   @@map("vagas")
 }
 
 model Candidatura {
-  id           String            @id @default(uuid()) @db.Uuid
-  tenantId     String            @map("tenant_id") @db.Uuid
-  vagaId       String            @map("vaga_id") @db.Uuid
-  candidatoId  String            @map("candidato_id") @db.Uuid
-  status       StatusCandidatura @default(inscrito)
-  observacao   String?
-  criadoEm     DateTime          @default(now()) @map("criado_em")
-  atualizadoEm DateTime          @updatedAt @map("atualizado_em")
+  id                    String            @id @default(uuid()) @db.Uuid
+  tenantId              String            @map("tenant_id") @db.Uuid
+  vagaId                String            @map("vaga_id") @db.Uuid
+  candidatoId           String            @map("candidato_id") @db.Uuid
+  status                StatusCandidatura @default(inscrito)
+  observacao            String?
+  /// interno · carreiras (Página de Carreiras)
+  origem                String            @default("interno")
+  /// Currículo enviado nesta candidatura (anexo do candidato no CRM).
+  anexoId               String?           @map("anexo_id") @db.Uuid
+  /// Aviso ao criador da vaga: pendente · enviado · falhou (nulo = não se aplica)
+  notificacaoStatus     String?           @map("notificacao_status")
+  notificacaoErro       String?           @map("notificacao_erro")
+  notificacaoEm         DateTime?         @map("notificacao_em")
+  notificacaoTentativas Int               @default(0) @map("notificacao_tentativas")
+  criadoEm              DateTime          @default(now()) @map("criado_em")
+  atualizadoEm          DateTime          @updatedAt @map("atualizado_em")
 
-  vaga      Vaga      @relation(fields: [vagaId], references: [id], onDelete: Cascade)
-  candidato Candidato @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+  vaga      Vaga            @relation(fields: [vagaId], references: [id], onDelete: Cascade)
+  candidato Candidato       @relation(fields: [candidatoId], references: [id], onDelete: Cascade)
+  anexo     AnexoCandidato? @relation(fields: [anexoId], references: [id], onDelete: SetNull)
 
   @@unique([vagaId, candidatoId])
   @@index([tenantId, status])
+  @@index([tenantId, notificacaoStatus])
   @@map("candidaturas")
 }
 

@@ -116,11 +116,29 @@ async function vincular(tenantId: string, usuarioId: string, papelId: string, co
 
 type CandSeed = [string, string, string, string, string, string[], string[], number | null, string | null];
 
-async function crm(tenantId: string, autor: string, vagas: { titulo: string; gestorId?: string; equipeId?: string }[], cands: CandSeed[]) {
+type VagaSeed = { titulo: string; gestorId?: string; equipeId?: string; descricao?: string; requisitos?: string; local?: string; modelo?: string; tipoContratacao?: string; publicarPor?: string };
+
+async function crm(tenantId: string, autor: string, vagas: VagaSeed[], cands: CandSeed[]) {
   const ids: string[] = [];
-  for (const v of vagas) {
+  for (const { publicarPor, ...v } of vagas) {
     const existente = await db.vaga.findFirst({ where: { tenantId, titulo: v.titulo } });
-    ids.push(existente ? existente.id : (await db.vaga.create({ data: { tenantId, ...v, criadoPor: autor } })).id);
+    if (existente) {
+      ids.push(existente.id);
+      continue;
+    }
+    const slug = `${v.titulo.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}-${crypto.randomUUID().slice(0, 6)}`;
+    // Vaga publicada na Página de Carreiras: criador com e-mail conferido.
+    const criador = publicarPor ? await db.usuario.findUnique({ where: { email: publicarPor }, select: { id: true, email: true } }) : null;
+    const nova = await db.vaga.create({
+      data: {
+        tenantId,
+        ...v,
+        slug,
+        criadoPor: autor,
+        ...(criador ? { criadoPorUsuarioId: criador.id, emailNotificacao: criador.email, emailConfirmadoEm: new Date(), publicada: true, publicadaEm: new Date() } : {}),
+      },
+    });
+    ids.push(nova.id);
   }
   for (const [nome, email, telefone, cidade, uf, competencias, tags, vaga, status] of cands) {
     if (await db.candidato.findFirst({ where: { tenantId, emailNorm: email } })) continue;
@@ -642,7 +660,17 @@ async function main() {
 
   // ── CRM (dados fictícios) ──
   await crm(A, "Ana Souza", [
-    { titulo: "Pessoa Desenvolvedora Back-end Pleno", gestorId: bruno.id, equipeId: produto.id },
+    {
+      titulo: "Pessoa Desenvolvedora Back-end Pleno",
+      gestorId: bruno.id,
+      equipeId: produto.id,
+      descricao: "Você vai evoluir as APIs do produto de pagamentos, com foco em confiabilidade e observabilidade.",
+      requisitos: "Experiência com Node.js ou Java\nBancos de dados relacionais\nBoas práticas de testes",
+      local: "São Paulo/SP",
+      modelo: "hibrido",
+      tipoContratacao: "clt",
+      publicarPor: "ana@aurora.test",
+    },
     { titulo: "Executivo(a) de Contas", gestorId: lucas.id, equipeId: comercial.id },
   ], [
     ["Beatriz Oliveira", "beatriz.oliveira@exemplo.test", "(11) 98888-1001", "São Paulo", "SP", ["Node.js", "PostgreSQL"], ["Back-end", "Indicação"], 0, "entrevista"],

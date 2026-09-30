@@ -351,3 +351,35 @@ aplica a política de retenção de cada organização.
   para enviar lembretes (a tela não mostra); (4) o total de respostas é atualizado
   durante a coleta; (5) grupos pequenos continuam sujeitos a inferência por contexto
   — o mínimo é piso operacional, não garantia absoluta.
+
+## 15. Página de Carreiras (parte do CRM de Candidatos)
+
+- **Menu e acesso:** item "Página de Carreiras" logo abaixo do CRM, com as mesmas
+  permissões do CRM (visualizar/criar/editar). Não há cadastro paralelo: usa
+  `vagas`, `candidatos`, `candidaturas` e `anexos_candidato`. As antigas rotas
+  `/crm/vagas` redirecionam para `/pagina-carreiras`.
+- **URLs públicas:** `/carreiras/{slug da organização}` e
+  `/carreiras/{org}/vagas/{slug da vaga}`. O slug da vaga é gerado na criação
+  (título + 6 caracteres) e não muda. Só aparecem vagas `publicada` + `aberta` de
+  organizações ativas com o CRM liberado; a consulta pública seleciona apenas
+  campos públicos (sem criador, e-mail, equipe, gestor ou candidaturas). Vagas
+  abertas têm dados estruturados `JobPosting`.
+- **Publicação:** a vaga registra o criador (usuário e e-mail). Publicar exige
+  conferir o e-mail de aviso (CHECK no banco: publicada ⇒ e-mail confirmado). Vagas
+  sem criador válido precisam que alguém "assuma os avisos" antes.
+- **Candidatura (sem login):** nome, e-mail, telefone e currículo PDF/DOCX (até
+  10 MB, validado no navegador e no servidor pela assinatura do arquivo). A
+  organização vem da vaga validada no servidor. Proteções: campo-armadilha, limite
+  por IP (20/10 min) e por e-mail+vaga (3/hora). O arquivo vai para o bucket
+  privado (`{tenant}/crm/carreiras/...`); depois, UMA transação cria ou reaproveita
+  o candidato pelo e-mail (preenche só o que faltava; diferenças vão para o
+  histórico), grava o currículo, a candidatura (`origem = carreiras`) e o
+  histórico. Se a transação falhar, o arquivo é removido e nada é confirmado.
+  Reenvio para a mesma vaga reaproveita a candidatura e guarda o novo currículo.
+- **Aviso ao criador:** e-mail com vaga, dados do candidato, data e links
+  autenticados (currículo em `/crm/anexos/:id` → URL assinada de 60 s; candidato no
+  CRM). O currículo não vai anexo. Só envia se o criador ainda tem acesso ativo à
+  organização da vaga. Resultado gravado na candidatura (pendente/enviado/falhou,
+  erro, tentativas) e reenviável no painel; falha não desfaz nem duplica nada.
+- **Banco:** gatilho `jl_candidatura_consistente` garante vaga, candidato e
+  currículo da mesma organização (e currículo do próprio candidato).
