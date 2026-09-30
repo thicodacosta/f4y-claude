@@ -42,7 +42,7 @@ begin
     join information_schema.tables tb on tb.table_name = c.table_name and tb.table_schema = c.table_schema
     where c.table_schema = 'public' and c.column_name = 'tenant_id' and tb.table_type = 'BASE TABLE'
       and c.table_name not in ('entitlements', 'historico_entitlements', 'associacoes', 'auditoria', 'acessos_suporte', 'anotacoes_reuniao',
-                             'participacoes_pulse', 'respostas_pulse',
+                             'participacoes_pulse', 'respostas_pulse', 'modelos_pulse',
                              'participacoes_nr1', 'respostas_nr1')
   loop
     execute format('alter table public.%I enable row level security', t);
@@ -210,17 +210,18 @@ revoke all on public.respostas_pulse from journeylab_app;
 alter table public.respostas_pulse enable row level security;
 drop policy if exists isolamento_tenant on public.respostas_pulse;
 
--- Participações (quem respondeu): cada pessoa lê só a própria; gravação só pela função.
+-- Participações (quem respondeu): cada pessoa lê só a própria (a plataforma confere
+-- "já respondeu" na página pública); gravação só pela função.
 revoke insert, update, delete on public.participacoes_pulse from journeylab_app;
 alter table public.participacoes_pulse enable row level security;
 drop policy if exists isolamento_tenant on public.participacoes_pulse;
 drop policy if exists propria on public.participacoes_pulse;
 create policy propria on public.participacoes_pulse for select to journeylab_app
   using (
-    tenant_id = public.jl_tenant() and colaborador_id = (
+    public.jl_plataforma() or (tenant_id = public.jl_tenant() and colaborador_id = (
       select a.colaborador_id from public.associacoes a
       where a.tenant_id = public.jl_tenant() and a.usuario_id = public.jl_usuario() and a.status = 'ativa'
-    )
+    ))
   );
 
 create or replace function public.jl_modulo_liberado(p_tenant uuid, p_modulo text) returns boolean
@@ -232,118 +233,141 @@ language sql stable security definer set search_path = public as $$
   )
 $$;
 
+-- Funções da versão anterior (assinaturas/colunas mudaram).
+drop function if exists public.jl_responder_pulse(uuid, jsonb);
+drop function if exists public.jl_resultado_pulse(uuid, uuid);
+drop function if exists public.jl_resumo_pulse(uuid, uuid);
+drop function if exists public.jl_comentarios_pulse(uuid, uuid);
+
+-- Templates: globais (tenant nulo) legíveis por todas as organizações; os da empresa, só por ela.
+alter table public.modelos_pulse enable row level security;
+drop policy if exists isolamento_tenant on public.modelos_pulse;
+drop policy if exists leitura on public.modelos_pulse;
+drop policy if exists escrita on public.modelos_pulse;
+create policy leitura on public.modelos_pulse for select to journeylab_app
+  using (tenant_id is null or tenant_id = public.jl_tenant() or public.jl_plataforma());
+create policy escrita on public.modelos_pulse for all to journeylab_app
+  using (tenant_id = public.jl_tenant() or public.jl_plataforma())
+  with check (tenant_id = public.jl_tenant() or public.jl_plataforma());
+
+/** Data civil de hoje no fuso da aplicação (mesma regra de lib/datas.ts). */
+create or replace function public.jl_hoje() returns date
+language sql stable as $$ select (now() at time zone 'America/Sao_Paulo')::date $$;
+
+/** A pessoa (ativa) está na audiência da pesquisa? */
+create or replace function public.jl_na_audiencia_pulse(p_pesquisa uuid, p_colaborador uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from pesquisas_pulse p
+    join colaboradores c on c.id = p_colaborador and c.tenant_id = p.tenant_id
+    left join equipes e on e.id = c.equipe_id
+    where p.id = p_pesquisa and c.status = 'ativo' and (
+      p.audiencia_tipo = 'todos'
+      or (p.audiencia_tipo = 'departamentos' and e.area_id = any (p.area_ids))
+      or (p.audiencia_tipo = 'equipes' and c.equipe_id = any (p.equipe_ids))
+      or (p.audiencia_tipo = 'colaboradores' and c.id = any (p.colaborador_ids))
+    )
+  )
+$$;
+
 /**
- * Registra uma resposta anônima. Valida tudo no banco: organização ativa,
- * módulo liberado, pessoa ativa vinculada à conta, pesquisa aberta, público,
- * resposta única, tipos e obrigatoriedade. A participação guarda só a DATA;
- * as respostas não guardam pessoa nem horário.
+ * Registra um envio de respostas (linhas atômicas já validadas por tipo no
+ * servidor). Garante no banco: pesquisa ativa e no prazo, módulo liberado,
+ * pessoa ativa na audiência, UMA resposta por pessoa, e — em pesquisa anônima —
+ * nenhum identificador nas respostas (só o departamento). Sem pessoa: somente
+ * com link aberto habilitado (e sempre anônima).
+ * Chamada pelo servidor da aplicação (escopo da organização ou de plataforma para o link público).
  */
-create or replace function public.jl_responder_pulse(p_pesquisa uuid, p_respostas jsonb)
+create or replace function public.jl_registrar_resposta_pulse(p_pesquisa uuid, p_colaborador uuid, p_linhas jsonb)
 returns void language plpgsql security definer set search_path = public as $$
 declare
-  v_tenant uuid := public.jl_tenant();
-  v_usuario uuid := public.jl_usuario();
-  v_colab uuid;
-  v_equipe uuid;
-  v_status text;
   v_p record;
-  v_q record;
+  v_area uuid;
   v_lote uuid := gen_random_uuid();
-  v_bruto jsonb;
-  v_valor int;
-  v_texto text;
+  v_l jsonb;
 begin
-  if v_tenant is null or v_usuario is null or current_setting('app.escopo', true) <> 'tenant' then
-    raise exception 'JL: Sessão inválida.';
+  select * into v_p from pesquisas_pulse where id = p_pesquisa;
+  if not found then
+    raise exception 'JL: Pesquisa não encontrada.';
   end if;
-  if not public.jl_modulo_liberado(v_tenant, 'pulse') then
-    raise exception 'JL: O Pulse não está ativo para esta organização.';
+  if not (public.jl_plataforma() or v_p.tenant_id = public.jl_tenant()) then
+    raise exception 'JL: Acesso negado.';
   end if;
-  select a.colaborador_id into v_colab from associacoes a
-   where a.tenant_id = v_tenant and a.usuario_id = v_usuario and a.status = 'ativa';
-  if v_colab is null then
-    raise exception 'JL: Sua conta não está vinculada a um cadastro de pessoa nesta organização.';
+  if not public.jl_modulo_liberado(v_p.tenant_id, 'pulse') then
+    raise exception 'JL: Pesquisa indisponível.';
   end if;
-  select c.equipe_id, c.status::text into v_equipe, v_status from colaboradores c where c.id = v_colab and c.tenant_id = v_tenant;
-  if v_status is distinct from 'ativo' then
-    raise exception 'JL: Apenas pessoas ativas respondem pesquisas.';
+  if v_p.status <> 'aberta'
+     or (v_p.data_inicio is not null and v_p.data_inicio > public.jl_hoje())
+     or (v_p.encerra_em is not null and v_p.encerra_em < public.jl_hoje()) then
+    raise exception 'JL: Esta pesquisa não está aberta para respostas.';
   end if;
-  select * into v_p from pesquisas_pulse where id = p_pesquisa and tenant_id = v_tenant;
-  if not found or v_p.status <> 'aberta' or (v_p.encerra_em is not null and v_p.encerra_em < current_date) then
-    raise exception 'JL: Esta pesquisa não está aberta.';
-  end if;
-  if not v_p.publico_todos and (v_equipe is null or not (v_equipe = any (v_p.equipe_ids))) then
-    raise exception 'JL: Você não faz parte do público desta pesquisa.';
-  end if;
-  begin
-    insert into participacoes_pulse (id, tenant_id, pesquisa_id, colaborador_id, respondido_em)
-    values (gen_random_uuid(), v_tenant, p_pesquisa, v_colab, current_date);
-  exception when unique_violation then
-    raise exception 'JL: Você já respondeu esta pesquisa.';
-  end;
-  for v_q in select * from perguntas_pulse where pesquisa_id = p_pesquisa and tenant_id = v_tenant order by ordem loop
-    v_bruto := p_respostas -> v_q.id::text;
-    v_valor := null;
-    v_texto := null;
-    if v_bruto is null or v_bruto = 'null'::jsonb or btrim(v_bruto #>> '{}') = '' then
-      if v_q.obrigatoria then
-        raise exception 'JL: Responda todas as perguntas obrigatórias.';
-      end if;
-      continue;
+  if p_colaborador is null then
+    if not (v_p.link_aberto and v_p.anonima) then
+      raise exception 'JL: Esta pesquisa exige o link pessoal enviado por e-mail.';
     end if;
-    if v_q.tipo = 'texto' then
-      v_texto := left(btrim(v_bruto #>> '{}'), 1000);
-    else
-      begin
-        v_valor := (v_bruto #>> '{}')::int;
-      exception when others then
-        raise exception 'JL: Resposta inválida.';
-      end;
-      if (v_q.tipo = 'escala' and v_valor not between 1 and 5)
-         or (v_q.tipo = 'enps' and v_valor not between 0 and 10)
-         or (v_q.tipo = 'sim_nao' and v_valor not in (0, 1)) then
-        raise exception 'JL: Resposta fora da escala.';
-      end if;
+  else
+    if not public.jl_na_audiencia_pulse(p_pesquisa, p_colaborador) then
+      raise exception 'JL: Você não faz parte do público desta pesquisa.';
     end if;
-    insert into respostas_pulse (id, tenant_id, pesquisa_id, pergunta_id, lote, equipe_id, valor, texto)
-    values (gen_random_uuid(), v_tenant, p_pesquisa, v_q.id, v_lote, v_equipe, v_valor, v_texto);
+    select e.area_id into v_area from colaboradores c left join equipes e on e.id = c.equipe_id where c.id = p_colaborador;
+    begin
+      insert into participacoes_pulse (id, tenant_id, pesquisa_id, colaborador_id, respondido_em)
+      values (gen_random_uuid(), v_p.tenant_id, p_pesquisa, p_colaborador, public.jl_hoje());
+    exception when unique_violation then
+      raise exception 'JL: Você já respondeu esta pesquisa.';
+    end;
+  end if;
+  if jsonb_typeof(p_linhas) <> 'array' or jsonb_array_length(p_linhas) = 0 then
+    raise exception 'JL: Nenhuma resposta enviada.';
+  end if;
+  for v_l in select * from jsonb_array_elements(p_linhas) loop
+    if not exists (select 1 from perguntas_pulse q where q.id = (v_l ->> 'pergunta_id')::uuid and q.pesquisa_id = p_pesquisa) then
+      raise exception 'JL: Resposta inválida.';
+    end if;
+    insert into respostas_pulse (id, tenant_id, pesquisa_id, pergunta_id, lote, area_id, colaborador_id, linha, valor, opcao, texto)
+    values (gen_random_uuid(), v_p.tenant_id, p_pesquisa, (v_l ->> 'pergunta_id')::uuid, v_lote, v_area,
+            case when v_p.anonima then null else p_colaborador end,
+            (v_l ->> 'linha')::int, (v_l ->> 'valor')::int, left(v_l ->> 'opcao', 100), left(v_l ->> 'texto', 2000));
   end loop;
 end $$;
 
 /**
- * Resumo de um recorte (organização inteira ou uma equipe) e se ele pode ser
- * exibido: pesquisa encerrada, respondentes >= mínimo da organização e, em
- * recorte por equipe, o complemento (total − equipe) é 0 ou também >= mínimo.
+ * Recorte (organização ou departamento) pode ser exibido?
+ * Anônima: só encerrada, com respondentes >= mínimo e, por departamento, o
+ * complemento (total − recorte) igual a 0 ou também >= mínimo.
+ * Identificada: a qualquer momento (as pessoas sabem que são identificadas).
  */
-create or replace function public.jl_resumo_pulse(p_pesquisa uuid, p_equipe uuid default null)
+create or replace function public.jl_resumo_pulse(p_pesquisa uuid, p_area uuid default null)
 returns table (respondentes int, minimo int, liberado boolean, motivo text)
 language plpgsql stable security definer set search_path = public as $$
 declare
   v_tenant uuid := public.jl_tenant();
   v_status text;
+  v_anonima boolean;
   v_min int;
   v_total int;
   v_recorte int;
 begin
-  select p.status::text into v_status from pesquisas_pulse p where p.id = p_pesquisa and p.tenant_id = v_tenant;
+  select p.status::text, p.anonima into v_status, v_anonima from pesquisas_pulse p where p.id = p_pesquisa and p.tenant_id = v_tenant;
   if v_status is null then
     return;
   end if;
   select o.minimo_recorte into v_min from organizacoes o where o.id = v_tenant;
   select count(distinct r.lote) into v_total from respostas_pulse r where r.pesquisa_id = p_pesquisa and r.tenant_id = v_tenant;
-  if p_equipe is null then
+  if p_area is null then
     v_recorte := v_total;
   else
-    select count(distinct r.lote) into v_recorte from respostas_pulse r
-     where r.pesquisa_id = p_pesquisa and r.tenant_id = v_tenant and r.equipe_id = p_equipe;
+    select count(distinct r.lote) into v_recorte from respostas_pulse r where r.pesquisa_id = p_pesquisa and r.tenant_id = v_tenant and r.area_id = p_area;
   end if;
   respondentes := v_recorte;
   minimo := v_min;
-  if v_status <> 'encerrada' then
+  if not v_anonima then
+    liberado := v_recorte > 0; motivo := case when v_recorte > 0 then null else 'minimo' end;
+  elsif v_status <> 'encerrada' then
     liberado := false; motivo := 'aberta';
   elsif v_recorte < v_min then
     liberado := false; motivo := 'minimo';
-  elsif p_equipe is not null and (v_total - v_recorte) > 0 and (v_total - v_recorte) < v_min then
+  elsif p_area is not null and (v_total - v_recorte) > 0 and (v_total - v_recorte) < v_min then
     liberado := false; motivo := 'complemento';
   else
     liberado := true; motivo := null;
@@ -351,73 +375,115 @@ begin
   return next;
 end $$;
 
-/** Agregados por pergunta — vazio se o recorte não estiver liberado. */
-create or replace function public.jl_resultado_pulse(p_pesquisa uuid, p_equipe uuid default null)
-returns table (pergunta_id uuid, respostas int, media numeric, distribuicao jsonb)
+/** Distribuição agregada (vale para os 16 tipos) — vazia se o recorte não estiver liberado. */
+create or replace function public.jl_distribuicao_pulse(p_pesquisa uuid, p_area uuid default null)
+returns table (pergunta_id uuid, linha int, opcao text, valor int, n int, respondentes int)
 language plpgsql stable security definer set search_path = public as $$
 declare
   v_tenant uuid := public.jl_tenant();
 begin
-  if not coalesce((select s.liberado from public.jl_resumo_pulse(p_pesquisa, p_equipe) s), false) then
+  if not coalesce((select s.liberado from public.jl_resumo_pulse(p_pesquisa, p_area) s), false) then
     return;
   end if;
   return query
-    select q.id,
-           count(r.valor)::int,
-           round(avg(r.valor)::numeric, 2),
-           coalesce((select jsonb_object_agg(d.valor, d.n) from (
-              select r2.valor, count(*)::int n from respostas_pulse r2
-               where r2.pergunta_id = q.id and r2.tenant_id = v_tenant and r2.valor is not null
-                 and (p_equipe is null or r2.equipe_id = p_equipe)
-               group by r2.valor) d), '{}'::jsonb)
-      from perguntas_pulse q
-      left join respostas_pulse r on r.pergunta_id = q.id and r.tenant_id = v_tenant
-           and (p_equipe is null or r.equipe_id = p_equipe)
-     where q.pesquisa_id = p_pesquisa and q.tenant_id = v_tenant and q.tipo <> 'texto'
-     group by q.id;
+    select r.pergunta_id, r.linha, r.opcao, r.valor, count(*)::int,
+           (select count(distinct r2.lote)::int from respostas_pulse r2
+             where r2.pergunta_id = r.pergunta_id and r2.tenant_id = v_tenant and (p_area is null or r2.area_id = p_area))
+      from respostas_pulse r
+     where r.pesquisa_id = p_pesquisa and r.tenant_id = v_tenant and r.texto is null
+       and (p_area is null or r.area_id = p_area)
+     group by r.pergunta_id, r.linha, r.opcao, r.valor;
 end $$;
 
-/** Comentários livres — só em recorte liberado, em ordem aleatória, sem qualquer metadado. */
-create or replace function public.jl_comentarios_pulse(p_pesquisa uuid, p_equipe uuid default null)
-returns table (pergunta_id uuid, texto text)
+/** Textos — só em recorte liberado, em ordem aleatória, sem metadados. */
+create or replace function public.jl_comentarios_pulse(p_pesquisa uuid, p_area uuid default null)
+returns table (pergunta_id uuid, linha int, texto text)
 language plpgsql stable security definer set search_path = public as $$
 declare
   v_tenant uuid := public.jl_tenant();
 begin
-  if not coalesce((select s.liberado from public.jl_resumo_pulse(p_pesquisa, p_equipe) s), false) then
+  if not coalesce((select s.liberado from public.jl_resumo_pulse(p_pesquisa, p_area) s), false) then
     return;
   end if;
   return query
-    select r.pergunta_id, r.texto from respostas_pulse r
+    select r.pergunta_id, r.linha, r.texto from respostas_pulse r
      where r.pesquisa_id = p_pesquisa and r.tenant_id = v_tenant and r.texto is not null
-       and (p_equipe is null or r.equipe_id = p_equipe)
+       and (p_area is null or r.area_id = p_area)
      order by random();
 end $$;
 
-/** Adesão (público elegível × respondentes): só contagens, nunca nomes. */
+/** Adesão: público (congelado no envio) × envios recebidos. Só contagens. */
 create or replace function public.jl_adesao_pulse(p_pesquisa uuid)
 returns table (publico int, respondentes int)
 language sql stable security definer set search_path = public as $$
   select
-    (select count(*)::int from colaboradores c
-      where c.tenant_id = p.tenant_id and c.status = 'ativo'
-        and (p.publico_todos or c.equipe_id = any (p.equipe_ids))),
-    (select count(*)::int from participacoes_pulse pp where pp.pesquisa_id = p.id)
+    case when p.publico_total > 0 then p.publico_total else
+      (select count(*)::int from colaboradores c where c.tenant_id = p.tenant_id and public.jl_na_audiencia_pulse(p.id, c.id)) end,
+    (select count(distinct r.lote)::int from respostas_pulse r where r.pesquisa_id = p.id)
   from pesquisas_pulse p
   where p.id = p_pesquisa and p.tenant_id = public.jl_tenant()
 $$;
 
+/** Respostas por dia (pela data de participação — nunca pela resposta anônima). */
+create or replace function public.jl_adesao_diaria_pulse(p_pesquisa uuid)
+returns table (dia date, n int)
+language sql stable security definer set search_path = public as $$
+  select pp.respondido_em, count(*)::int from participacoes_pulse pp
+   where pp.pesquisa_id = p_pesquisa and pp.tenant_id = public.jl_tenant()
+   group by pp.respondido_em order by 1
+$$;
+
+/** Quem respondeu — SOMENTE em pesquisa identificada. */
+create or replace function public.jl_participantes_pulse(p_pesquisa uuid)
+returns table (colaborador_id uuid, respondido_em date)
+language sql stable security definer set search_path = public as $$
+  select pp.colaborador_id, pp.respondido_em from participacoes_pulse pp
+  join pesquisas_pulse p on p.id = pp.pesquisa_id
+   where pp.pesquisa_id = p_pesquisa and p.tenant_id = public.jl_tenant() and not p.anonima
+$$;
+
+/** O convite já foi respondido? (a participação só é legível pela própria pessoa). */
+create or replace function public.jl_convite_respondido(p_convite uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from convites_pulse c join participacoes_pulse pp on pp.pesquisa_id = c.pesquisa_id and pp.colaborador_id = c.colaborador_id
+     where c.id = p_convite and (c.tenant_id = public.jl_tenant() or public.jl_plataforma())
+  )
+$$;
+revoke all on function public.jl_convite_respondido(uuid) from public;
+grant execute on function public.jl_convite_respondido(uuid) to journeylab_app;
+
+-- Anônima nunca guarda a pessoa (defesa extra além da função de registro).
+create or replace function public.jl_resposta_anonima() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.colaborador_id is not null and (select anonima from pesquisas_pulse where id = new.pesquisa_id) then
+    raise exception 'JL: Pesquisa anônima não guarda identificação.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists anonima on public.respostas_pulse;
+create trigger anonima before insert or update on public.respostas_pulse
+  for each row execute function public.jl_resposta_anonima();
+
 revoke all on function public.jl_modulo_liberado(uuid, text) from public;
-revoke all on function public.jl_responder_pulse(uuid, jsonb) from public;
+revoke all on function public.jl_na_audiencia_pulse(uuid, uuid) from public;
+revoke all on function public.jl_registrar_resposta_pulse(uuid, uuid, jsonb) from public;
 revoke all on function public.jl_resumo_pulse(uuid, uuid) from public;
-revoke all on function public.jl_resultado_pulse(uuid, uuid) from public;
+revoke all on function public.jl_distribuicao_pulse(uuid, uuid) from public;
 revoke all on function public.jl_comentarios_pulse(uuid, uuid) from public;
 revoke all on function public.jl_adesao_pulse(uuid) from public;
-grant execute on function public.jl_responder_pulse(uuid, jsonb) to journeylab_app;
+revoke all on function public.jl_adesao_diaria_pulse(uuid) from public;
+revoke all on function public.jl_participantes_pulse(uuid) from public;
+grant execute on function public.jl_registrar_resposta_pulse(uuid, uuid, jsonb) to journeylab_app;
 grant execute on function public.jl_resumo_pulse(uuid, uuid) to journeylab_app;
-grant execute on function public.jl_resultado_pulse(uuid, uuid) to journeylab_app;
+grant execute on function public.jl_distribuicao_pulse(uuid, uuid) to journeylab_app;
 grant execute on function public.jl_comentarios_pulse(uuid, uuid) to journeylab_app;
 grant execute on function public.jl_adesao_pulse(uuid) to journeylab_app;
+grant execute on function public.jl_adesao_diaria_pulse(uuid) to journeylab_app;
+grant execute on function public.jl_participantes_pulse(uuid) to journeylab_app;
+grant execute on function public.jl_na_audiencia_pulse(uuid, uuid) to journeylab_app;
+grant execute on function public.jl_hoje() to journeylab_app;
 
 -- ════════════════════════════════════════════════════════════════════════
 -- Diagnóstico NR-1 — mesmas garantias do Pulse, sem texto livre.
@@ -435,10 +501,10 @@ drop policy if exists isolamento_tenant on public.participacoes_nr1;
 drop policy if exists propria on public.participacoes_nr1;
 create policy propria on public.participacoes_nr1 for select to journeylab_app
   using (
-    tenant_id = public.jl_tenant() and colaborador_id = (
+    public.jl_plataforma() or (tenant_id = public.jl_tenant() and colaborador_id = (
       select a.colaborador_id from public.associacoes a
       where a.tenant_id = public.jl_tenant() and a.usuario_id = public.jl_usuario() and a.status = 'ativa'
-    )
+    ))
   );
 
 create or replace function public.jl_responder_nr1(p_ciclo uuid, p_respostas jsonb)
@@ -632,3 +698,49 @@ grant execute on function public.jl_retencao(uuid, boolean) to journeylab_app;
 -- Onboarding v2: no máximo um template padrão por organização e um template ativo por área.
 create unique index if not exists modelo_onboarding_um_padrao on public.modelos_onboarding (tenant_id) where padrao;
 create unique index if not exists modelo_onboarding_um_por_area on public.modelos_onboarding (tenant_id, area_id) where ativo and area_id is not null;
+
+-- ════════════════════════════════════════════════════════════════════════
+-- Feedback 1:1 avaliado — regra ÚNICA de médias e semáforo no banco.
+-- Média de Performance = média dos 8 critérios; Cultura = média dos 8;
+-- Geral = média das duas dimensões. Semáforo pela média geral:
+-- verde ≥ 4,0 · amarelo ≥ 3,0 e < 4,0 · vermelho < 3,0.
+-- Também garante que colaborador e gestor pertencem à mesma organização
+-- do registro (FK sozinha não impede apontar para outra empresa).
+-- ════════════════════════════════════════════════════════════════════════
+create or replace function public.jl_calcular_avaliacao() returns trigger
+language plpgsql as $$
+begin
+  if not exists (select 1 from public.colaboradores c where c.id = new.colaborador_id and c.tenant_id = new.tenant_id) then
+    raise exception 'JL: Colaborador não pertence a esta organização.';
+  end if;
+  if new.gestor_id is not null and not exists (select 1 from public.colaboradores c where c.id = new.gestor_id and c.tenant_id = new.tenant_id) then
+    raise exception 'JL: Gestor não pertence a esta organização.';
+  end if;
+  new.media_performance := (new.p_produtividade + new.p_qualidade + new.p_ferramentas + new.p_priorizacao
+                          + new.p_tempo + new.p_aprendizado + new.p_relacionamento + new.p_comunicacao)::numeric / 8;
+  new.media_cultura := (new.c_criatividade + new.c_confianca + new.c_resultado + new.c_senso_dono
+                      + new.c_adaptabilidade + new.c_resiliencia + new.c_longo_prazo + new.c_colaboracao)::numeric / 8;
+  new.media_geral := (new.media_performance + new.media_cultura) / 2;
+  new.semaforo := case when new.media_geral >= 4 then 'verde'::"Semaforo"
+                       when new.media_geral >= 3 then 'amarelo'::"Semaforo"
+                       else 'vermelho'::"Semaforo" end;
+  return new;
+end $$;
+drop trigger if exists calcular on public.avaliacoes_feedback;
+create trigger calcular before insert or update on public.avaliacoes_feedback
+  for each row execute function public.jl_calcular_avaliacao();
+
+-- Reuniões de 1:1: participantes da mesma organização; sem duplicar horário ativo da mesma pessoa.
+create or replace function public.jl_reuniao_mesmo_tenant() returns trigger
+language plpgsql as $$
+begin
+  if not exists (select 1 from public.colaboradores c where c.id = new.colaborador_id and c.tenant_id = new.tenant_id)
+     or not exists (select 1 from public.colaboradores c where c.id = new.gestor_id and c.tenant_id = new.tenant_id) then
+    raise exception 'JL: Participantes da reunião não pertencem a esta organização.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists mesmo_tenant on public.reunioes;
+create trigger mesmo_tenant before insert or update of colaborador_id, gestor_id, tenant_id on public.reunioes
+  for each row execute function public.jl_reuniao_mesmo_tenant();
+create unique index if not exists reuniao_sem_duplicidade on public.reunioes (colaborador_id, data_hora) where status <> 'cancelada';

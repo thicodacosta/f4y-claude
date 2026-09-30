@@ -140,6 +140,9 @@ model Organizacao {
   ativa                   Boolean  @default(true)
   /// Mínimo de respondentes para recortes (Pulse/NR-1) — padrão da organização.
   minimoRecorte           Int      @default(5) @map("minimo_recorte")
+  /// Marca nos e-mails (white-label): cor principal (#RRGGBB) e logo (URL https).
+  corMarca                String?  @map("cor_marca")
+  logoUrl                 String?  @map("logo_url")
   criadoEm                DateTime @default(now()) @map("criado_em")
 
   entitlements Entitlement[]
@@ -387,19 +390,21 @@ model Colaborador {
   criadoEm          DateTime          @default(now()) @map("criado_em")
   atualizadoEm      DateTime          @updatedAt @map("atualizado_em")
 
-  equipe                  Equipe?            @relation("MembrosEquipe", fields: [equipeId], references: [id], onDelete: SetNull)
-  candidatoOrigem         Candidato?         @relation("CandidatoConvertido", fields: [candidatoOrigemId], references: [id], onDelete: SetNull)
+  equipe                  Equipe?             @relation("MembrosEquipe", fields: [equipeId], references: [id], onDelete: SetNull)
+  candidatoOrigem         Candidato?          @relation("CandidatoConvertido", fields: [candidatoOrigemId], references: [id], onDelete: SetNull)
   vagasGeridas            Vaga[]
   onboardings             Onboarding[]
-  tarefasOnboarding       TarefaOnboarding[] @relation("ResponsavelTarefa")
-  gestor                  Colaborador?       @relation("Gestor", fields: [gestorId], references: [id], onDelete: SetNull)
-  liderados               Colaborador[]      @relation("Gestor")
-  equipesGeridas          Equipe[]           @relation("GestorEquipe")
+  tarefasOnboarding       TarefaOnboarding[]  @relation("ResponsavelTarefa")
+  gestor                  Colaborador?        @relation("Gestor", fields: [gestorId], references: [id], onDelete: SetNull)
+  liderados               Colaborador[]       @relation("Gestor")
+  equipesGeridas          Equipe[]            @relation("GestorEquipe")
   associacao              Associacao?
-  reunioesComoGestor      Reuniao[]          @relation("ReuniaoGestor")
-  reunioesComoColaborador Reuniao[]          @relation("ReuniaoColaborador")
-  compromissos            Compromisso[]      @relation("CompromissoResponsavel")
+  reunioesComoGestor      Reuniao[]           @relation("ReuniaoGestor")
+  reunioesComoColaborador Reuniao[]           @relation("ReuniaoColaborador")
+  compromissos            Compromisso[]       @relation("CompromissoResponsavel")
   pdis                    Pdi[]
+  avaliacoesRecebidas     AvaliacaoFeedback[] @relation("AvaliacaoColaborador")
+  avaliacoesFeitas        AvaliacaoFeedback[] @relation("AvaliacaoGestor")
 
   @@unique([tenantId, email])
   @@index([tenantId, status])
@@ -824,12 +829,21 @@ model Reuniao {
   modeloNome      String?       @map("modelo_nome")
   realizadaEm     DateTime?     @map("realizada_em")
   canceladaMotivo String?       @map("cancelada_motivo")
+  /// Duração em minutos (15, 30, 45, 60 ou 90).
+  duracaoMin      Int           @default(30) @map("duracao_min")
+  observacoes     String?
+  /// Série de recorrência (reunião inicial + próximas ocorrências).
+  serieId         String?       @map("serie_id") @db.Uuid
+  /// Feedback que originou o agendamento (ex.: "agendar próximo 1:1").
+  avaliacaoId     String?       @map("avaliacao_id") @db.Uuid
+  criadoPorId     String?       @map("criado_por_id") @db.Uuid
   criadoPor       String        @map("criado_por")
   criadoEm        DateTime      @default(now()) @map("criado_em")
   atualizadoEm    DateTime      @updatedAt @map("atualizado_em")
 
-  gestor       Colaborador       @relation("ReuniaoGestor", fields: [gestorId], references: [id], onDelete: Cascade)
-  colaborador  Colaborador       @relation("ReuniaoColaborador", fields: [colaboradorId], references: [id], onDelete: Cascade)
+  gestor       Colaborador        @relation("ReuniaoGestor", fields: [gestorId], references: [id], onDelete: Cascade)
+  colaborador  Colaborador        @relation("ReuniaoColaborador", fields: [colaboradorId], references: [id], onDelete: Cascade)
+  avaliacao    AvaliacaoFeedback? @relation(fields: [avaliacaoId], references: [id], onDelete: SetNull)
   anotacoes    AnotacaoReuniao[]
   compromissos Compromisso[]
 
@@ -876,6 +890,70 @@ model Compromisso {
   @@index([tenantId, status])
   @@index([reuniaoId])
   @@map("compromissos")
+}
+
+enum Periodicidade {
+  mensal
+  bimestral
+  trimestral
+  manual
+}
+
+enum Semaforo {
+  verde
+  amarelo
+  vermelho
+}
+
+/// Feedback 1:1 avaliado: 8 critérios de Performance + 8 de Cultura (1 a 5).
+/// Médias e semáforo são calculados pelo BANCO (gatilho jl_calcular_avaliacao em rls.sql)
+/// — qualquer valor enviado pela aplicação é sobrescrito. A tela usa a mesma fórmula
+/// (lib/feedback/avaliacao.ts) apenas para a prévia durante o preenchimento.
+model AvaliacaoFeedback {
+  id            String        @id @default(uuid()) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  colaboradorId String        @map("colaborador_id") @db.Uuid
+  /// Gestor no momento do feedback (resolvido no servidor a partir do cadastro).
+  gestorId      String?       @map("gestor_id") @db.Uuid
+  data          DateTime      @db.Date
+  periodicidade Periodicidade @default(mensal)
+
+  pProdutividade  Int @map("p_produtividade") @db.SmallInt
+  pQualidade      Int @map("p_qualidade") @db.SmallInt
+  pFerramentas    Int @map("p_ferramentas") @db.SmallInt
+  pPriorizacao    Int @map("p_priorizacao") @db.SmallInt
+  pTempo          Int @map("p_tempo") @db.SmallInt
+  pAprendizado    Int @map("p_aprendizado") @db.SmallInt
+  pRelacionamento Int @map("p_relacionamento") @db.SmallInt
+  pComunicacao    Int @map("p_comunicacao") @db.SmallInt
+
+  cCriatividade   Int @map("c_criatividade") @db.SmallInt
+  cConfianca      Int @map("c_confianca") @db.SmallInt
+  cResultado      Int @map("c_resultado") @db.SmallInt
+  cSensoDono      Int @map("c_senso_dono") @db.SmallInt
+  cAdaptabilidade Int @map("c_adaptabilidade") @db.SmallInt
+  cResiliencia    Int @map("c_resiliencia") @db.SmallInt
+  cLongoPrazo     Int @map("c_longo_prazo") @db.SmallInt
+  cColaboracao    Int @map("c_colaboracao") @db.SmallInt
+
+  mediaPerformance Decimal  @default(0) @map("media_performance") @db.Decimal(6, 4)
+  mediaCultura     Decimal  @default(0) @map("media_cultura") @db.Decimal(6, 4)
+  mediaGeral       Decimal  @default(0) @map("media_geral") @db.Decimal(6, 4)
+  semaforo         Semaforo @default(vermelho)
+
+  observacoes  String?
+  autorId      String   @map("autor_id") @db.Uuid
+  autorNome    String   @map("autor_nome")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @default(now()) @updatedAt @map("atualizado_em")
+
+  colaborador Colaborador  @relation("AvaliacaoColaborador", fields: [colaboradorId], references: [id], onDelete: Cascade)
+  gestor      Colaborador? @relation("AvaliacaoGestor", fields: [gestorId], references: [id], onDelete: SetNull)
+  reunioes    Reuniao[]
+
+  @@index([tenantId, data])
+  @@index([tenantId, colaboradorId, data])
+  @@map("avaliacoes_feedback")
 }
 
 // ─── PDI ──────────────────────────────────────────────────────────────────
@@ -1014,43 +1092,57 @@ enum StatusPesquisa {
   encerrada
 }
 
-enum TipoPergunta {
-  escala
-  enps
-  sim_nao
-  texto
-}
-
 model PesquisaPulse {
-  id           String         @id @default(uuid()) @db.Uuid
-  tenantId     String         @map("tenant_id") @db.Uuid
-  titulo       String
-  descricao    String?
-  status       StatusPesquisa @default(rascunho)
-  publicoTodos Boolean        @default(true) @map("publico_todos")
-  equipeIds    String[]       @map("equipe_ids") @db.Uuid
-  encerraEm    DateTime?      @map("encerra_em") @db.Date
-  abertaEm     DateTime?      @map("aberta_em")
-  encerradaEm  DateTime?      @map("encerrada_em")
-  criadoPor    String         @map("criado_por")
-  criadoEm     DateTime       @default(now()) @map("criado_em")
+  id             String         @id @default(uuid()) @db.Uuid
+  tenantId       String         @map("tenant_id") @db.Uuid
+  titulo         String
+  descricao      String?
+  /// rascunho · aberta (exibida como "Ativa") · encerrada
+  status         StatusPesquisa @default(rascunho)
+  /// Anônima: respostas sem pessoa/horário, resultados só após o encerramento e com mínimo de respondentes.
+  /// Identificada: respostas ligadas à pessoa (informado ao respondente), resultados a qualquer momento.
+  anonima        Boolean        @default(true)
+  /// todos · departamentos · equipes · colaboradores
+  audienciaTipo  String         @default("todos") @map("audiencia_tipo")
+  areaIds        String[]       @map("area_ids") @db.Uuid
+  equipeIds      String[]       @map("equipe_ids") @db.Uuid
+  colaboradorIds String[]       @map("colaborador_ids") @db.Uuid
+  /// Link aberto (sem login e sem link pessoal): opcional, só para anônimas; duplicidade controlada só no navegador.
+  linkAberto     Boolean        @default(false) @map("link_aberto")
+  dataInicio     DateTime?      @map("data_inicio") @db.Date
+  encerraEm      DateTime?      @map("encerra_em") @db.Date
+  abertaEm       DateTime?      @map("aberta_em")
+  encerradaEm    DateTime?      @map("encerrada_em")
+  /// Tamanho do público no envio (base da taxa de resposta).
+  publicoTotal   Int            @default(0) @map("publico_total")
+  modeloId       String?        @map("modelo_id") @db.Uuid
+  modeloSlug     String?        @map("modelo_slug")
+  aiInsights     Json?          @map("ai_insights")
+  aiInsightsEm   DateTime?      @map("ai_insights_em")
+  criadoPor      String         @map("criado_por")
+  criadoEm       DateTime       @default(now()) @map("criado_em")
+  atualizadoEm   DateTime       @default(now()) @updatedAt @map("atualizado_em")
 
+  modelo        ModeloPulse?        @relation(fields: [modeloId], references: [id], onDelete: SetNull)
   perguntas     PerguntaPulse[]
   participacoes ParticipacaoPulse[]
   respostas     RespostaPulse[]
+  convites      ConvitePulse[]
 
   @@index([tenantId, status])
   @@map("pesquisas_pulse")
 }
 
+/// Pergunta. `tipo` é um dos 16 tipos de lib/pulse/perguntas.ts; `config` guarda opções, escala e matriz.
 model PerguntaPulse {
-  id          String       @id @default(uuid()) @db.Uuid
-  tenantId    String       @map("tenant_id") @db.Uuid
-  pesquisaId  String       @map("pesquisa_id") @db.Uuid
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  pesquisaId  String  @map("pesquisa_id") @db.Uuid
   texto       String
-  tipo        TipoPergunta
-  obrigatoria Boolean      @default(true)
-  ordem       Int          @default(0)
+  tipo        String
+  config      Json    @default("{}")
+  obrigatoria Boolean @default(true)
+  ordem       Int     @default(0)
 
   pesquisa  PesquisaPulse   @relation(fields: [pesquisaId], references: [id], onDelete: Cascade)
   respostas RespostaPulse[]
@@ -1072,22 +1164,67 @@ model ParticipacaoPulse {
   @@map("participacoes_pulse")
 }
 
-/// Resposta anônima: sem pessoa, sem horário. "lote" agrupa as respostas de um envio (aleatório).
+/// Resposta atômica (uma linha por valor): sem horário. Anônima: sem pessoa — só o
+/// departamento (área) para cortes com mínimo. Identificada: com a pessoa.
+/// "lote" agrupa as linhas de um envio (aleatório).
 model RespostaPulse {
-  id         String  @id @default(uuid()) @db.Uuid
-  tenantId   String  @map("tenant_id") @db.Uuid
-  pesquisaId String  @map("pesquisa_id") @db.Uuid
-  perguntaId String  @map("pergunta_id") @db.Uuid
-  lote       String  @db.Uuid
-  equipeId   String? @map("equipe_id") @db.Uuid
-  valor      Int?
-  texto      String?
+  id            String  @id @default(uuid()) @db.Uuid
+  tenantId      String  @map("tenant_id") @db.Uuid
+  pesquisaId    String  @map("pesquisa_id") @db.Uuid
+  perguntaId    String  @map("pergunta_id") @db.Uuid
+  lote          String  @db.Uuid
+  /// Legado (recortes por equipe); novos envios usam area_id.
+  equipeId      String? @map("equipe_id") @db.Uuid
+  areaId        String? @map("area_id") @db.Uuid
+  colaboradorId String? @map("colaborador_id") @db.Uuid
+  /// Linha da matriz (0…n) — nulo nos demais tipos.
+  linha         Int?
+  valor         Int?
+  /// Id da opção escolhida (múltipla escolha, lista, imagem, matriz de múltipla escolha).
+  opcao         String?
+  texto         String?
 
   pesquisa PesquisaPulse @relation(fields: [pesquisaId], references: [id], onDelete: Cascade)
   pergunta PerguntaPulse @relation(fields: [perguntaId], references: [id], onDelete: Cascade)
 
   @@index([pesquisaId, perguntaId])
   @@map("respostas_pulse")
+}
+
+/// Convite por e-mail. O link pessoal é derivado (HMAC do id) — nenhum token fica gravado.
+model ConvitePulse {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  pesquisaId    String    @map("pesquisa_id") @db.Uuid
+  colaboradorId String    @map("colaborador_id") @db.Uuid
+  enviadoEm     DateTime? @map("enviado_em")
+  lembreteEm    DateTime? @map("lembrete_em")
+  erro          String?
+  criadoEm      DateTime  @default(now()) @map("criado_em")
+
+  pesquisa PesquisaPulse @relation(fields: [pesquisaId], references: [id], onDelete: Cascade)
+
+  @@unique([pesquisaId, colaboradorId])
+  @@map("convites_pulse")
+}
+
+/// Template de pesquisa: global (tenant_id nulo, mantido pelo JourneyLab) ou da empresa.
+model ModeloPulse {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String?  @map("tenant_id") @db.Uuid
+  nome      String
+  slug      String
+  descricao String?
+  icone     String?
+  cor       String?
+  perguntas Json
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now()) @map("criado_em")
+
+  pesquisas PesquisaPulse[]
+
+  @@index([tenantId])
+  @@map("modelos_pulse")
 }
 
 // ─── Diagnóstico NR-1 (fatores psicossociais) ─────────────────────────────

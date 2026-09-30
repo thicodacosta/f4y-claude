@@ -11,7 +11,8 @@ import { filtroOnboardings } from "@/lib/onboarding/regras";
 import { SITUACAO, situacao } from "@/lib/onboarding/calculo";
 import { hoje } from "@/lib/datas";
 import { filtroCandidatos } from "@/lib/crm/consultas";
-import { filtroReunioes } from "@/lib/feedback/regras";
+import { filtroAvaliacoes, filtroReunioes } from "@/lib/feedback/regras";
+import { SEMAFORO, umaCasa } from "@/lib/feedback/avaliacao";
 import { filtroPdis, progressoPdi, STATUS_PDI } from "@/lib/pdi/regras";
 import { formatarDataHora } from "@/lib/formato";
 import { Cartao } from "@/components/app/painel";
@@ -55,6 +56,9 @@ export default async function PessoaPage({ params, searchParams }: { params: Pro
   const escopoFb = pode(ctx, "feedback", "visualizar");
   const escopoPdi = pode(ctx, "pdi", "visualizar");
   const agora = new Date();
+  const ultimoFeedback = escopoFb
+    ? await db.avaliacaoFeedback.findFirst({ where: { AND: [{ colaboradorId: pessoa.id }, filtroAvaliacoes(ctx, escopoFb)] }, orderBy: { data: "desc" }, select: { id: true, data: true, semaforo: true, mediaGeral: true, periodicidade: true } })
+    : null;
   const [candidato, proximo1a1, realizados, compromissosAbertos, pdi] = await Promise.all([
     escopoCrm && pessoa.candidatoOrigemId
       ? db.candidato.findFirst({ where: { AND: [{ id: pessoa.candidatoOrigemId }, filtroCandidatos(ctx, escopoCrm)] }, select: { id: true, criadoEm: true } })
@@ -71,8 +75,8 @@ export default async function PessoaPage({ params, searchParams }: { params: Pro
     escopoFb && {
       chave: "feedback",
       titulo: "Feedback 1:1",
-      texto: `${proximo1a1 ? `Próximo 1:1 em ${formatarDataHora(proximo1a1.dataHora.toISOString())}` : "Sem 1:1 agendado"} · ${realizados} realizado(s) · ${compromissosAbertos} compromisso(s) aberto(s)`,
-      href: proximo1a1 ? `/feedback/${proximo1a1.id}` : "/feedback",
+      texto: `${ultimoFeedback ? `Último feedback ${formatarData(ultimoFeedback.data)} · ${SEMAFORO[ultimoFeedback.semaforo].nome.split(" · ")[0].toLowerCase()} (${umaCasa(ultimoFeedback.mediaGeral)})` : "Sem feedback registrado"} · ${proximo1a1 ? `próximo 1:1 em ${formatarDataHora(proximo1a1.dataHora.toISOString())}` : "sem 1:1 agendado"} · ${realizados} realizado(s) · ${compromissosAbertos} compromisso(s) aberto(s)`,
+      href: ultimoFeedback ? `/feedback/avaliacoes/${ultimoFeedback.id}` : proximo1a1 ? `/feedback/${proximo1a1.id}` : "/feedback",
     },
     escopoPdi && {
       chave: "pdi",

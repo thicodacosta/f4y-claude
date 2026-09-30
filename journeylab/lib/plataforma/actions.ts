@@ -75,6 +75,19 @@ export async function editarOrganizacao(_: EstadoForm, fd: FormData): Promise<Es
       identificadoresExternos: listaTexto(fd.get("identificadores")),
       minimoRecorte: z.coerce.number().int().min(3, "O mínimo para recortes deve ser pelo menos 3.").max(50).parse(fd.get("minimoRecorte")),
       ativa: fd.get("ativa") === "on",
+      // Marca dos e-mails (white-label do Pulse).
+      corMarca: z
+        .string()
+        .trim()
+        .transform((v) => v || null)
+        .pipe(z.string().regex(/^#[0-9a-fA-F]{6}$/, "Cor da marca: use o formato #RRGGBB.").nullable())
+        .parse(fd.get("corMarca") ?? ""),
+      logoUrl: z
+        .string()
+        .trim()
+        .transform((v) => v || null)
+        .pipe(z.string().url("Logo: informe uma URL válida.").startsWith("https://", "Logo: use uma URL https.").max(500).nullable())
+        .parse(fd.get("logoUrl") ?? ""),
     };
     await transacao({ escopo: "plataforma", usuarioId: usuario.id }, async (tx) => {
       const antes = await tx.organizacao.findUniqueOrThrow({ where: { id } });

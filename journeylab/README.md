@@ -12,9 +12,9 @@ O site comercial é outro projeto (Claude Design).
 | 1. Base multitenant (auth, convites, organizações, troca de organização, papéis e permissões configuráveis, módulos/entitlements com histórico, cadastro compartilhado, painel, auditoria, administração JourneyLab, suporte temporário) | **Funcional e testada** |
 | 2. CRM de Candidatos (cadastro, duplicidade, currículo/anexos em storage privado, tags, histórico, vagas, candidaturas, exportação CSV auditada, conversão em colaborador) | **Funcional e testada** |
 | 3. Onboarding v2 (templates 30/60/90 por organização e por área, fases com marco, tarefas com status/bloqueio/anexos, lista·Kanban·painel, linha do tempo e Kanban de tarefas com arrastar, progresso e conclusão automáticos, criação automática no cadastro, alertas, lembrete por e-mail ao gestor) | **Funcional e testada** |
-| 4. Feedback 1:1 (agenda, pautas-modelo, anotações compartilhadas/privadas com regra no banco, compromissos, 1:1 → PDI) | **Funcional e testada** |
+| 4. Feedback 1:1 (avaliação de Performance × Cultura com 16 critérios, médias e semáforo pelo banco, cadência, agenda com recorrência e links de calendário, PDI sugerido com confirmação, pautas, anotações com privacidade no banco, compromissos) | **Funcional e testada** |
 | 5. PDI (rascunho → ativo → concluído/arquivado, objetivos, ações com evidência, revisões e comentários, integração com compromissos) | **Funcional e testada** |
-| 6. Pulse (modelos, público por equipe, respostas anônimas, resultados só agregados após encerramento, mínimo de respondentes e regra do complemento no banco) | **Funcional e testada** |
+| 6. Pulse (templates globais e da empresa, 16 tipos de pergunta, assistente em 3 passos, audiência por departamento/equipe/pessoa, envio white-label com link pessoal, página pública de resposta, anônima ou identificada, eNPS, mapa de calor por departamento, Insights IA, lembretes, mínimo de respondentes e regra do complemento no banco) | **Funcional e testada** (IA: sem chave, testado só o estado indisponível) |
 | 7. Diagnóstico NR-1 (questionário de referência editável, participação anônima, índices por dimensão, riscos, plano de ação, relatório CSV auditado) | **Funcional e testada** |
 | 8. Painel integrado, jornada da pessoa entre módulos, exportações com permissão, retenção configurável, rotina diária, compra Kiwify/site → ativação | **Funcional e testada** |
 
@@ -41,8 +41,11 @@ Integrações e rotina diária (variáveis em `.env.example`):
 | `KIWIFY_WEBHOOK_TOKEN` | Token do webhook Kiwify (`/api/webhooks/kiwify`) |
 | `SITE_WEBHOOK_SECRET` | Assinatura HMAC-SHA256 das compras do site (`/api/webhooks/site`) |
 | `INTEGRACAO_ATIVACAO_AUTOMATICA` | `true` aplica compras sem revisão manual (padrão: desligado) |
-| `CRON_SECRET` | Autoriza `GET /api/cron/manutencao` (expiração de módulos e retenção) |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USUARIO`, `SMTP_SENHA`, `SMTP_SEGURO`, `EMAIL_REMETENTE` | E-mail transacional (lembretes). Em dev: Mailpit, SMTP `127.0.0.1:54525` |
+| `CRON_SECRET` | Autoriza `GET /api/cron/manutencao` (expiração de módulos, retenção, Pulse: encerramento e lembretes) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USUARIO`, `SMTP_SENHA`, `SMTP_SEGURO`, `EMAIL_REMETENTE` | E-mail transacional (lembretes, convites do Pulse). Em dev: Mailpit, SMTP `127.0.0.1:54525`. Resend funciona via SMTP |
+| `PULSE_LINK_SECRET` | Assina os links pessoais das pesquisas (mín. 32 caracteres; trocar invalida os links enviados) |
+| `NEXT_PUBLIC_SITE_URL` | Endereço público usado nos links dos e-mails |
+| `ANTHROPIC_API_KEY`, `IA_MODELO` | Insights IA do Pulse (opcional; sem chave, a aba mostra "indisponível") |
 
 ## Contas de teste (senha `JourneyLab2026`)
 
@@ -67,7 +70,8 @@ node scripts/e2e/administracao.mjs   # módulos, histórico, suporte, convites, 
 node scripts/e2e/crm.mjs             # CRM: cadastro, duplicidade, upload, conversão, exportação, isolamento
 node scripts/e2e/onboarding.mjs      # Onboarding: acesso, status por data, Kanban, conclusão automática, cadastro → onboarding, lembrete
 node scripts/e2e/feedback-pdi.mjs    # 1:1 (privacidade das anotações no banco) e PDI (ciclo, evidências, 1:1 → PDI)
-node scripts/e2e/pulse.mjs           # Pulse: respostas ilegíveis pela aplicação, mínimo, complemento, recortes
+node scripts/e2e/feedback-avaliacoes.mjs # Feedback avaliado: regra de médias/semáforo, acesso, cadência, agenda, PDI
+node scripts/e2e/pulse.mjs           # Pulse: banco (anonimato, mínimo, complemento), assistente, e-mails, resposta pública, abas, permissões, rotina
 node scripts/e2e/nr1.mjs             # NR-1: agregação, acesso restrito, riscos, plano de ação, relatório
 node scripts/e2e/etapa8.mjs          # Compra → ativação, rotina diária, retenção, exportações, jornada
 ```

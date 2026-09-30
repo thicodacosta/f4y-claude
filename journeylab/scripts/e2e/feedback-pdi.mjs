@@ -97,11 +97,11 @@ try {
   const acaoOrigem = await um("select a.id, a.pdi_id from acoes_pdi a where compromisso_origem_id=$1", [mapear.id]);
   checar("Compromisso levado ao PDI vira ação no PDI da pessoa", acaoOrigem?.pdi_id === pdiCarla.id);
 
-  // Agendar novo 1:1 pela tela
+  // Agendar novo 1:1 pela tela (agendamento em /feedback/agendar)
   const diego = await um("select id from colaboradores where email='diego@aurora.test'");
-  e = await nav.ir("/feedback");
-  const amanha = new Date(Date.now() + 86_400_000).toISOString().slice(0, 11) + "09:30";
-  await formulario(nav, "f.querySelector('select[name=colaboradorId]') && f.querySelector('input[name=dataHora]')", { colaboradorId: diego.id, dataHora: amanha }, 1000);
+  e = await nav.ir(`/feedback/agendar?colaborador=${diego.id}`);
+  const amanha = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  await formulario(nav, "f.querySelector('select[name=colaboradorId]') && f.querySelector('select[name=horario]')", { data: amanha, horario: "09:30" }, 1000);
   await nav.esperarAte("/\\/feedback\\/[0-9a-f-]{36}$/.test(location.pathname)");
   e = await nav.estado();
   checar("Gestor agenda 1:1 com liderado e abre a ficha", /1:1 · Diego Ferreira/.test(e.texto), e.url);
@@ -125,9 +125,8 @@ try {
   // ── 3. Colaboradora ──
   e = await nav.entrar("carla@aurora.test");
   e = await nav.ir(`/feedback/${reuniao.id}`);
-  checar("Colaboradora vê a própria privada e as compartilhadas", /pedir feedback mais frequente/.test(e.texto) && /Anotação compartilhada E2E do gestor/.test(e.texto));
-  checar("Colaboradora NÃO vê a nota privada do gestor", !/avaliar a Carla para liderar/.test(e.texto));
-  checar("Colaboradora não registra compromissos nem gerencia a reunião", !(await nav.avaliar("!!document.querySelector('input[name=descricao]') || document.body.innerText.includes('Marcar como realizada') || document.body.innerText.includes('Reabrir como agendada')")));
+  // Nesta versão o colaborador não acessa o Feedback 1:1 (as anotações dele continuam preservadas e privadas no banco).
+  checar("Colaboradora não acessa o Feedback 1:1 (nem pela URL da reunião)", e.url.startsWith("/inicio?sem_permissao=feedback") && !/avaliar a Carla/.test(e.texto), e.url);
   const apresentar = await compromisso("Apresentar o roadmap de design para a liderança de produto");
   // Concluir a ação de PDI (sem evidência → recusado; com evidência → conclui também o compromisso de origem)
   const acaoApresentar = await um("select id from acoes_pdi where compromisso_origem_id=$1", [apresentar.id]);
@@ -153,7 +152,7 @@ try {
   checar("Administradora gerencia modelos de pauta", /1:1 quinzenal/.test(e.texto) && /Novo modelo/.test(e.texto));
   e = await nav.entrar("rafael@aurora.test");
   e = await nav.ir(`/feedback/${reuniao.id}`);
-  checar("RH vê metadados sem anotações e sem gestão", /visíveis apenas aos participantes/.test(e.texto) && !/Gestão da reunião/.test(e.texto));
+  checar("RH administra a reunião mas não lê anotações", /visíveis apenas aos participantes/.test(e.texto) && /Gestão da reunião/.test(e.texto) && !/Anotação compartilhada E2E/.test(e.texto));
 
   // ── 5. Isolamento: Bravo (sem Feedback/PDI) ──
   e = await nav.entrar("helena@bravo.test");

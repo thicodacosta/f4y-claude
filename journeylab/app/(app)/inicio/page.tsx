@@ -14,8 +14,7 @@ export const metadata: Metadata = { title: "Início" };
 export default async function InicioPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const ctx = await exigirContexto();
   const sp = await searchParams;
-  // Pulse: quem só responde também acessa (a gestão exige permissão dentro do módulo).
-  const acessiveis = MODULOS.filter((m) => ctx.modulos.has(m.chave) && (pode(ctx, m.chave, "visualizar") || m.chave === "pulse"));
+  const acessiveis = MODULOS.filter((m) => ctx.modulos.has(m.chave) && pode(ctx, m.chave, "visualizar"));
   const naoContratados = MODULOS.filter((m) => !ctx.modulos.has(m.chave));
   const [pendencias, indicadores] = await Promise.all([montarPendencias(ctx), montarIndicadores(ctx)]);
   const aviso = sp.bloqueado

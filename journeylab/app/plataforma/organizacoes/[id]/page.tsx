@@ -147,6 +147,8 @@ export default async function OrganizacaoPlataformaPage({ params }: { params: Pr
               max={50}
               defaultValue={org.minimoRecorte}
             />
+            <Campo nome="corMarca" rotulo="Cor da marca nos e-mails (#RRGGBB)" defaultValue={org.corMarca ?? ""} placeholder="#0B1F3A" pattern="#[0-9a-fA-F]{6}" />
+            <Campo nome="logoUrl" rotulo="URL do logo nos e-mails (https)" type="url" defaultValue={org.logoUrl ?? ""} placeholder="https://…" />
             <Area
               nome="identificadores"
               rotulo="Identificadores para compras externas"

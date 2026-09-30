@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 import { transacao, type Tx } from "@/lib/db";
 import { ErroAcesso, exigirPermissaoAcao, pode, type Contexto } from "@/lib/contexto";
@@ -20,7 +19,6 @@ function erroDe(e: unknown): EstadoForm {
   return { erro: e instanceof Error ? e.message : "Não foi possível concluir." };
 }
 
-const texto = z.string().trim().transform((v) => v || null);
 const escopoTx = (ctx: Contexto) => ({ escopo: "tenant" as const, tenantId: ctx.org.id, usuarioId: ctx.usuario.id });
 const quem = (ctx: Contexto) => ({ id: ctx.usuario.id, nome: ctx.usuario.nome });
 const linhas = (v: FormDataEntryValue | null) =>
@@ -67,46 +65,6 @@ export async function salvarModeloPauta(_: EstadoForm, fd: FormData): Promise<Es
 }
 
 // ─── Reuniões ─────────────────────────────────────────────────────────────
-
-/**
- * Agenda um 1:1. Escopo "equipe": só com liderados diretos, e o gestor é o
- * próprio usuário. Escopo "todos": com qualquer pessoa ativa que tenha gestor.
- */
-export async function agendarReuniao(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
-  let id: string;
-  try {
-    const { ctx, escopo } = await exigirPermissaoAcao("feedback", "criar");
-    const colaboradorId = z.string().uuid("Selecione a pessoa.").parse(fd.get("colaboradorId"));
-    const quando = z.string().trim().min(16, "Informe data e hora.").parse(fd.get("dataHora"));
-    const dataHora = instanteNoFuso(quando.slice(0, 16));
-    const modeloId = String(fd.get("modeloId") ?? "") || null;
-    const pautaLivre = linhas(fd.get("pauta"));
-    id = await transacao(escopoTx(ctx), async (tx) => {
-      const pessoa = await tx.colaborador.findUnique({ where: { id: colaboradorId } });
-      if (!pessoa) throw new ErroAcesso("Pessoa não encontrada.");
-      if (pessoa.status !== "ativo") throw new ErroAcesso("1:1 é para pessoas ativas (conclua o onboarding antes).");
-      if (!pessoa.gestorId) throw new ErroAcesso("Defina o gestor desta pessoa no cadastro antes de agendar.");
-      if (escopo !== "todos" && pessoa.gestorId !== ctx.colaboradorId) throw new ErroAcesso("Você só agenda 1:1 com seus liderados diretos.");
-      let pauta = pautaLivre;
-      let modeloNome: string | null = null;
-      if (modeloId) {
-        const m = await tx.modeloPauta.findUnique({ where: { id: z.string().uuid().parse(modeloId) } });
-        if (!m || !m.ativo) throw new ErroAcesso("Modelo de pauta não encontrado.");
-        pauta = [...m.itens, ...pautaLivre];
-        modeloNome = m.nome;
-      }
-      const r = await tx.reuniao.create({
-        data: { tenantId: ctx.org.id, gestorId: pessoa.gestorId, colaboradorId, dataHora, pauta, modeloNome, criadoPor: ctx.usuario.nome },
-      });
-      await auditar(tx, { tenantId: ctx.org.id, usuario: quem(ctx), acao: "feedback.reuniao.agendar", entidade: "reuniao", entidadeId: r.id });
-      return r.id;
-    });
-  } catch (e) {
-    return erroDe(e);
-  }
-  revalidatePath("/feedback");
-  redirect(`/feedback/${id}`);
-}
 
 export async function alterarReuniao(_: EstadoForm, fd: FormData): Promise<EstadoForm> {
   try {

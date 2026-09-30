@@ -7,7 +7,9 @@ import { filtroOnboardings, hojeSemHora } from "@/lib/onboarding/regras";
 import { buscarAlertas, contarAlertas, type AlertaOnboarding } from "@/lib/onboarding/alertas";
 import { RESPONSAVEL } from "@/lib/onboarding/calculo";
 import { formatarData, formatarDataHora } from "@/lib/formato";
-import { filtroReunioes } from "@/lib/feedback/regras";
+import { filtroAvaliacoes, filtroReunioes } from "@/lib/feedback/regras";
+import { carregarCadencia, ordenarPorCadencia } from "@/lib/feedback/consultas";
+import { umaCasa } from "@/lib/feedback/avaliacao";
 import { filtroPdis, PDI_ABERTO, progressoPdi } from "@/lib/pdi/regras";
 import { filtroParaResponder } from "@/lib/pulse/regras";
 import { adesaoPulse } from "@/lib/pulse/consultas";
@@ -151,20 +153,24 @@ const PROVEDORES: Provedor[] = [
     async montar(ctx) {
       if (!ctx.colaboradorId || ctx.suporte) return null;
       const db = dbTenant(ctx.org.id, ctx.usuario.id);
-      const eu = await db.colaborador.findUnique({ where: { id: ctx.colaboradorId }, select: { id: true, equipeId: true, status: true } });
+      const eu = await db.colaborador.findUnique({ where: { id: ctx.colaboradorId }, select: { id: true, equipeId: true, status: true, equipe: { select: { areaId: true } } } });
       if (!eu || eu.status !== "ativo") return null;
-      const lista = await db.pesquisaPulse.findMany({ where: filtroParaResponder(eu.id, eu.equipeId), orderBy: { encerraEm: { sort: "asc", nulls: "last" } }, take: 5 });
+      const lista = await db.pesquisaPulse.findMany({
+        where: filtroParaResponder({ id: eu.id, equipeId: eu.equipeId, areaId: eu.equipe?.areaId ?? null }),
+        orderBy: { encerraEm: { sort: "asc", nulls: "last" } },
+        take: 5,
+      });
       if (!lista.length) return null;
       return {
         modulo: "pulse",
         titulo: "Pesquisas para responder",
-        href: "/pulse",
+        href: `/pesquisa/responder/${lista[0].id}`,
         vazio: "",
         itens: lista.map((p) => ({
           texto: p.titulo,
-          subtitulo: "Anônima · poucos minutos",
+          subtitulo: p.anonima ? "Anônima · poucos minutos" : "Identificada · poucos minutos",
           detalhe: p.encerraEm ? `Até ${formatarData(p.encerraEm)}` : "Responder",
-          href: `/pulse/responder/${p.id}`,
+          href: `/pesquisa/responder/${p.id}`,
         })),
       };
     },
@@ -189,6 +195,29 @@ const PROVEDORES: Provedor[] = [
           subtitulo: "Anônimo · cerca de 5 minutos",
           detalhe: c.encerraEm ? `Até ${formatarData(c.encerraEm)}` : "Participar",
           href: `/nr1/responder/${c.id}`,
+        })),
+      };
+    },
+  },
+  {
+    // Cadência de feedback: atrasados e próximos (mesma fonte da página do módulo).
+    modulo: "feedback",
+    async montar(ctx) {
+      const escopo = pode(ctx, "feedback", "visualizar")!;
+      const linhas = (await carregarCadencia(ctx, escopo)).filter((l) => l.cadencia.estado === "atrasado" || l.cadencia.estado === "proximo").sort(ordenarPorCadencia);
+      const atrasados = linhas.filter((l) => l.cadencia.estado === "atrasado").length;
+      return {
+        modulo: "feedback",
+        titulo: "Cadência de feedback",
+        href: "/feedback#cadencia",
+        vazio: "Todos os feedbacks em dia.",
+        resumo: linhas.length ? `${atrasados} atrasado(s) · ${linhas.length - atrasados} próximo(s)` : undefined,
+        itens: linhas.slice(0, 6).map((l) => ({
+          texto: l.nome,
+          subtitulo: l.ultimo ? `Último feedback: ${formatarData(l.ultimo.data)}` : "Sem feedback — referência: data de entrada",
+          detalhe: l.cadencia.estado === "atrasado" ? `Atrasado ${-(l.cadencia.dias ?? 0)} d` : l.cadencia.dias === 0 ? "Hoje" : `Em ${l.cadencia.dias} d`,
+          alerta: l.cadencia.estado === "atrasado",
+          href: l.proximo1a1 ? `/feedback/${l.proximo1a1.id}` : `/feedback/agendar?colaborador=${l.id}`,
         })),
       };
     },
@@ -268,22 +297,22 @@ const INDICADORES: ProvedorIndicadores[] = [
     modulo: "feedback",
     async montar(ctx) {
       const escopo = pode(ctx, "feedback", "visualizar")!;
-      const db = dbTenant(ctx.org.id, ctx.usuario.id);
-      const ha30 = new Date();
-      ha30.setDate(ha30.getDate() - 30);
-      const reunioes = filtroReunioes(ctx, escopo);
-      const [abertos, atrasados, realizadas] = await Promise.all([
-        db.compromisso.count({ where: { status: "aberto", reuniao: reunioes } }),
-        db.compromisso.count({ where: { status: "aberto", prazo: { lt: hojeSemHora() }, reuniao: reunioes } }),
-        db.reuniao.count({ where: { AND: [reunioes, { status: "realizada", realizadaEm: { gte: ha30 } }] } }),
+      const ha90 = hojeSemHora();
+      ha90.setUTCDate(ha90.getUTCDate() - 90);
+      const [linhas, recentes] = await Promise.all([
+        carregarCadencia(ctx, escopo),
+        dbTenant(ctx.org.id, ctx.usuario.id).avaliacaoFeedback.findMany({ where: { AND: [filtroAvaliacoes(ctx, escopo), { data: { gte: ha90 } }] }, select: { mediaGeral: true } }),
       ]);
+      const atrasados = linhas.filter((l) => l.cadencia.estado === "atrasado").length;
+      const proximos = linhas.filter((l) => l.cadencia.estado === "proximo").length;
+      const media = recentes.length ? recentes.reduce((n, r) => n + Number(r.mediaGeral), 0) / recentes.length : null;
       return [
         {
           modulo: "feedback",
-          rotulo: "Compromissos de 1:1",
-          valor: String(abertos),
-          detalhe: atrasados ? `${atrasados} atrasado(s)` : `${realizadas} 1:1 realizados em 30 dias`,
-          href: "/feedback/compromissos",
+          rotulo: "Feedbacks atrasados",
+          valor: String(atrasados),
+          detalhe: `${proximos} próximo(s)${media !== null ? ` · média geral 90 d: ${umaCasa(media)}` : ""}`,
+          href: "/feedback#cadencia",
           alerta: atrasados > 0,
         },
       ];

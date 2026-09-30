@@ -93,6 +93,11 @@ export default async function OnboardingDetalhe({ params, searchParams }: { para
     return { resp, total: lista.length, concluidas: lista.filter((t) => t.status === "concluida").length, atrasadas: lista.filter((t) => t.cliente.sinais.atrasada).length, bloqueadas: lista.filter((t) => t.status === "bloqueada").length };
   });
   const link = (v: string) => `/onboarding/${o.id}${v === "timeline" ? "" : `?visao=${v}`}`;
+  // Integração opcional com Feedback 1:1 (só se contratado e permitido): sugere agendar o primeiro 1:1 — nunca cria feedback.
+  const sugerir1a1 =
+    emAndamento && ctx.modulos.has("feedback") && !!pode(ctx, "feedback", "criar") && !ctx.suporte
+      ? !(await db.reuniao.findFirst({ where: { colaboradorId: o.colaborador.id, status: { not: "cancelada" } }, select: { id: true } }))
+      : false;
 
   return (
     <>
@@ -382,6 +387,16 @@ export default async function OnboardingDetalhe({ params, searchParams }: { para
                   {!gestor ? "Defina o gestor no cadastro da pessoa para enviar lembretes." : `${gestor.nome} não tem e-mail válido cadastrado.`}
                 </p>
               )}
+            </Cartao>
+          )}
+
+          {sugerir1a1 && (
+            <Cartao className="p-5">
+              <h3 className="font-heading text-base font-bold">Primeiro 1:1</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{o.colaborador.nome.split(" ")[0]} ainda não tem conversa 1:1 agendada com o gestor.</p>
+              <Link href={`/feedback/agendar?colaborador=${o.colaborador.id}`} className="mt-3 inline-flex h-9 items-center rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted">
+                Agendar primeiro 1:1
+              </Link>
             </Cartao>
           )}
 

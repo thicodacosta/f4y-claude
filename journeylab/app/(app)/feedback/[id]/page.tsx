@@ -1,22 +1,25 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { CheckCircle2, Circle, EyeOff, Lock, MinusCircle, Target, Trash2, Users } from "lucide-react";
+import { CalendarPlus, CheckCircle2, Circle, EyeOff, Lock, MinusCircle, Repeat, Target, Trash2, Users } from "lucide-react";
 import { exigirModulo, pode } from "@/lib/contexto";
 import { filtroReunioes, participa, podeConcluirCompromisso, podeEditarReuniao, STATUS_COMPROMISSO, STATUS_REUNIAO } from "@/lib/feedback/regras";
 import { adicionarCompromisso, alterarCompromisso, alterarReuniao, excluirAnotacao, levarAoPdi, salvarAnotacao } from "@/lib/feedback/actions";
 import { escopoCobre } from "@/lib/escopo";
+import { linksCalendario } from "@/lib/feedback/calendario";
+import { cancelarSerie } from "@/lib/feedback/avaliacoes-actions";
 import { PDI_ABERTO } from "@/lib/pdi/regras";
 import { formatarData, formatarDataHora } from "@/lib/formato";
-import { Iniciais, Selo } from "@/components/app/lista";
+import { Selo } from "@/components/app/lista";
 import { Cartao, CabecalhoCartao } from "@/components/app/painel";
 import { FormAcao } from "@/components/admin/form-acao";
 import { Area, Campo, Selecao } from "@/components/admin/campos";
 
 export const metadata: Metadata = { title: "1:1" };
 
-export default async function ReuniaoPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ReuniaoPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params;
+  const sp = await searchParams;
   const { ctx, escopo, db } = await exigirModulo("feedback");
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const r = await db.reuniao.findFirst({
@@ -50,12 +53,22 @@ export default async function ReuniaoPage({ params }: { params: Promise<{ id: st
       })
     : [];
   const pdiDe = (pessoaId: string) => pdis.find((p) => p.colaboradorId === pessoaId);
+  const serie = r.serieId ? await db.reuniao.findMany({ where: { serieId: r.serieId }, orderBy: { dataHora: "asc" }, select: { id: true, dataHora: true, status: true } }) : [];
+  const agora = new Date();
+  const futura = agendada && r.dataHora > agora;
+  const calendario = futura ? linksCalendario({ titulo: `1:1 · ${r.colaborador.nome} e ${r.gestor.nome}`, inicio: r.dataHora, duracaoMin: r.duracaoMin }) : null;
+  const podeRegistrar = !!pode(ctx, "feedback", "criar") && !ctx.suporte;
 
   return (
     <>
       <div className="flex flex-col gap-3">
-        <Link href="/feedback" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Reuniões
+        {sp.agendado && (
+          <p role="status" className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm">
+            1:1 agendado{serie.length > 1 ? ` com ${serie.length} ocorrências na série` : ""}. Para levar ao seu calendário, use os links “Adicionar ao…” ao lado.
+          </p>
+        )}
+        <Link href="/feedback/agenda" className="text-sm text-muted-foreground hover:text-foreground">
+          ← Agenda 1:1
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="font-heading text-2xl font-bold">1:1 · {r.colaborador.nome}</h2>
@@ -63,7 +76,7 @@ export default async function ReuniaoPage({ params }: { params: Promise<{ id: st
         </div>
         <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
           <Users className="size-4" aria-hidden /> {r.colaborador.nome} ({r.colaborador.cargo ?? "cargo não informado"}) com {r.gestor.nome} ·{" "}
-          {formatarDataHora(r.dataHora.toISOString())}
+          {formatarDataHora(r.dataHora.toISOString())} · {r.duracaoMin} min
           {r.modeloNome && ` · Pauta “${r.modeloNome}”`}
           {r.canceladaMotivo && ` · Cancelada: ${r.canceladaMotivo}`}
         </p>
@@ -71,6 +84,12 @@ export default async function ReuniaoPage({ params }: { params: Promise<{ id: st
 
       <div className="grid gap-4 lg:grid-cols-[1fr_minmax(0,380px)]">
         <div className="flex min-w-0 flex-col gap-4">
+          {r.observacoes && (
+            <Cartao className="p-5">
+              <h3 className="font-heading text-base font-bold">Notas do agendamento</h3>
+              <p className="mt-1 text-sm whitespace-pre-line text-muted-foreground">{r.observacoes}</p>
+            </Cartao>
+          )}
           <Cartao aria-labelledby="pauta">
             <CabecalhoCartao id="pauta" titulo="Pauta" />
             <div className="px-5 pb-5">
@@ -163,6 +182,53 @@ export default async function ReuniaoPage({ params }: { params: Promise<{ id: st
         </div>
 
         <div className="flex flex-col gap-4">
+          {(calendario || podeRegistrar || serie.length > 1) && (
+            <Cartao className="flex flex-col gap-3 p-5">
+              {podeRegistrar && r.status !== "cancelada" && (
+                <Link href={`/feedback/novo?colaborador=${r.colaborador.id}`} className="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                  Registrar feedback desta conversa
+                </Link>
+              )}
+              {calendario && (
+                <div className="flex flex-col gap-1.5 text-sm">
+                  <p className="text-xs text-muted-foreground">Abre o calendário com o evento preenchido para você confirmar lá (não há sincronização automática):</p>
+                  <a href={calendario.google} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-medium text-teal-strong hover:underline">
+                    <CalendarPlus className="size-4" aria-hidden /> Adicionar ao Google Agenda
+                  </a>
+                  <a href={calendario.outlook} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-medium text-teal-strong hover:underline">
+                    <CalendarPlus className="size-4" aria-hidden /> Adicionar ao Outlook
+                  </a>
+                </div>
+              )}
+              {serie.length > 1 && (
+                <div className="text-sm">
+                  <p className="flex items-center gap-1.5 font-semibold">
+                    <Repeat className="size-4 text-muted-foreground" aria-hidden /> Série recorrente ({serie.length})
+                  </p>
+                  <ul className="mt-1 flex flex-col gap-0.5">
+                    {serie.map((s) => (
+                      <li key={s.id} className="flex justify-between gap-2">
+                        {s.id === r.id ? <strong>{formatarDataHora(s.dataHora.toISOString())}</strong> : <Link href={`/feedback/${s.id}`} className="hover:text-teal-strong">{formatarDataHora(s.dataHora.toISOString())}</Link>}
+                        <span className="text-xs text-muted-foreground">{STATUS_REUNIAO[s.status].nome}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {gestao && agendada && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">Cancelar esta e as próximas…</summary>
+                      <FormAcao action={cancelarSerie} textoBotao="Cancelar esta e as próximas" variante="destructive" className="mt-2">
+                        <input type="hidden" name="reuniaoId" value={r.id} />
+                        <Campo nome="motivo" idCampo="motivo-serie" rotulo="Motivo" required />
+                        <label className="flex items-start gap-2 text-xs">
+                          <input type="checkbox" name="confirmo" className="mt-0.5 size-4" /> Confirmo o cancelamento das ocorrências a partir desta. As anteriores não mudam.
+                        </label>
+                      </FormAcao>
+                    </details>
+                  )}
+                </div>
+              )}
+            </Cartao>
+          )}
           <Cartao aria-labelledby="compromissos">
             <CabecalhoCartao id="compromissos" titulo="Compromissos" descricao="Acordos com responsável e prazo." />
             <div className="flex flex-col gap-3 px-5 pb-5">

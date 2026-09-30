@@ -6,7 +6,7 @@ import { MODULOS } from "@/lib/permissoes";
 export default async function LayoutApp({ children }: { children: React.ReactNode }) {
   const ctx = await exigirContexto();
   // Menu: só módulos contratados E com permissão de visualizar (a checagem real ocorre de novo em cada página/ação).
-  const modulos = MODULOS.filter((m) => ctx.modulos.has(m.chave) && (pode(ctx, m.chave, "visualizar") || m.chave === "pulse")).map((m) => ({
+  const modulos = MODULOS.filter((m) => ctx.modulos.has(m.chave) && pode(ctx, m.chave, "visualizar")).map((m) => ({
     chave: m.chave,
     nome: m.nome,
   }));

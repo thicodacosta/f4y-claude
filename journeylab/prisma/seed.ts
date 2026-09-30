@@ -16,6 +16,8 @@ import { PAPEIS_PADRAO, type Modulo } from "../lib/permissoes";
 import { VERSAO_PRIVACIDADE, VERSAO_TERMOS } from "../lib/legal";
 import { hoje as hojeCivil, somarDias } from "../lib/datas";
 import { MODELO_PADRAO } from "../lib/onboarding/modelo-padrao";
+import { CRITERIOS_CULTURA, CRITERIOS_PERFORMANCE } from "../lib/feedback/avaliacao";
+import { MODELOS_GLOBAIS } from "../lib/pulse/modelos-globais";
 
 if (process.env.NODE_ENV === "production") throw new Error("Seed de desenvolvimento não roda em produção.");
 
@@ -312,57 +314,97 @@ async function feedbackPdiDemo(tenantId: string, gestor: { id: string; uid: stri
   });
 }
 
+/** Templates globais do Pulse (tenant nulo — visíveis a todas as organizações). */
+async function modelosPulseGlobais() {
+  for (const m of MODELOS_GLOBAIS) {
+    const atual = await db.modeloPulse.findFirst({ where: { tenantId: null, slug: m.slug } });
+    const dados = { nome: m.nome, descricao: m.descricao, icone: m.icone, cor: m.cor, perguntas: m.perguntas, ativo: true };
+    if (atual) await db.modeloPulse.update({ where: { id: atual.id }, data: dados });
+    else await db.modeloPulse.create({ data: { ...dados, slug: m.slug } });
+  }
+}
+
 /**
- * Pulse (Aurora): uma pesquisa encerrada com respostas fictícias (para ver
- * resultados e o bloqueio por mínimo de respondentes) e uma aberta. O seed usa
- * a conexão administrativa — a aplicação nunca grava respostas diretamente.
+ * Pulse (Aurora): uma pesquisa anônima encerrada com respostas fictícias (para
+ * ver resultados, eNPS e o bloqueio por mínimo de respondentes) e uma ativa com
+ * convites. O seed usa a conexão administrativa — a aplicação nunca grava
+ * respostas diretamente.
  */
 async function pulseDemo(tenantId: string) {
   if (await db.pesquisaPulse.findFirst({ where: { tenantId, titulo: "Clima rápido · setembro" } })) return;
+  const h = hojeCivil();
+  const cfg = (chave: string, extra: Record<string, unknown> = {}) => ({ chave, ...extra });
   const perguntas = [
-    { texto: "Tenho clareza sobre o que se espera do meu trabalho.", tipo: "escala" as const, obrigatoria: true },
-    { texto: "Recebo reconhecimento pelo trabalho bem feito.", tipo: "escala" as const, obrigatoria: true },
-    { texto: "Minha carga de trabalho é sustentável.", tipo: "escala" as const, obrigatoria: true },
-    { texto: "Qual a probabilidade de você recomendar a empresa como lugar para trabalhar?", tipo: "enps" as const, obrigatoria: true },
-    { texto: "Quer comentar algo? (opcional)", tipo: "texto" as const, obrigatoria: false },
+    { texto: "Tenho clareza sobre o que se espera do meu trabalho.", tipo: "likert", obrigatoria: true, config: cfg("q0") },
+    { texto: "Recebo reconhecimento pelo trabalho bem feito.", tipo: "likert", obrigatoria: true, config: cfg("q1") },
+    { texto: "Minha carga de trabalho é sustentável.", tipo: "likert", obrigatoria: true, config: cfg("q2") },
+    {
+      texto: "Qual a probabilidade de você recomendar a empresa como lugar para trabalhar?",
+      tipo: "nps",
+      obrigatoria: true,
+      config: cfg("q3", { scaleMin: 0, scaleMax: 10, scaleMinLabel: "Nada provável", scaleMaxLabel: "Muito provável" }),
+    },
+    { texto: "Quer comentar algo? (opcional)", tipo: "long_text", obrigatoria: false, config: cfg("q4") },
   ];
-  const semana = (n: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() + n * 7);
-    return d;
-  };
+  const ativos = await db.colaborador.findMany({ where: { tenantId, status: "ativo" }, select: { id: true, equipeId: true, email: true, equipe: { select: { areaId: true } } }, orderBy: { nome: "asc" } });
   const encerrada = await db.pesquisaPulse.create({
-    data: { tenantId, titulo: "Clima rápido · setembro", status: "encerrada", abertaEm: semana(-3), encerradaEm: semana(-1), criadoPor: "Rafael Lima" },
+    data: {
+      tenantId,
+      titulo: "Clima rápido · setembro",
+      descricao: "Termômetro rápido de clareza, reconhecimento e carga de trabalho.",
+      status: "encerrada",
+      anonima: true,
+      audienciaTipo: "todos",
+      dataInicio: somarDias(h, -21),
+      encerraEm: somarDias(h, -7),
+      abertaEm: somarDias(h, -21),
+      encerradaEm: somarDias(h, -7),
+      publicoTotal: ativos.length,
+      modeloSlug: "clima-organizacional",
+      criadoPor: "Rafael Lima",
+    },
   });
   const qs = [];
   for (const [ordem, q] of perguntas.entries()) qs.push(await db.perguntaPulse.create({ data: { ...q, ordem, tenantId, pesquisaId: encerrada.id } }));
 
-  const ativos = await db.colaborador.findMany({ where: { tenantId, status: "ativo" }, select: { id: true, equipeId: true, email: true }, orderBy: { nome: "asc" } });
-  // Carla fica de fora da encerrada só para variar; todos os demais ativos responderam.
+  // Carla fica de fora da encerrada só para variar; os demais ativos responderam.
   const respondentes = ativos.filter((c) => c.email !== "carla@aurora.test").slice(0, 11);
   const comentarios = ["Gostaria de mais clareza sobre prioridades do trimestre.", "O time é muito colaborativo.", "Reuniões demais às sextas."];
   for (const [i, c] of respondentes.entries()) {
-    await db.participacaoPulse.create({ data: { tenantId, pesquisaId: encerrada.id, colaboradorId: c.id, respondidoEm: semana(-2) } });
+    await db.participacaoPulse.create({ data: { tenantId, pesquisaId: encerrada.id, colaboradorId: c.id, respondidoEm: somarDias(h, -14 + (i % 5)) } });
     const lote = crypto.randomUUID();
     const valores = [3 + (i % 3), 2 + ((i * 2) % 4), 2 + (i % 4), [9, 10, 7, 8, 6, 9, 10, 5, 8, 9, 7][i % 11]];
+    const base = { tenantId, pesquisaId: encerrada.id, lote, equipeId: c.equipeId, areaId: c.equipe?.areaId ?? null };
     for (const [k, q] of qs.entries()) {
-      if (q.tipo === "texto") {
-        if (i < comentarios.length) await db.respostaPulse.create({ data: { tenantId, pesquisaId: encerrada.id, perguntaId: q.id, lote, equipeId: c.equipeId, texto: comentarios[i] } });
-      } else {
-        await db.respostaPulse.create({ data: { tenantId, pesquisaId: encerrada.id, perguntaId: q.id, lote, equipeId: c.equipeId, valor: Math.min(q.tipo === "escala" ? 5 : 10, valores[k]) } });
-      }
+      if (q.tipo === "long_text") {
+        if (i < comentarios.length) await db.respostaPulse.create({ data: { ...base, perguntaId: q.id, texto: comentarios[i] } });
+      } else await db.respostaPulse.create({ data: { ...base, perguntaId: q.id, valor: Math.min(q.tipo === "likert" ? 5 : 10, valores[k]) } });
     }
   }
 
   const aberta = await db.pesquisaPulse.create({
-    data: { tenantId, titulo: "eNPS · outubro", status: "aberta", abertaEm: semana(0), encerraEm: semana(2), criadoPor: "Rafael Lima" },
+    data: {
+      tenantId,
+      titulo: "eNPS · outubro",
+      descricao: "Duas perguntas rápidas sobre recomendar a Aurora como lugar para trabalhar.",
+      status: "aberta",
+      anonima: true,
+      audienciaTipo: "todos",
+      dataInicio: h,
+      encerraEm: somarDias(h, 14),
+      abertaEm: new Date(),
+      publicoTotal: ativos.length,
+      modeloSlug: "enps",
+      criadoPor: "Rafael Lima",
+    },
   });
   await db.perguntaPulse.createMany({
     data: [
-      { tenantId, pesquisaId: aberta.id, texto: "Qual a probabilidade de você recomendar a empresa como lugar para trabalhar?", tipo: "enps", obrigatoria: true, ordem: 0 },
-      { tenantId, pesquisaId: aberta.id, texto: "O que mais influenciou sua nota? (opcional)", tipo: "texto", obrigatoria: false, ordem: 1 },
+      { tenantId, pesquisaId: aberta.id, texto: "Qual a probabilidade de você recomendar a empresa como lugar para trabalhar?", tipo: "nps", obrigatoria: true, ordem: 0, config: perguntas[3].config },
+      { tenantId, pesquisaId: aberta.id, texto: "O que mais influenciou sua nota?", tipo: "long_text", obrigatoria: false, ordem: 1, config: cfg("q1") },
     ],
   });
+  await db.convitePulse.createMany({ data: ativos.map((c) => ({ tenantId, pesquisaId: aberta.id, colaboradorId: c.id, enviadoEm: new Date() })) });
 }
 
 /** NR-1 (Aurora): ciclo encerrado com respostas fictícias, riscos e plano de ação; e um ciclo aberto. */
@@ -423,8 +465,32 @@ async function nr1Demo(tenantId: string) {
   await criarCiclo("Diagnóstico psicossocial · 2º semestre", "aberto");
 }
 
+/** Feedback 1:1 avaliado (Aurora): cenários de semáforo e de cadência. Idempotente. */
+async function avaliacoesDemo(tenantId: string, autor: { id: string; nome: string }) {
+  if (await db.avaliacaoFeedback.findFirst({ where: { tenantId } })) return;
+  const hoje = hojeCivil();
+  const campos = [...CRITERIOS_PERFORMANCE, ...CRITERIOS_CULTURA].map((c) => c.campo);
+  const notas = (lista: number[]) => Object.fromEntries(campos.map((c, i) => [c, lista[i % lista.length]]));
+  const pessoa = (email: string) => db.colaborador.findUniqueOrThrow({ where: { tenantId_email: { tenantId, email } } });
+  const registrar = async (email: string, diasAtras: number, periodicidade: "mensal" | "bimestral" | "trimestral", n: number[], observacoes: string) => {
+    const p = await pessoa(email);
+    // Médias e semáforo são calculados pelo gatilho do banco (jl_calcular_avaliacao).
+    await db.avaliacaoFeedback.create({
+      data: { tenantId, colaboradorId: p.id, gestorId: p.gestorId, data: somarDias(hoje, -diasAtras), periodicidade, ...notas(n), observacoes, autorId: autor.id, autorNome: autor.nome } as never,
+    });
+  };
+  await registrar("carla@aurora.test", 55, "mensal", [3, 3, 4, 3, 2, 4, 3, 3], "Boa evolução técnica; combinar prioridades semanais.");
+  await registrar("carla@aurora.test", 25, "mensal", [4, 5, 4, 4, 4, 5, 4, 4], "Apresentou o roadmap com segurança. Manter ritmo.");
+  await registrar("diego@aurora.test", 45, "mensal", [2, 2, 3, 1, 2, 3, 3, 2], "Entregas atrasando; alinhar prioridades e apoio em gestão do tempo.");
+  await registrar("gabriela@aurora.test", 20, "trimestral", [4, 4, 5, 4, 4, 4, 5, 4], "Referência em qualidade para o time.");
+  await registrar("marina@aurora.test", 10, "bimestral", [3, 4, 3, 3, 4, 3, 4, 3], "Bom relacionamento com clientes; aprofundar ferramentas de CRM.");
+  // Nunca recebeu feedback: referência pela data de entrada (40 dias → atrasado).
+  await db.colaborador.update({ where: { tenantId_email: { tenantId, email: "fabio@aurora.test" } }, data: { dataAdmissao: somarDias(hoje, -40) } });
+}
+
 async function main() {
   const superadmin = await conta("admin@journeylab.local", "Equipe JourneyLab", true);
+  await modelosPulseGlobais();
 
   // ── Aurora: todos os módulos ──
   const aurora = await organizacao("aurora-tecnologia", "Aurora Tecnologia", ["crm", "onboarding", "feedback", "pulse", "pdi", "nr1"], superadmin);
@@ -480,6 +546,9 @@ async function main() {
 
   // ── Feedback 1:1 e PDI (dados fictícios) ──
   await feedbackPdiDemo(A, { id: bruno.id, uid: brunoUid }, { id: carla.id, uid: carlaUid });
+
+  // ── Feedback 1:1 avaliado (dados fictícios) ──
+  await avaliacoesDemo(A, { id: brunoUid, nome: "Bruno Martins" });
 
   // ── Pulse (dados fictícios) ──
   await pulseDemo(A);

@@ -47,14 +47,16 @@ Onboarding ── templates (padrão da organização | por área) → fases (ma
               onboardings (colaborador) → fases_onboarding → tarefas (responsável, prazo, status, anexos)
               criado automaticamente no cadastro/conversão · concluído ► colaborador.status = ativo
 
-Feedback ── modelos_pauta · reuniões (gestor × colaborador)
-            anotações (compartilhada | privada do autor) · compromissos ──► ação de PDI
+Feedback ── avaliacoes_feedback (8 critérios de Performance + 8 de Cultura, 1–5; médias e semáforo pelo banco)
+            reuniões de 1:1 (gestor × colaborador; duração, série recorrente, vínculo com o feedback)
+            modelos_pauta · anotações (compartilhada | privada do autor) · compromissos ──► ação de PDI
 
 PDI ── pdis (rascunho/ativo/concluído/arquivado) → objetivos → ações
        evidências · revisões · comentários
 
-Pulse ── pesquisas → perguntas · público
-         participações (quem respondeu)  ≠  respostas (anônimas, sem pessoa)
+Pulse ── modelos_pulse (globais: tenant nulo · da empresa) → pesquisas → perguntas (16 tipos, config jsonb)
+         audiência (todos | departamentos | equipes | pessoas) · convites (link pessoal por e-mail)
+         participações (quem respondeu)  ≠  respostas (anônimas: sem pessoa nem horário)
 
 NR-1 ── ciclos → dimensões → perguntas · público
         participações  ≠  respostas (anônimas) · riscos → ações
@@ -90,8 +92,8 @@ pelo administrador da organização):
 | Cadastro (pessoas, equipes) | tudo | ver/criar/editar | ver (equipe) | ver (próprio) |
 | CRM de Candidatos | tudo | ver/criar/editar/exportar | — | — |
 | Onboarding | tudo | tudo | ver/atualizar tarefas (subordinados diretos) | — (não acessa nesta versão) |
-| Feedback 1:1 | administrar* | ver metadados e compromissos | criar/editar (equipe) | ver/concluir (próprio) |
-| Pulse | tudo | criar/ver agregados | ver agregados (equipe, se ≥ mínimo) | responder |
+| Feedback 1:1 | tudo* | registrar e administrar (todos)* | registrar e administrar (subordinados diretos)* | — (não acessa nesta versão) |
+| Pulse | tudo | tudo (criar, enviar, encerrar, exportar) | ver resultados agregados da empresa (somente leitura) | — (responde pelo link/Início) |
 | PDI | tudo | ver/editar | criar/editar (equipe) | ver/editar (próprio) |
 | Diagnóstico NR-1 | administrar | — (só se concedido) | — | responder |
 
@@ -162,9 +164,9 @@ Situação: etapas 1 a 8 implementadas e cobertas por testes E2E
 | Dado | Regra | Onde |
 |---|---|---|
 | Anotações de 1:1 | Compartilhada: só os dois participantes. Privada: só o autor. Ninguém mais lê — nem administração, RH, plataforma ou suporte. | Policy de `anotacoes_reuniao` + `jl_participa_reuniao` |
-| Respostas de Pulse e NR-1 | Sem pessoa e sem horário; a aplicação não tem permissão de leitura nem de escrita. Gravação só por `jl_responder_pulse` / `jl_responder_nr1`, que validam organização, módulo, público, pessoa ativa e resposta única. | `respostas_pulse`, `respostas_nr1` (sem GRANT) |
+| Respostas de Pulse e NR-1 | Sem pessoa e sem horário; a aplicação não tem permissão de leitura nem de escrita. Gravação só por `jl_registrar_resposta_pulse` / `jl_responder_nr1`, que validam organização, módulo, situação e prazo, público, pessoa ativa e resposta única. Pesquisa **identificada** grava a pessoa (avisada antes de responder); gatilho impede pessoa em pesquisa anônima. | `respostas_pulse`, `respostas_nr1` (sem GRANT) |
 | Participação (quem respondeu) | Só a data; cada pessoa lê apenas a própria. Adesão agregada por função. | Policy `propria` |
-| Resultados | Só por funções agregadas, **após o encerramento**, com mínimo de respondentes da organização (`minimo_recorte`) e **regra do complemento** em recortes por equipe (o restante da organização também precisa atingir o mínimo). Comentários do Pulse só em recorte liberado, em ordem aleatória. NR-1 não tem texto livre. | `jl_resumo_*`, `jl_resultado_*`, `jl_comentarios_pulse` |
+| Resultados | Só por funções agregadas (`jl_resumo_pulse`, `jl_distribuicao_pulse`, `jl_comentarios_pulse`); anônimas **após o encerramento**, com mínimo de respondentes da organização (`minimo_recorte`) e **regra do complemento** em recortes por departamento/equipe (o restante da organização também precisa atingir o mínimo). Identificadas: a qualquer momento. Comentários do Pulse só em recorte liberado, em ordem aleatória. NR-1 não tem texto livre. | `jl_resumo_*`, `jl_resultado_*`, `jl_comentarios_pulse` |
 
 Visualizações de resultado do NR-1 e todas as exportações ficam na auditoria.
 
@@ -209,3 +211,68 @@ aplica a política de retenção de cada organização.
   Um onboarding ativo por pessoa (checagem + índice único parcial).
 - **Lembrete:** e-mail ao gestor direto (destinatário resolvido no servidor),
   por SMTP (`lib/email.ts`), no máximo um por hora por onboarding, auditado.
+
+## 11. Feedback 1:1 — regras
+
+- **Avaliação:** 8 critérios de Performance e 8 de Cultura, notas inteiras de 1 a 5,
+  todas obrigatórias (CHECK no banco + validação no servidor). Média de cada
+  dimensão = média dos 8; geral = média das duas. **Semáforo pela média geral:**
+  verde ≥ 4,0 · amarelo ≥ 3,0 · vermelho < 3,0, sem arredondar antes de comparar.
+  O gatilho `jl_calcular_avaliacao` é a fonte única (sobrescreve valores enviados);
+  `lib/feedback/avaliacao.ts` usa a mesma fórmula só para a prévia. Exibição com
+  uma casa decimal; status sempre com rótulo textual.
+- **Acesso:** RH/Admin sobre a empresa; gestor sobre subordinados diretos
+  (`colaborador.gestor_id`); colaborador não acessa (escopo mínimo "equipe").
+  O gestor registrado vem do cadastro, nunca do navegador. Gatilhos garantem que
+  colaborador e gestor pertencem à mesma organização do registro.
+- **Cadência:** próxima data = último feedback + periodicidade dele (mensal 30,
+  bimestral 60, trimestral 90; manual = sem lembrete). Sem histórico: data de
+  entrada + 30 dias; sem data de entrada, nenhuma data é inventada. "Próximo" até 7
+  dias antes; "atrasado" depois. Fonte única em `lib/feedback/consultas.ts`
+  (página do módulo e painel).
+- **Agenda:** reuniões de 1:1 reaproveitam `reunioes` (duração 15–90 min, 08h–18h
+  em passos de 30 min, sem data passada). Recorrência mensal/trimestral cria a
+  inicial + 3 na mesma série, numa transação; horário ativo duplicado para a mesma
+  pessoa é bloqueado por índice único. Cancelar uma ocorrência não afeta as demais;
+  "esta e as próximas" é ação explícita com confirmação.
+- **Calendário externo:** links que abrem a criação do evento no Google Agenda ou
+  no Outlook (não é sincronização). Só título e horário vão na URL.
+- **PDI:** critérios com nota ≤ 2 geram prévia editável de objetivos; o PDI (ou os
+  objetivos no PDI aberto) só é criado após confirmação, e só com PDI contratado.
+- **IA:** não há serviço de IA configurado; o recurso aparece como indisponível.
+- **Rota alternativa:** `/feedback-1on1?action=create|schedule&employee=<id>`
+  redireciona para as telas do módulo, que validam o escopo do colaborador.
+
+## 12. Pulse — regras
+
+- **Templates:** globais (eNPS, Pulso Mensal, Clima Organizacional, Onboarding
+  dia 30, Satisfação com Liderança — `lib/pulse/modelos-globais.ts`, gravados pelo
+  seed com `tenant_id` nulo e legíveis por todas as organizações) e da empresa
+  ("Salvar como template"). A pesquisa copia as perguntas; mudar o template não
+  altera pesquisas existentes.
+- **Perguntas:** 16 tipos (`lib/pulse/perguntas.ts`, fonte única de validação e
+  normalização): múltipla escolha (uma/várias), lista, imagem, sim/não, NPS 0–10,
+  estrelas, escala, slider, Likert, matrizes (escolha, estrelas, escala, texto),
+  texto curto e longo. Perguntas só mudam em rascunho.
+- **Assistente** (`/pulse/nova`, `/pesquisas?action=create`): template → perguntas
+  com prévia ao vivo → configuração (anônima/identificada, audiência, datas,
+  link aberto) → "Salvar rascunho" ou "Enviar agora".
+- **Envio:** status "Ativa", total do público congelado, um convite por pessoa e
+  e-mail white-label (logo e cor da organização — `organizacoes.logo_url`,
+  `cor_marca`) com **link pessoal** `/pesquisa/responder/:id?t=<convite>.<HMAC>`
+  (`PULSE_LINK_SECRET`; nada de token gravado). Falhas de envio aparecem por pessoa.
+- **Resposta pública** (sem login): valida situação e prazo, identifica por link
+  pessoal, sessão ou link aberto (opcional, só anônimas; duplicidade controlada
+  apenas no navegador — cookie httpOnly + `localStorage`). Rascunho em
+  `sessionStorage`, validação de obrigatórias, marca `survey_answered_<id>`, e o
+  servidor recusa segunda resposta pela participação.
+- **Resultados** (`/pulse/:id?tab=`): visão geral (participação em tempo real, dias
+  restantes, evolução diária), por pergunta (recorte por departamento), eNPS
+  (Excelente ≥ 50 · Bom ≥ 0 · Crítico < 0, por departamento), mapa de calor por
+  departamento e Insights IA. Departamento = área da equipe.
+- **Insights IA:** sob demanda ou automático ao encerrar, só com dados agregados
+  (sem comentários livres nem identificação), validados e salvos em `ai_insights`.
+  Sem `ANTHROPIC_API_KEY` a aba informa que a integração está indisponível.
+- **Rotina diária:** encerra pesquisas vencidas e envia **um** lembrete automático a
+  quem não respondeu (2 dias antes do fim; sem data de fim, 3 dias após o envio).
+  Lembrete manual disponível na pesquisa.

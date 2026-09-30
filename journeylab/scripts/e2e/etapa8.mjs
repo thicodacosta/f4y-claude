@@ -166,8 +166,9 @@ try {
   // ── 9. Permissões de exportação ──
   e = await nav.entrar("carla@aurora.test");
   checar("Colaboradora não exporta Onboarding", (await baixar("/onboarding/exportar")).startsWith("403"));
+  checar("Colaboradora não exporta Feedback (não acessa o módulo)", (await baixar("/feedback/exportar")).startsWith("403"));
   e = await nav.entrar("rafael@aurora.test");
-  checar("RH não exporta Feedback (sem permissão)", (await baixar("/feedback/exportar")).startsWith("403"));
+  checar("RH exporta Feedback (administra os feedbacks da empresa)", (await baixar("/feedback/exportar")).startsWith("200"));
 } finally {
   nav.fechar();
   await adm.end();

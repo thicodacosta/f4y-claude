@@ -58,8 +58,8 @@ export const PAPEIS_PADRAO: { nome: string; base: PapelBase; regras: Regra[] }[]
       ["cadastro", TUDO, "todos"],
       ["crm", TUDO, "todos"],
       ["onboarding", TUDO, "todos"],
-      // Feedback: vê metadados/compromissos de todos; anotações seguem regra própria.
-      ["feedback", ["visualizar", "exportar", "administrar"], "todos"],
+      // Feedback: registra e administra os feedbacks da empresa; anotações de 1:1 seguem regra própria.
+      ["feedback", TUDO, "todos"],
       ["pulse", TUDO, "todos"],
       ["pdi", TUDO, "todos"],
       ["nr1", TUDO, "todos"],
@@ -72,8 +72,8 @@ export const PAPEIS_PADRAO: { nome: string; base: PapelBase; regras: Regra[] }[]
       ["cadastro", ["visualizar", "criar", "editar"], "todos"],
       ["crm", ["visualizar", "criar", "editar", "concluir", "exportar"], "todos"],
       ["onboarding", ["visualizar", "criar", "editar", "concluir", "exportar"], "todos"],
-      ["feedback", ["visualizar"], "todos"],
-      ["pulse", ["visualizar", "criar", "editar", "concluir"], "todos"],
+      ["feedback", ["visualizar", "criar", "editar", "concluir", "exportar"], "todos"],
+      ["pulse", ["visualizar", "criar", "editar", "concluir", "exportar"], "todos"],
       ["pdi", ["visualizar", "editar"], "todos"],
       // NR-1: sem acesso por padrão — o administrador concede se necessário.
     ],
@@ -85,7 +85,8 @@ export const PAPEIS_PADRAO: { nome: string; base: PapelBase; regras: Regra[] }[]
       ["cadastro", ["visualizar"], "equipe"],
       ["onboarding", ["visualizar", "concluir"], "equipe"],
       ["feedback", ["visualizar", "criar", "editar", "concluir"], "equipe"],
-      ["pulse", ["visualizar"], "equipe"],
+      // Pulse: leitura dos resultados agregados da empresa (sem criar/editar).
+      ["pulse", ["visualizar"], "todos"],
       ["pdi", ["visualizar", "criar", "editar", "concluir"], "equipe"],
     ],
   },
@@ -95,9 +96,10 @@ export const PAPEIS_PADRAO: { nome: string; base: PapelBase; regras: Regra[] }[]
     regras: [
       ["cadastro", ["visualizar"], "proprio"],
       // Onboarding: colaborador não acessa nesta versão (tarefas dele são acompanhadas por RH e gestor).
-      ["feedback", ["visualizar", "concluir"], "proprio"],
+      // Feedback 1:1: colaborador não acessa nesta versão.
       ["pdi", ["visualizar", "editar"], "proprio"],
-      // Pulse e NR-1: responder é permitido a quem está no público da pesquisa/ciclo.
+      // Pulse: sem acesso ao módulo — responde pelo link pessoal (e-mail) ou pelo Início.
+      // NR-1: responder é permitido a quem está no público do ciclo.
     ],
   },
 ];
