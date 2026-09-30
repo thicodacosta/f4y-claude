@@ -25,6 +25,7 @@ const LABELS = {
     titulo: "Registro de entrevista",
     candidato: "Candidato",
     vaga: "Vaga",
+    confidencial: "Documento confidencial",
     data: "Data",
     aviso: "Registro de apoio gerado por IA a partir da transcrição. Não é avaliação, nota ou decisão.",
   },
@@ -44,6 +45,7 @@ const LABELS = {
     resumoFinal: "Closing summary",
     naoAbordado: "Not covered in this interview.",
     titulo: "Interview record",
+    confidencial: "Confidential document",
     candidato: "Candidate",
     vaga: "Role",
     data: "Date",
@@ -67,10 +69,14 @@ const LABELS = {
     titulo: "Registro de entrevista",
     candidato: "Candidato",
     vaga: "Puesto",
+    confidencial: "Documento confidencial",
     data: "Fecha",
     aviso: "Registro de apoyo generado por IA a partir de la transcripción. No es una evaluación, nota ni decisión.",
   },
 };
+
+/** Títulos e textos fixos do registro no idioma pedido. */
+export const labelsFor = (lang = "pt") => LABELS[lang] ?? LABELS.pt;
 
 function el(tag, className, text) {
   const node = document.createElement(tag);

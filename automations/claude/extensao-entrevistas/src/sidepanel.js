@@ -454,21 +454,30 @@ $("copy-btn").addEventListener("click", async () => {
   }
 });
 
-$("download-md-btn").addEventListener("click", () =>
-  download(toMarkdown(resultData(), current.meta, resultLang()), `${fileBaseName()}.md`, "text/markdown;charset=utf-8"),
-);
-
-$("download-json-btn").addEventListener("click", () =>
-  download(
-    JSON.stringify(
-      { ...current.meta, idioma: resultLang(), registro: resultData(), transcricao: current.transcricao ?? null },
-      null,
-      2,
-    ),
-    `${fileBaseName()}.json`,
-    "application/json",
-  ),
-);
+// PDF com a identidade da empresa (Configurações), no idioma exibido. O
+// gerador (pdfmake) só carrega quando o usuário pede o PDF.
+$("download-pdf-btn").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  button.textContent = "Gerando…";
+  try {
+    const [{ buildInterviewPdf }, { branding = {} }] = await Promise.all([
+      import("./interview-pdf.js"),
+      chrome.storage.local.get("branding"),
+    ]);
+    const blob = await buildInterviewPdf(resultData(), current.meta, resultLang(), branding);
+    download(blob, `${fileBaseName()}.pdf`, "application/pdf");
+    $("copy-status").textContent = branding.logoDataUrl
+      ? ""
+      : "PDF gerado sem logo: configure o logo da empresa em Configurações.";
+  } catch (error) {
+    console.error(error);
+    $("copy-status").textContent = "Não foi possível gerar o PDF. Tente novamente.";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Baixar PDF";
+  }
+});
 
 $("download-txt-btn").addEventListener("click", () =>
   download(current.transcricao ?? "", `${fileBaseName()}-transcricao.txt`, "text/plain;charset=utf-8"),

@@ -3,8 +3,6 @@
  * mesmos dados, com a identidade visual configurada pelo usuário: logo no
  * cabeçalho, cor de destaque e nome da empresa no rodapé.
  */
-import pdfMake from "pdfmake/build/pdfmake.js";
-import pdfFonts from "pdfmake/build/vfs_fonts.js";
 import {
   AlignmentType,
   BorderStyle,
@@ -18,21 +16,7 @@ import {
   TabStopType,
   TextRun,
 } from "docx";
-
-pdfMake.addVirtualFileSystem(pdfFonts);
-
-const INK = "#2B2E3A";
-const MUTED = "#6B6F7B";
-const RULE = "#D9DCE1";
-const DEFAULT_ACCENT = "#082043";
-// Área máxima do logo no cabeçalho, em pontos (PDF) / pixels (Word).
-const LOGO_BOX = { width: 150, height: 44 };
-
-function logoSize(branding) {
-  const { logoWidth: w = LOGO_BOX.width, logoHeight: h = LOGO_BOX.height } = branding;
-  const scale = Math.min(LOGO_BOX.width / w, LOGO_BOX.height / h, 1);
-  return { width: Math.round(w * scale), height: Math.round(h * scale) };
-}
+import { DEFAULT_ACCENT, INK, MUTED, RULE, logoSize, renderBrandedPdf, section } from "../pdf/branded.js";
 
 /** Linha de contato: localização sempre; e-mail, telefone e LinkedIn só se permitidos. */
 function contactLine(cv, branding) {
@@ -64,15 +48,6 @@ const footerText = (branding) =>
 
 export async function buildCvPdf(cv, branding) {
   const accent = branding.cor || DEFAULT_ACCENT;
-  const logo = branding.logoDataUrl ? { image: branding.logoDataUrl, ...logoSize(branding) } : { text: "" };
-
-  const sectionHeading = (title) => ({
-    stack: [
-      { text: title.toUpperCase(), style: "sectionTitle", color: accent },
-      { canvas: [{ type: "line", x1: 0, y1: 3, x2: 499, y2: 3, lineWidth: 0.6, lineColor: RULE }] },
-    ],
-    margin: [0, 16, 0, 8],
-  });
 
   const body = {
     resumo: () => [{ text: cv.resumo, style: "body" }],
@@ -109,43 +84,10 @@ export async function buildCvPdf(cv, branding) {
     { text: cv.nome, style: "name" },
     cv.tituloProfissional ? { text: cv.tituloProfissional, style: "title", color: accent } : null,
     contactLine(cv, branding) ? { text: contactLine(cv, branding), style: "contact" } : null,
-    ...sections(cv).flatMap(([title, key]) => [sectionHeading(title), ...body[key]()]),
+    ...sections(cv).flatMap(([title, key]) => section(title, body[key](), branding)),
   ].filter(Boolean);
 
-  const doc = {
-    pageSize: "A4",
-    pageMargins: [48, 96, 48, 56],
-    info: { title: `Currículo - ${cv.nome}`, author: branding.empresa || undefined },
-    header: () => ({
-      margin: [48, 28, 48, 0],
-      stack: [
-        logo,
-        { canvas: [{ type: "line", x1: 0, y1: 10, x2: 499, y2: 10, lineWidth: 1.5, lineColor: accent }] },
-      ],
-    }),
-    footer: (currentPage, pageCount) => ({
-      margin: [48, 16, 48, 0],
-      columns: [
-        { text: footerText(branding), style: "footer" },
-        { text: `${currentPage} / ${pageCount}`, style: "footer", alignment: "right", width: "auto" },
-      ],
-    }),
-    content,
-    defaultStyle: { font: "Roboto", fontSize: 10, color: INK, lineHeight: 1.3 },
-    styles: {
-      name: { fontSize: 22, bold: true, lineHeight: 1.1 },
-      title: { fontSize: 12, margin: [0, 2, 0, 0] },
-      contact: { fontSize: 9, color: MUTED, margin: [0, 6, 0, 0] },
-      sectionTitle: { fontSize: 9, bold: true, characterSpacing: 1 },
-      itemTitle: { fontSize: 10.5, bold: true },
-      itemSubtitle: { fontSize: 9.5, margin: [0, 1, 0, 0] },
-      period: { fontSize: 9, color: MUTED },
-      body: { fontSize: 9.5 },
-      footer: { fontSize: 7.5, color: MUTED },
-    },
-  };
-
-  return pdfMake.createPdf(doc).getBlob();
+  return renderBrandedPdf({ branding, title: `Currículo - ${cv.nome}`, footer: footerText(branding), content });
 }
 
 // ---- Word -------------------------------------------------------------------
