@@ -1,4 +1,4 @@
-# JourneyLab · Ferramentas de RH (extensão Chrome)
+# JourneyLab · ToolsKit (extensão Chrome)
 
 Painel lateral do Chrome com oito ferramentas: registro de entrevistas,
 construtor de currículos padronizados, comparativo de candidatos, pesquisa
@@ -175,7 +175,7 @@ preserva a transcrição para tentar de novo.
 ## Identidade, primeiro acesso, tema e idiomas
 
 - **Marca da plataforma:** JourneyLab. O ícone da extensão e o nome
-  "JourneyLab · Ferramentas de RH" (barra e cabeçalho do Chrome) vêm do
+  "JourneyLab · ToolsKit" (barra e cabeçalho do Chrome) vêm do
   manifest; as cores seguem o logo: azul-marinho `#082043`, verde-água
   `#12C2B4` (em texto, `#087A70` para contraste AA) e cinza `#5F6470`. Arquivos
   em `design-system/assets/journeylab-logo.png` e `journeylab-symbol.png`.
@@ -196,6 +196,11 @@ preserva a transcrição para tentar de novo.
   (`src/translate.js`, cerca de 2s), mantém a estrutura, nomes, siglas e
   valores, e fica guardada junto do registro. Copiar e baixar usam o idioma
   exibido.
+- **PDF do registro:** o registro de entrevista é baixado em PDF com a
+  identidade configurada (logo, cor e nome da empresa), no idioma exibido
+  (`src/interview-pdf.js`, sobre a mesma base dos currículos em
+  `src/pdf/branded.js`). "Copiar" continua disponível para colar em ATS ou
+  e-mail.
 
 ## Shortlist no LinkedIn (aba "Shortlist")
 
