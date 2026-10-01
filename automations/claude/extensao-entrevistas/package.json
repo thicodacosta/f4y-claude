@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
+    "@supabase/supabase-js": "^2.117.2",
     "docx": "^9.7.2",
     "dompurify": "^3.4.16",
     "mammoth": "^1.12.3",

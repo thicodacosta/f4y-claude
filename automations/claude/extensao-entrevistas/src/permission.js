@@ -6,8 +6,10 @@
 import { getMicStream } from "./audio.js";
 import { initHeader } from "./header.js";
 import { initTheme } from "./theme.js";
+import { requireAuth } from "./auth/gate.js";
 
-initTheme();
+await initTheme();
+await requireAuth();
 initHeader();
 
 const status = document.getElementById("status");
