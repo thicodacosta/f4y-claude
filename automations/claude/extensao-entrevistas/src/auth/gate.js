@@ -1,11 +1,16 @@
 /**
- * Tela de acesso das páginas da extensão: senha + código de 6 dígitos enviado
- * por e-mail (2 etapas), "Manter conectado" e "Esqueci a senha". Bloqueia a
- * página até o usuário entrar.
+ * Tela de acesso das páginas da extensão. Bloqueia a página até o usuário
+ * entrar.
+ *
+ * - O administrador cria a conta e envia a senha inicial ao usuário.
+ * - No primeiro login, o usuário cria a própria senha antes de continuar.
+ * - "Esqueci a senha": chega por e-mail uma senha provisória (o código de
+ *   recuperação do Supabase), usada no campo Senha do login; em seguida o
+ *   usuário cria uma nova senha.
+ *
+ * `user_metadata.senhaPropria` marca quem já criou a própria senha.
  */
 import { authConfigured, currentUser, setRemember, signOut, supabase } from "./client.js";
-
-const RESEND_SECONDS = 60;
 
 function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
@@ -21,21 +26,27 @@ function el(tag, attrs = {}, ...children) {
 
 const maskEmail = (email) => email.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => `${a}${"•".repeat(Math.min(b.length, 6))}${c}`);
 
+// Senha provisória enviada por e-mail: o código numérico de recuperação.
+const PROVISIONAL = /^\d{6,10}$/;
+
+const hasOwnPassword = (user) => user?.user_metadata?.senhaPropria === true;
+
 /** Mensagens claras para os erros do Supabase Auth. */
 function friendly(error) {
   const msg = `${error?.message ?? ""} ${error?.code ?? ""}`.toLowerCase();
   if (/invalid login credentials|invalid_credentials/.test(msg)) return "E-mail ou senha incorretos.";
-  if (/token has expired|otp_expired|invalid.*otp|token.*invalid/.test(msg)) return "Código inválido ou expirado. Peça um novo código.";
+  if (/token has expired|otp_expired|invalid.*otp|token.*invalid/.test(msg)) return "Senha provisória inválida ou expirada. Peça uma nova em \"Esqueci a senha\".";
   if (/rate limit|too many|over_email_send_rate_limit|security purposes/.test(msg)) return "Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo.";
-  if (/signups not allowed|user not found|otp_disabled/.test(msg)) return "Este e-mail não tem acesso ao ToolsKit. Fale com o administrador.";
+  if (/signups not allowed|user not found/.test(msg)) return "Este e-mail não tem acesso ao ToolsKit. Fale com o administrador.";
+  if (/same_password|should be different/.test(msg)) return "A nova senha precisa ser diferente da senha atual.";
   if (/password should be|weak_password/.test(msg)) return "A nova senha precisa ter pelo menos 8 caracteres, com letras e números.";
+  if (/reauthentication/.test(msg)) return "Por segurança, saia e entre de novo antes de trocar a senha.";
   if (/failed to fetch|network/.test(msg)) return "Sem conexão com o servidor. Verifique sua internet.";
   return "Não foi possível concluir agora. Tente novamente.";
 }
 
 function buildScreen() {
   const status = el("p", { class: "auth__error", role: "alert", hidden: true });
-  const info = el("p", { class: "auth__info", role: "status" });
   const box = el("div", { class: "auth__box" });
   const card = el(
     "div",
@@ -46,17 +57,17 @@ function buildScreen() {
     status,
   );
   const screen = el("div", { class: "auth", role: "dialog", "aria-modal": "true", "aria-label": "Acesso ao ToolsKit" }, card);
-  return { screen, box, status, info };
+  return { screen, box, status };
 }
 
 /**
- * Bloqueia a página até haver sessão válida. Devolve o usuário. Se `onFirst`
- * for informado, é chamado quando o login acontece nesta tela.
+ * Bloqueia a página até haver sessão válida com senha própria. Devolve o
+ * usuário. `onLogin` é chamado quando o acesso é liberado nesta tela.
  */
 export async function requireAuth({ onLogin } = {}) {
   if (!authConfigured) return null; // pacote de desenvolvimento sem login configurado
   const existing = await currentUser();
-  if (existing) {
+  if (existing && hasOwnPassword(existing)) {
     watchSignOut();
     return existing;
   }
@@ -65,7 +76,8 @@ export async function requireAuth({ onLogin } = {}) {
   const ui = buildScreen();
   document.body.append(ui.screen);
 
-  const user = await new Promise((resolve) => runFlow(ui, resolve));
+  // Sessão aberta sem senha própria (ex.: fechou o painel antes de criá-la).
+  const user = await new Promise((resolve) => runFlow(ui, resolve, existing));
   ui.screen.remove();
   document.documentElement.classList.remove("is-locked");
   watchSignOut();
@@ -85,9 +97,8 @@ export async function logout() {
   location.reload();
 }
 
-function runFlow(ui, done) {
-  let email = "";
-  let resendTimer = null;
+function runFlow(ui, done, pendingUser) {
+  let email = pendingUser?.email ?? "";
 
   const setError = (message) => {
     ui.status.textContent = message ?? "";
@@ -100,8 +111,19 @@ function runFlow(ui, done) {
   const field = (id, label, attrs) =>
     el("div", { class: "field" }, el("label", { for: id, text: label }), el("input", { id, ...attrs }));
 
-  // ---- 1. E-mail e senha ----------------------------------------------------
-  function showLogin() {
+  // Senha normal; se não conferir e parecer a senha provisória do e-mail,
+  // tenta como código de recuperação.
+  async function signIn(password) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!error) return { user: data.user, provisional: false };
+    if (!PROVISIONAL.test(password)) throw error;
+    const recovery = await supabase.auth.verifyOtp({ email, token: password, type: "recovery" });
+    if (recovery.error) throw error;
+    return { user: recovery.data.user, provisional: true };
+  }
+
+  // ---- Login ----------------------------------------------------------------
+  function showLogin(notice) {
     setError(null);
     const remember = el("input", { type: "checkbox", id: "auth-remember", checked: true });
     const submit = el("button", { type: "submit", class: "btn btn--primary", text: "Entrar" });
@@ -110,7 +132,11 @@ function runFlow(ui, done) {
       "form",
       { novalidate: true },
       el("h1", { class: "title auth__title", text: "Entrar" }),
-      el("p", { class: "lead auth__lead", text: "Use o e-mail e a senha criados pelo administrador." }),
+      el("p", {
+        class: "lead auth__lead",
+        role: notice ? "status" : null,
+        text: notice ?? "Use o e-mail e a senha que você recebeu do administrador.",
+      }),
       field("auth-email", "E-mail", { type: "email", autocomplete: "username", required: true, value: email }),
       field("auth-password", "Senha", { type: "password", autocomplete: "current-password", required: true }),
       el("div", { class: "auth__row" }, el("label", { class: "consent" }, remember, el("span", { text: "Manter conectado" })), forgot),
@@ -132,13 +158,14 @@ function runFlow(ui, done) {
       busy(submit, true, "Entrar");
       try {
         await setRemember(remember.checked);
-        // 1ª etapa: confere a senha e descarta essa sessão; o acesso só é
-        // liberado com o código enviado por e-mail (2ª etapa).
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        await supabase.auth.signOut({ scope: "local" });
-        await sendCode();
-        showCode();
+        const { user, provisional } = await signIn(password);
+        if (provisional) {
+          // Até criar a nova senha, a conta volta a exigir a troca.
+          await supabase.auth.updateUser({ data: { senhaPropria: false } });
+          return showCreatePassword({ reason: "recovery" });
+        }
+        if (!hasOwnPassword(user)) return showCreatePassword({ reason: "first" });
+        done(user);
       } catch (error) {
         console.error(error);
         setError(friendly(error));
@@ -148,86 +175,51 @@ function runFlow(ui, done) {
     });
   }
 
-  async function sendCode() {
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
-    if (error) throw error;
-  }
-
-  function startResendTimer(button) {
-    let left = RESEND_SECONDS;
-    clearInterval(resendTimer);
-    button.disabled = true;
-    const tick = () => {
-      button.textContent = left > 0 ? `Reenviar código (${left}s)` : "Reenviar código";
-      button.disabled = left > 0;
-      left -= 1;
-      if (left < -1) clearInterval(resendTimer);
-    };
-    tick();
-    resendTimer = setInterval(tick, 1000);
-  }
-
-  // ---- 2. Código por e-mail -------------------------------------------------
-  function showCode() {
+  // ---- Criar a própria senha (1º acesso ou após a senha provisória) ---------
+  function showCreatePassword({ reason }) {
     setError(null);
-    const code = el("input", {
-      id: "auth-code",
-      class: "auth__code",
-      inputmode: "numeric",
-      autocomplete: "one-time-code",
-      maxlength: "6",
-      pattern: "[0-9]{6}",
-      "aria-describedby": "auth-code-hint",
-    });
-    const submit = el("button", { type: "submit", class: "btn btn--primary", text: "Verificar e entrar" });
-    const resend = el("button", { type: "button", class: "btn-link" });
-    const back = el("button", { type: "button", class: "btn-link", text: "Voltar" });
+    const submit = el("button", { type: "submit", class: "btn btn--primary", text: "Salvar senha e entrar" });
+    const leave = el("button", { type: "button", class: "btn-link", text: "Sair" });
+    const lead =
+      reason === "first"
+        ? "Bem-vindo ao ToolsKit. Antes de continuar, crie a sua senha pessoal. A senha recebida do administrador deixa de valer."
+        : "Crie uma nova senha. A senha provisória deixa de valer.";
     const form = el(
       "form",
       { novalidate: true },
-      el("h1", { class: "title auth__title", text: "Verificação em 2 etapas" }),
-      el("p", { class: "lead auth__lead", id: "auth-code-hint", text: `Enviamos um código de 6 dígitos para ${maskEmail(email)}. Ele vale por alguns minutos.` }),
-      el("div", { class: "field" }, el("label", { for: "auth-code", text: "Código" }), code),
+      el("h1", { class: "title auth__title", text: reason === "first" ? "Crie sua senha" : "Criar nova senha" }),
+      el("p", { class: "lead auth__lead", text: lead }),
+      field("auth-new", "Nova senha", { type: "password", autocomplete: "new-password", minlength: "8", required: true }),
+      field("auth-confirm", "Confirmar nova senha", { type: "password", autocomplete: "new-password", minlength: "8", required: true }),
+      el("p", { class: "hint", text: "Mínimo de 8 caracteres, com letras e números." }),
       submit,
-      el("div", { class: "auth__row" }, back, resend),
+      el("div", { class: "auth__row" }, leave),
     );
     ui.box.replaceChildren(form);
-    code.focus();
-    startResendTimer(resend);
+    form.querySelector("#auth-new").focus();
 
-    code.addEventListener("input", () => {
-      code.value = code.value.replace(/\D/g, "").slice(0, 6);
-      if (code.value.length === 6) form.requestSubmit();
-    });
-    back.addEventListener("click", () => {
-      clearInterval(resendTimer);
+    leave.addEventListener("click", async () => {
+      await signOut();
       showLogin();
-    });
-    resend.addEventListener("click", async () => {
-      setError(null);
-      try {
-        await sendCode();
-        startResendTimer(resend);
-      } catch (error) {
-        setError(friendly(error));
-      }
     });
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (code.value.length !== 6) return setError("Digite os 6 dígitos do código.");
+      const password = form.querySelector("#auth-new").value;
+      if (password.length < 8 || !/[a-z]/i.test(password) || !/\d/.test(password)) {
+        return setError("A nova senha precisa ter pelo menos 8 caracteres, com letras e números.");
+      }
+      if (password !== form.querySelector("#auth-confirm").value) return setError("As senhas não conferem.");
       setError(null);
-      busy(submit, true, "Verificar e entrar");
+      busy(submit, true, "Salvar senha e entrar");
       try {
-        const { data, error } = await supabase.auth.verifyOtp({ email, token: code.value, type: "email" });
+        const { data, error } = await supabase.auth.updateUser({ password, data: { senhaPropria: true } });
         if (error) throw error;
-        clearInterval(resendTimer);
         done(data.user);
       } catch (error) {
         console.error(error);
         setError(friendly(error));
-        code.select();
       } finally {
-        busy(submit, false, "Verificar e entrar");
+        busy(submit, false, "Salvar senha e entrar");
       }
     });
   }
@@ -235,84 +227,39 @@ function runFlow(ui, done) {
   // ---- Esqueci a senha ------------------------------------------------------
   function showForgot() {
     setError(null);
-    const submit = el("button", { type: "submit", class: "btn btn--primary", text: "Enviar código" });
+    const submit = el("button", { type: "submit", class: "btn btn--primary", text: "Enviar senha provisória" });
     const back = el("button", { type: "button", class: "btn-link", text: "Voltar para o login" });
     const form = el(
       "form",
       { novalidate: true },
       el("h1", { class: "title auth__title", text: "Esqueci a senha" }),
-      el("p", { class: "lead auth__lead", text: "Informe seu e-mail. Enviaremos um código para você criar uma nova senha." }),
+      el("p", { class: "lead auth__lead", text: "Informe seu e-mail. Enviaremos uma senha provisória para você entrar e criar uma nova." }),
       field("auth-email", "E-mail", { type: "email", autocomplete: "username", required: true, value: email }),
       submit,
       el("div", { class: "auth__row" }, back),
     );
     ui.box.replaceChildren(form);
     form.querySelector("#auth-email").focus();
-    back.addEventListener("click", showLogin);
+    back.addEventListener("click", () => showLogin());
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       email = form.querySelector("#auth-email").value.trim().toLowerCase();
       if (!email) return setError("Informe o e-mail.");
       setError(null);
-      busy(submit, true, "Enviar código");
+      busy(submit, true, "Enviar senha provisória");
       try {
         const { error } = await supabase.auth.resetPasswordForEmail(email);
         if (error) throw error;
-        showNewPassword();
+        showLogin(`Se ${maskEmail(email)} tiver acesso, enviamos uma senha provisória para ele. Use-a no campo Senha; ela vale por pouco tempo.`);
       } catch (error) {
         console.error(error);
         setError(friendly(error));
       } finally {
-        busy(submit, false, "Enviar código");
+        busy(submit, false, "Enviar senha provisória");
       }
     });
   }
 
-  function showNewPassword() {
-    setError(null);
-    const submit = el("button", { type: "submit", class: "btn btn--primary", text: "Salvar nova senha e entrar" });
-    const back = el("button", { type: "button", class: "btn-link", text: "Voltar para o login" });
-    const form = el(
-      "form",
-      { novalidate: true },
-      el("h1", { class: "title auth__title", text: "Criar nova senha" }),
-      el("p", { class: "lead auth__lead", text: `Se ${maskEmail(email)} tiver acesso, enviamos um código de 6 dígitos para ele.` }),
-      field("auth-reset-code", "Código", { inputmode: "numeric", autocomplete: "one-time-code", maxlength: "6" }),
-      field("auth-new", "Nova senha", { type: "password", autocomplete: "new-password", minlength: "8" }),
-      field("auth-confirm", "Confirmar nova senha", { type: "password", autocomplete: "new-password", minlength: "8" }),
-      el("p", { class: "hint", text: "Mínimo de 8 caracteres, com letras e números." }),
-      submit,
-      el("div", { class: "auth__row" }, back),
-    );
-    ui.box.replaceChildren(form);
-    form.querySelector("#auth-reset-code").focus();
-    back.addEventListener("click", showLogin);
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const token = form.querySelector("#auth-reset-code").value.replace(/\D/g, "");
-      const password = form.querySelector("#auth-new").value;
-      if (token.length !== 6) return setError("Digite os 6 dígitos do código.");
-      if (password.length < 8 || !/[a-z]/i.test(password) || !/\d/.test(password)) {
-        return setError("A nova senha precisa ter pelo menos 8 caracteres, com letras e números.");
-      }
-      if (password !== form.querySelector("#auth-confirm").value) return setError("As senhas não conferem.");
-      setError(null);
-      busy(submit, true, "Salvar nova senha e entrar");
-      try {
-        // O código de recuperação comprova o e-mail; com ele a senha é trocada.
-        const { data, error } = await supabase.auth.verifyOtp({ email, token, type: "recovery" });
-        if (error) throw error;
-        const { error: updateError } = await supabase.auth.updateUser({ password });
-        if (updateError) throw updateError;
-        done(data.user);
-      } catch (error) {
-        console.error(error);
-        setError(friendly(error));
-      } finally {
-        busy(submit, false, "Salvar nova senha e entrar");
-      }
-    });
-  }
-
-  showLogin();
+  if (pendingUser) showCreatePassword({ reason: "first" });
+  else showLogin();
 }
