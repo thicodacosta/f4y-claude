@@ -266,9 +266,19 @@ preserva a transcrição para tentar de novo.
    tenta o botão do perfil (inclusive dentro de "Mais"). A nota é escrita em
    campo comum ou editor rico. Pausas de 25 a 45s entre convites; no máximo 20
    perfis abertos e 5 páginas por execução. Botão **Parar** a qualquer momento.
-6. O painel lista **só os candidatos com a aderência mínima ou mais** (padrão
-   70%); os demais entram apenas na contagem de perfis analisados. Ao final,
-   mostra o resumo e volta para a busca.
+6. O painel lista os candidatos com a aderência mínima ou mais (padrão 70%).
+   Os demais ficam numa lista recolhida, **"Perfis abaixo de 70%"**, com a nota
+   e o que não aparece no perfil, para a recrutadora ajustar a busca. Ao
+   final, mostra o resumo e volta para a busca.
+
+**Leitura do perfil:** o LinkedIn só carrega Experiência, Formação e
+Competências ao rolar a página. O script rola o perfil até o fim, espera a
+seção de experiência e envia à IA só o topo do perfil e as seções
+profissionais (Sobre, Experiência, Formação, Licenças e certificados,
+Competências, Idiomas, Projetos…), sem Atividade, Destaques, Interesses nem
+anúncios e sem o texto duplicado para leitores de tela. Sem a seção de
+experiência, recarrega o perfil uma vez antes de avaliar. Lendo só o topo, um
+QA Engineer aderente à vaga tirava 8%; com as seções, 92%.
 
 O modo **Simular** faz tudo, menos o clique final em Enviar: use-o para validar
 a busca e a nota antes do primeiro envio real. A IA roda na Groq

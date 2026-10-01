@@ -164,7 +164,14 @@ export async function runShortlist({ groqKey, tabId, jd, job, quantidade, aderen
 
       say(`Abrindo o perfil de ${card.name}…`);
       await navigate(tabId, card.url);
-      const profile = await command(tabId, "readProfile");
+      let profile = await command(tabId, "readProfile");
+      // Sem a seção de experiência a avaliação fica injusta (só o título):
+      // recarrega o perfil uma vez antes de avaliar.
+      if (!profile.hasExperience && !profile.firstDegree && !profile.pending) {
+        say(`Carregando as experiências de ${card.name}…`);
+        await navigate(tabId, card.url);
+        profile = await command(tabId, "readProfile");
+      }
       if (profile.firstDegree) {
         Object.assign(candidate, { status: "ja_conectado" });
         emit(candidate);
@@ -191,6 +198,12 @@ export async function runShortlist({ groqKey, tabId, jd, job, quantidade, aderen
         local: evaluation.local,
         aderencia: evaluation.aderencia,
         resumo: evaluation.resumo,
+        avaliacoes: job.requisitos.map((r) => ({
+          descricao: r.descricao,
+          tipo: r.tipo,
+          nivel: evaluation.avaliacoes.find((a) => a.requisitoId === r.id)?.nivel ?? "nao_evidenciado",
+        })),
+        semExperiencia: !profile.hasExperience,
       });
 
       if (evaluation.aderencia < aderenciaMinima) {

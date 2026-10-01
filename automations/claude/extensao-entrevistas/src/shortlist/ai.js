@@ -152,6 +152,12 @@ export async function evaluateProfile({ apiKey, job, profile, signature, signal 
 - parcial: evidência relacionada, mas incompleta;
 - nao_evidenciado: o perfil não mostra (não significa que a pessoa não tenha).
 
+Como ler o perfil:
+- o título do perfil e os cargos (atual e anteriores) são evidência de experiência: um cargo igual ou equivalente ao da vaga atende o requisito de cargo/experiência;
+- some o tempo de todos os cargos relacionados para o requisito de tempo de experiência;
+- ferramentas e técnicas contam se aparecem no título, em "Sobre", na descrição das experiências ou em Competências;
+- área de formação relacionada conta como parcial, quando a vaga pede outra área próxima.
+
 Também escreve a nota do convite de conexão, única para esta pessoa:
 - no máximo ${NOTE_TARGET} caracteres (conte com cuidado), em português, cordial, profissional e direta;
 - cumprimente pelo primeiro nome;

@@ -133,23 +133,83 @@
     return h1?.closest("section") ?? main.querySelector("section") ?? main;
   }
 
-  async function readProfile() {
-    // Espera o conteúdo do perfil carregar (texto suficiente no conteúdo principal).
-    await waitFor(() => clean(document.querySelector("main")?.innerText).length > 400, 15000);
-    // Carrega as seções de experiência, que aparecem ao rolar.
-    for (let i = 0; i < 3; i++) {
-      window.scrollBy(0, window.innerHeight);
-      await sleep(700);
+  // Seções do perfil que interessam à avaliação e as que só trazem ruído
+  // (posts, anúncios, sugestões de outros perfis).
+  const RELEVANT_SECTION =
+    /^(sobre|about|experiência|experience|formação|education|licenças|licenses|certifica|competências|skills|idiomas|languages|projetos|projects|cursos|courses|prêmios|honors|publicações|publications|trabalho voluntário|volunteer|recomendações|recommendations)/i;
+  const EXPERIENCE_SECTION = /^(experiência|experience)\b/i;
+
+  /**
+   * Linhas de texto sem repetição: o LinkedIn escreve cada texto duas vezes
+   * (uma visível e outra para leitores de tela).
+   */
+  function textLines(node) {
+    const lines = [];
+    for (const raw of (node?.innerText ?? "").split("\n")) {
+      const line = clean(raw);
+      if (line && line !== lines[lines.length - 1]) lines.push(line);
     }
+    return lines;
+  }
+
+  /** Seções de primeiro nível do conteúdo principal, com o título de cada uma. */
+  function profileSections() {
+    const main = document.querySelector("main") ?? document.body;
+    return [...main.querySelectorAll("section")]
+      .filter((s) => !s.parentElement?.closest("main section"))
+      .map((section) => {
+        const lines = textLines(section);
+        const heading = clean(section.querySelector('h2, h3, [role="heading"]')?.innerText) || lines[0] || "";
+        return { section, title: heading.split(/\s{2,}/)[0], lines };
+      });
+  }
+
+  // Pela seção ou, se o LinkedIn não usar <section>, por um título solto.
+  const hasExperience = () =>
+    profileSections().some((s) => EXPERIENCE_SECTION.test(s.title)) ||
+    textLines(document.querySelector("main")).some((line) => /^(experiência|experience)$/i.test(line));
+
+  /**
+   * Rola o perfil até o fim, em passos, para o LinkedIn carregar as seções
+   * (Experiência, Formação, Competências só aparecem ao rolar).
+   */
+  async function loadWholeProfile() {
+    let lastHeight = 0;
+    let stable = 0;
+    for (let i = 0; i < 14 && stable < 2; i++) {
+      window.scrollBy(0, Math.round(window.innerHeight * 0.8));
+      await sleep(650);
+      const height = document.documentElement.scrollHeight;
+      const atBottom = window.scrollY + window.innerHeight >= height - 20;
+      stable = atBottom && height === lastHeight ? stable + 1 : 0;
+      lastHeight = height;
+    }
+    await waitFor(hasExperience, 4000);
     window.scrollTo(0, 0);
+  }
+
+  async function readProfile() {
+    // Espera o topo do perfil carregar (o LinkedIn mostra esqueletos antes).
+    await waitFor(() => clean(document.querySelector("main")?.innerText).length > 400, 15000);
+    await loadWholeProfile();
+
     const card = topCard();
     const cardText = clean(card.innerText);
+    const sections = profileSections();
+    const relevant = sections.filter((s) => s.section !== card && RELEVANT_SECTION.test(s.title));
+    // Texto para a IA: topo do perfil (nome, título, local) + seções
+    // profissionais. Sem as seções reconhecidas, usa o conteúdo todo.
+    const text = relevant.length
+      ? [textLines(card).join("\n"), ...relevant.map((s) => s.lines.join("\n"))].join("\n\n")
+      : textLines(document.querySelector("main")).join("\n");
     return {
       url: profileUrl(location.href),
       name: clean(document.querySelector("main h1, main h2")?.innerText),
       firstDegree: FIRST_DEGREE.test(cardText),
       pending: Boolean(findClickable(card, /^(pendente|pending)\b/i)),
-      text: clean(document.querySelector("main")?.innerText).slice(0, 9000),
+      hasExperience: hasExperience(),
+      sections: relevant.map((s) => s.title),
+      text: text.slice(0, 14000),
     };
   }
 
