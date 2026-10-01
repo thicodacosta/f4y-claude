@@ -18,6 +18,7 @@ import { FormCandidato } from "@/components/crm/form-candidato";
 import { FormAcao } from "@/components/admin/form-acao";
 import { Area, Campo, Selecao } from "@/components/admin/campos";
 import { Selo } from "@/components/app/lista";
+import { TelefoneWhatsapp } from "@/components/crm/whatsapp";
 
 export const metadata: Metadata = { title: "Candidato" };
 
@@ -73,6 +74,16 @@ export default async function CandidatoPage({ params }: { params: Promise<{ id: 
             <span key={t.tagId} className="rounded-full bg-muted px-2.5 py-0.5 text-xs">{t.tag.nome}</span>
           ))}
         </div>
+        {(c.email || c.telefone) && (
+          <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            {c.email && (
+              <a href={`mailto:${c.email}`} className="text-muted-foreground hover:text-foreground hover:underline">
+                {c.email}
+              </a>
+            )}
+            {c.telefone && <TelefoneWhatsapp telefone={c.telefone} nome={c.nome} />}
+          </p>
+        )}
         {c.colaborador && (
           <p className="flex items-center gap-2 text-sm">
             <UserCheck className="size-4 text-success" aria-hidden />

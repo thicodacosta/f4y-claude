@@ -76,3 +76,20 @@ export async function tipoRealAnexo(arquivo: File): Promise<string | null> {
   if (hex.startsWith("ffd8ff")) return "image/jpeg";
   return null;
 }
+
+/** Imagens (Página de Carreiras): JPG, PNG ou WebP, conferidas pela assinatura. */
+export async function tipoRealImagem(arquivo: File): Promise<string | null> {
+  const c = new Uint8Array(await arquivo.slice(0, 12).arrayBuffer());
+  const hex = [...c].map((b) => b.toString(16).padStart(2, "0")).join("");
+  if (hex.startsWith("89504e47")) return "image/png";
+  if (hex.startsWith("ffd8ff")) return "image/jpeg";
+  if (hex.startsWith("52494646") && hex.slice(16, 24) === "57454250") return "image/webp"; // RIFF....WEBP
+  return null;
+}
+
+/** Lê o arquivo no servidor (para rotas que servem conteúdo público após checar a organização). */
+export async function baixarArquivo(caminho: string) {
+  const { data, error } = await createAdminClient().storage.from(BUCKET).download(caminho);
+  if (error || !data) throw new Error("Arquivo indisponível.");
+  return data;
+}

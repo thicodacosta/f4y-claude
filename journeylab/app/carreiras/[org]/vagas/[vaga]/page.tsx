@@ -47,7 +47,7 @@ export default async function VagaPublicaPage({ params }: Params) {
     : null;
 
   return (
-    <>
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6">
       {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />}
       <Link href={`/carreiras/${org.slug}`} className="text-sm text-muted-foreground hover:text-foreground">
         ← Todas as vagas de {org.nome}
@@ -97,6 +97,6 @@ export default async function VagaPublicaPage({ params }: Params) {
           .
         </p>
       )}
-    </>
+    </div>
   );
 }

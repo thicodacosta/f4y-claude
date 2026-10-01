@@ -8,7 +8,6 @@ export default async function LayoutFeedback({ children }: { children: React.Rea
   const abas: Aba[] = [
     { href: "/feedback", rotulo: "Visão geral", exato: true },
     { href: "/feedback/agenda", rotulo: "Agenda 1:1" },
-    { href: "/feedback/compromissos", rotulo: "Compromissos" },
   ];
   if (pode(ctx, "feedback", "administrar") === "todos") abas.push({ href: "/feedback/modelos", rotulo: "Modelos de pauta" });
   return (

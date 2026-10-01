@@ -227,6 +227,28 @@ export async function alterarCandidatura(_: EstadoForm, fd: FormData): Promise<E
   }
 }
 
+/** Kanban: move a candidatura para outra etapa (mesma regra e histórico de alterarCandidatura). */
+export async function moverCandidatura(id: string, status: string): Promise<{ ok?: string; erro?: string }> {
+  try {
+    const { ctx, escopo } = await exigirPermissaoAcao("crm", "editar");
+    const novo = z.enum(Object.keys(STATUS_CANDIDATURA) as [keyof typeof STATUS_CANDIDATURA]).parse(status);
+    const candidatoId = await transacao(escopoTx(ctx), async (tx) => {
+      const c = await tx.candidatura.findUnique({ where: { id: z.string().uuid().parse(id) }, include: { vaga: { select: { titulo: true } } } });
+      if (!c) throw new ErroAcesso("Candidatura não encontrada.");
+      await candidatoVisivel(tx, ctx, c.candidatoId, escopo);
+      if (c.status === novo) return c.candidatoId;
+      await tx.candidatura.update({ where: { id: c.id }, data: { status: novo } });
+      await registrar(tx, ctx, c.candidatoId, `Vaga “${c.vaga.titulo}”: ${STATUS_CANDIDATURA[c.status].nome} → ${STATUS_CANDIDATURA[novo].nome} (Kanban).`);
+      return c.candidatoId;
+    });
+    revalidatePath("/crm");
+    revalidatePath(`/crm/candidatos/${candidatoId}`);
+    return { ok: `Movido para “${STATUS_CANDIDATURA[novo].nome}”.` };
+  } catch (e) {
+    return erroDe(e);
+  }
+}
+
 // ─── Conversão em colaborador ─────────────────────────────────────────────
 
 /**

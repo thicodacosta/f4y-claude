@@ -605,6 +605,33 @@ model Candidatura {
   @@map("candidaturas")
 }
 
+/// Conteúdo da Página de Carreiras da organização (capa, sobre, blocos de texto e imagem,
+/// benefícios, depoimentos, galeria e links). Validado por lib/carreiras/pagina.ts.
+model PaginaCarreiras {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @unique @map("tenant_id") @db.Uuid
+  conteudo      Json
+  atualizadoPor String   @map("atualizado_por")
+  atualizadoEm  DateTime @default(now()) @updatedAt @map("atualizado_em")
+
+  @@map("paginas_carreiras")
+}
+
+/// Imagem enviada para a Página de Carreiras (bucket privado; servida pela rota pública da página).
+model MidiaCarreiras {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  caminho     String   @unique
+  nomeArquivo String   @map("nome_arquivo")
+  mime        String
+  tamanho     Int
+  enviadoPor  String   @map("enviado_por")
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  @@index([tenantId])
+  @@map("midias_carreiras")
+}
+
 // ─── Onboarding ───────────────────────────────────────────────────────────
 
 enum TipoTarefa {

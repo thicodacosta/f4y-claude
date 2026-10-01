@@ -383,3 +383,32 @@ aplica a política de retenção de cada organização.
   erro, tentativas) e reenviável no painel; falha não desfaz nem duplica nada.
 - **Banco:** gatilho `jl_candidatura_consistente` garante vaga, candidato e
   currículo da mesma organização (e currículo do próprio candidato).
+- **Conteúdo da página** (aba "Configurações da página", quem edita o CRM com escopo
+  "todos"): capa com imagem, título e chamada; "sobre"; até 6 blocos de texto e
+  imagem (lado configurável); benefícios; até 8 depoimentos com foto; galeria (até
+  12 fotos); chamada para banco de talentos (aponta para uma vaga publicada); links
+  oficiais (https). Guardado em `paginas_carreiras.conteudo` (JSON validado por
+  `lib/carreiras/pagina.ts`; só texto simples, sem HTML; conteúdo inválido volta
+  ao padrão sem quebrar a página). Seções vazias não aparecem. Logo e cor vêm do
+  cadastro da organização.
+- **Imagens:** JPG, PNG ou WebP até 5 MB, conferidas pela assinatura, no bucket
+  privado (`{tenant}/carreiras/midia/...`) e registradas em `midias_carreiras`. A
+  rota pública `/carreiras/{org}/midia/{id}` só serve imagens dessa tabela e da
+  própria organização, com o tipo gravado no envio e `nosniff` (currículos nunca
+  passam por ela). Ao salvar, toda imagem referenciada precisa ser da organização.
+
+## 16. CRM — Kanban e WhatsApp
+
+- **Kanban** (`/crm?visao=kanban`): cartões são candidaturas (candidato × vaga) em
+  colunas por etapa — Inscrito, Em avaliação, Entrevista, Aprovado, Contratado,
+  Não seguiu, Desistiu. Sem vaga no filtro, mostra vagas abertas ou pausadas.
+  Mover (arrastar ou escolher a etapa no próprio cartão, alternativa acessível)
+  chama `moverCandidatura`, que confere permissão (CRM › Editar) e o escopo do
+  candidato e registra a mudança no histórico. Falha desfaz a movimentação.
+- **WhatsApp:** telefones do candidato (ficha, lista, Kanban, candidaturas da vaga
+  e e-mail de aviso ao criador da vaga) abrem `https://wa.me/<número>` em nova aba
+  (`linkWhatsapp` em `lib/crm/normalizar.ts`: número brasileiro sem DDI recebe 55;
+  número com "+" mantém o DDI informado).
+- **Feedback 1:1:** o módulo não exibe mais o botão "Agendar 1:1" nem a aba
+  "Compromissos". As rotas continuam existindo para links já enviados e para as
+  integrações (sugestão do primeiro 1:1 no Onboarding e painel de pendências).

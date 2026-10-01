@@ -4,6 +4,7 @@ import { transacao } from "@/lib/db";
 import { emailValido, enviarEmail, esc } from "@/lib/email";
 import { formatarDataHora } from "@/lib/formato";
 import { SISTEMA } from "@/lib/integracoes/processar";
+import { linkWhatsapp } from "@/lib/crm/normalizar";
 
 export const plataformaCarreiras = { escopo: "plataforma" as const, usuarioId: SISTEMA };
 
@@ -70,7 +71,11 @@ export async function enviarAvisoCandidatura(candidaturaId: string): Promise<{ o
       <div style="background:${cor};padding:18px 24px;border-radius:12px 12px 0 0"><strong style="color:#fff;font-size:17px">Nova candidatura · ${esc(org?.nome ?? "")}</strong></div>
       <div style="border:1px solid #E2E8EE;border-top:0;padding:24px;border-radius:0 0 12px 12px">
         <table style="border-collapse:collapse;width:100%;font-size:14px">${linhas
-          .map(([k, v]) => `<tr><td style="padding:6px 0;color:#526173;width:170px">${esc(k)}</td><td style="padding:6px 0"><strong>${esc(v)}</strong></td></tr>`)
+          .map(([k, v]) => {
+            const wa = k === "Telefone" ? linkWhatsapp(v) : null;
+            const valor = wa ? `<a href="${esc(wa)}" style="color:${cor}">${esc(v)}</a> <span style="color:#526173;font-size:12px">(WhatsApp)</span>` : esc(v);
+            return `<tr><td style="padding:6px 0;color:#526173;width:170px">${esc(k)}</td><td style="padding:6px 0"><strong>${valor}</strong></td></tr>`;
+          })
           .join("")}</table>
         <p style="margin:24px 0 12px">${
           linkCurriculo

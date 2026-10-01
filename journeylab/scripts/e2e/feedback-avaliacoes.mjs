@@ -192,7 +192,11 @@ try {
   checar("Sem histórico: referência pela data de entrada (Fábio atrasado)", /Fábio Nunes/.test(cad) && /referência: data de entrada/.test(cad) && /Atrasado 10 d/.test(cad), cad.replace(/\n/g, " ").slice(0, 200));
   checar("Próximo quando faltam até 7 dias (Carla, em 5 d)", /Carla Mendes[\s\S]*Em 5 d/.test(cad));
   checar("Em dia não aparece nos alertas (Gabriela, trimestral)", !/Gabriela/.test(cad));
-  checar("Alerta abre o agendamento já preenchido", await nav.avaliar(`!!document.querySelector('#cadencia-${fabio.id} a[href="/feedback/agendar?colaborador=${fabio.id}"]')`));
+  // "Agendar 1:1" foi retirado do Feedback 1:1: o alerta leva ao registro do feedback já preenchido.
+  checar(
+    "Alerta abre o registro de feedback já preenchido (sem “Agendar 1:1”)",
+    await nav.avaliar(`!!document.querySelector('#cadencia-${fabio.id} a[href="/feedback/novo?colaborador=${fabio.id}"]') && !document.querySelector('#cadencia-${fabio.id} a[href^="/feedback/agendar"]')`),
+  );
 
   // ── 8. Agenda: passado recusado, recorrência, duplicidade, cancelamentos, calendário ──
   e = await nav.ir(`/feedback/agendar?colaborador=${fabio.id}`);

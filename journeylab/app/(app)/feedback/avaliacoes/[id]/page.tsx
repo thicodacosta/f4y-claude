@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { ArrowDown, ArrowUp, CalendarPlus, Minus, Pencil, Sparkles, Target } from "lucide-react";
+import { ArrowDown, ArrowUp, Minus, Pencil, Sparkles, Target } from "lucide-react";
 import { exigirModulo, pode } from "@/lib/contexto";
 import { hoje as hojeCivil } from "@/lib/datas";
 import { formatarData, formatarDataHora } from "@/lib/formato";
@@ -76,7 +76,6 @@ export default async function AvaliacaoPage({ params, searchParams }: { params: 
   const notas = notasDe(a);
   const anteriores = anterior ? notasDe(anterior) : null;
   const edita = podeEditarAvaliacao(ctx, pode(ctx, "feedback", "editar"), a.colaborador);
-  const agenda = !!pode(ctx, "feedback", "criar") && !ctx.suporte;
   const cad = maisRecente?.id === a.id ? cadencia({ data: a.data, periodicidade: a.periodicidade }, a.colaborador.dataAdmissao, hojeCivil()) : null;
 
   // PDI: só com o módulo contratado e permissão de criar PDI para a pessoa. Nada é gravado aqui:
@@ -103,11 +102,6 @@ export default async function AvaliacaoPage({ params, searchParams }: { params: 
           {edita && (
             <Link href={`/feedback/avaliacoes/${a.id}/editar`} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium hover:bg-muted">
               <Pencil className="size-4" aria-hidden /> Editar
-            </Link>
-          )}
-          {agenda && a.colaborador.status === "ativo" && (
-            <Link href={`/feedback/agendar?colaborador=${a.colaborador.id}&avaliacao=${a.id}`} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-              <CalendarPlus className="size-4" aria-hidden /> Agendar próximo 1:1
             </Link>
           )}
         </div>

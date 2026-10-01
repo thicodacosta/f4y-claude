@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { CalendarPlus, Lock, Repeat } from "lucide-react";
-import { exigirModulo, pode } from "@/lib/contexto";
+import { Lock, Repeat } from "lucide-react";
+import { exigirModulo } from "@/lib/contexto";
 import { filtroReunioes, STATUS_REUNIAO } from "@/lib/feedback/regras";
 import { valorPermitido } from "@/lib/validacao";
 import { formatarDataHora } from "@/lib/formato";
@@ -42,7 +42,6 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
       take: POR_PAGINA,
     }),
   ]);
-  const podeAgendar = !!pode(ctx, "feedback", "criar") && !ctx.suporte;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_minmax(0,320px)]">
@@ -62,14 +61,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
         {reunioes.length === 0 ? (
           <EstadoVazio
             titulo={periodo === "proximas" ? "Nenhum 1:1 agendado" : "Nenhuma reunião encontrada"}
-            descricao="Agende uma conversa individual; com recorrência, as próximas ocorrências são criadas juntas."
-            acao={
-              podeAgendar ? (
-                <Link href="/feedback/agendar" className="inline-flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground">
-                  Agendar 1:1
-                </Link>
-              ) : undefined
-            }
+            descricao="As conversas 1:1 registradas aparecem aqui."
           />
         ) : (
           <Tabela colunas={["Pessoa", "Gestor", "Quando", "Situação", "Compromissos"]} minWidth={720}>
@@ -105,11 +97,6 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
       </section>
 
       <div className="flex flex-col gap-4">
-        {podeAgendar && (
-          <Link href="/feedback/agendar" className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-            <CalendarPlus className="size-4" aria-hidden /> Agendar 1:1
-          </Link>
-        )}
         <Cartao className="bg-brand-gradient-soft p-5">
           <p className="flex items-center gap-2 font-heading font-bold">
             <Lock className="size-4 text-teal-strong" aria-hidden /> Anotações das reuniões

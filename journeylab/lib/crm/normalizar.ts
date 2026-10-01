@@ -53,3 +53,17 @@ export const TIPO_INTERACAO = {
   entrevista: "Entrevista",
   sistema: "Registro do sistema",
 } as const;
+
+/**
+ * Link do WhatsApp (wa.me) a partir do telefone cadastrado. Números brasileiros
+ * sem DDI recebem 55; números já com DDI são mantidos. Sem dígitos suficientes → null.
+ */
+export function linkWhatsapp(telefone?: string | null) {
+  const bruto = (telefone ?? "").trim();
+  let d = bruto.replace(/\D/g, "");
+  if (bruto.startsWith("+")) return d.length >= 8 && d.length <= 15 ? `https://wa.me/${d}` : null; // DDI informado
+  d = d.replace(/^0+/, "");
+  if (d.length < 10 || d.length > 13) return null;
+  if (d.length <= 11) d = `55${d}`; // Brasil: DDD + número
+  return `https://wa.me/${d}`;
+}

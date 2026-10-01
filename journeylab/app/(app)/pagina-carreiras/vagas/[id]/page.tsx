@@ -13,6 +13,7 @@ import { Celula, Tabela } from "@/components/app/tabela";
 import { Cartao, CabecalhoCartao } from "@/components/app/painel";
 import { FormVagaCarreiras } from "@/components/carreiras/form-vaga";
 import { AssumirNotificacoes, BotaoVaga, CopiarLink, PublicarVaga, ReenviarAviso } from "@/components/carreiras/acoes";
+import { TelefoneWhatsapp } from "@/components/crm/whatsapp";
 
 export const metadata: Metadata = { title: "Vaga · Página de Carreiras" };
 
@@ -99,7 +100,9 @@ export default async function VagaCarreiras({ params }: { params: Promise<{ id: 
                   </Celula>
                   <Celula className="text-xs">
                     {c.candidato.email ?? "—"}
-                    <span className="block text-muted-foreground">{c.candidato.telefone ?? "—"}</span>
+                    <span className="block">
+                      <TelefoneWhatsapp telefone={c.candidato.telefone} nome={c.candidato.nome} />
+                    </span>
                   </Celula>
                   <Celula className="text-xs tabular-nums text-muted-foreground">
                     {formatarDataHora(c.criadoEm.toISOString())}

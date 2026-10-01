@@ -10,8 +10,8 @@ O site comercial é outro projeto (Claude Design).
 | Etapa | Situação |
 |---|---|
 | 1. Base multitenant (auth, convites, organizações, troca de organização, papéis e permissões configuráveis, módulos/entitlements com histórico, cadastro compartilhado, painel, auditoria, administração JourneyLab, suporte temporário) | **Funcional e testada** |
-| 2. CRM de Candidatos (cadastro, duplicidade, currículo/anexos em storage privado, tags, histórico, vagas, candidaturas, exportação CSV auditada, conversão em colaborador) | **Funcional e testada** |
-| 2b. Página de Carreiras (página pública por empresa, vagas publicáveis, candidatura sem login com currículo em área privada, criação/atualização automática no CRM, aviso ao criador com reenvio) | **Funcional e testada** |
+| 2. CRM de Candidatos (lista e Kanban por etapa, telefone com link para o WhatsApp, cadastro, duplicidade, currículo/anexos em storage privado, tags, histórico, vagas, candidaturas, exportação CSV auditada, conversão em colaborador) | **Funcional e testada** |
+| 2b. Página de Carreiras (página pública por empresa com capa, sobre, blocos de texto e imagem, benefícios, depoimentos e galeria configuráveis; vagas publicáveis com filtros, candidatura sem login com currículo em área privada, criação/atualização automática no CRM, aviso ao criador com reenvio) | **Funcional e testada** |
 | 3. Onboarding v2 (templates 30/60/90 por organização e por área, fases com marco, tarefas com status/bloqueio/anexos, lista·Kanban·painel, linha do tempo e Kanban de tarefas com arrastar, progresso e conclusão automáticos, criação automática no cadastro, alertas, lembrete por e-mail ao gestor) | **Funcional e testada** |
 | 4. Feedback 1:1 (avaliação de Performance × Cultura com 16 critérios, médias e semáforo pelo banco, cadência, agenda com recorrência e links de calendário, PDI sugerido com confirmação, pautas, anotações com privacidade no banco, compromissos) | **Funcional e testada** |
 | 5. PDI (focos de desenvolvimento do catálogo, ações com responsável/prazo/progresso/investimento/impacto/mentor, status e progresso calculados, lista·Kanban·Dashboard, fluxo guiado em 5 etapas, comentários, permissões e vínculo gestor→liderado no banco, sugestões do Feedback 1:1 e do Onboarding com confirmação) | **Funcional e testada** |
@@ -74,6 +74,8 @@ node scripts/e2e/onboarding.mjs      # Onboarding: acesso, status por data, Kanb
 node scripts/e2e/feedback-pdi.mjs    # 1:1 (privacidade das anotações no banco) e compromisso de 1:1 → ação do PDI
 node scripts/e2e/feedback-avaliacoes.mjs # Feedback avaliado: regra de médias/semáforo, acesso, cadência, agenda, PDI
 node scripts/e2e/pulse.mjs           # Pulse: banco (anonimato, mínimo, complemento), assistente, e-mails, resposta pública, abas, permissões, rotina
+node scripts/e2e/crm-kanban.mjs      # CRM: Kanban por etapa, WhatsApp nos telefones; Feedback sem Agendar/Compromissos
+node scripts/e2e/carreiras-pagina.mjs # Carreiras: conteúdo e imagens da página, filtros, isolamento das imagens
 node scripts/e2e/carreiras.mjs       # Carreiras: publicação, candidatura pública → CRM, currículo privado, aviso/reenvio, antisspam, isolamento
 node scripts/e2e/pdi.mjs             # PDI: RLS por papel/vínculo, cálculo de status, fluxo guiado, Feedback/Onboarding → PDI
 npx tsx --conditions=react-server scripts/e2e/ia.mts   # IA: cliente contra servidor falso (sem chave real) e dados enviados só agregados

@@ -25,6 +25,13 @@ export const orgPublica = cache(async (slug: string) => {
   });
 });
 
+/** Conteúdo configurado da página (tolerante a conteúdo inválido). */
+export async function conteudoPublico(orgId: string) {
+  const { lerConteudo } = await import("./pagina");
+  const p = await transacao(plataformaCarreiras, (tx) => tx.paginaCarreiras.findUnique({ where: { tenantId: orgId }, select: { conteudo: true } }));
+  return lerConteudo(p?.conteudo);
+}
+
 /** Vagas publicadas e abertas da organização. */
 export async function vagasPublicas(orgId: string) {
   return transacao(plataformaCarreiras, (tx) =>

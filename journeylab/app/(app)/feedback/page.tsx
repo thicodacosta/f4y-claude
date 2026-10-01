@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { CalendarPlus, ClipboardPlus } from "lucide-react";
+import { ClipboardPlus } from "lucide-react";
 import { exigirModulo, pode } from "@/lib/contexto";
 import { hoje as hojeCivil, somarDias } from "@/lib/datas";
 import { formatarData } from "@/lib/formato";
@@ -98,9 +98,6 @@ export default async function FeedbackPage({ searchParams }: { searchParams: Pro
           {pode(ctx, "feedback", "exportar") && <LinkExportar href="/feedback/exportar" />}
           {podeCriar && (
             <>
-              <Link href="/feedback/agendar" className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border bg-card px-4 text-sm font-medium hover:bg-muted">
-                <CalendarPlus className="size-4" aria-hidden /> Agendar 1:1
-              </Link>
               <Link href="/feedback/novo" className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
                 <ClipboardPlus className="size-4" aria-hidden /> Novo feedback
               </Link>
@@ -242,10 +239,8 @@ export default async function FeedbackPage({ searchParams }: { searchParams: Pro
                   {podeCriar && (
                     <div className="flex flex-wrap gap-2 text-xs">
                       <Link href={`/feedback/novo?colaborador=${c.id}`} className="font-medium text-teal-strong hover:underline">Registrar feedback</Link>
-                      {c.proximo1a1 ? (
+                      {c.proximo1a1 && (
                         <Link href={`/feedback/${c.proximo1a1.id}`} className="text-muted-foreground hover:underline">1:1 agendado</Link>
-                      ) : (
-                        <Link href={`/feedback/agendar?colaborador=${c.id}`} className="font-medium text-teal-strong hover:underline">Agendar 1:1</Link>
                       )}
                     </div>
                   )}
