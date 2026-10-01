@@ -82,6 +82,9 @@ function render() {
           button("Baixar Word", (e) => downloadAs(item, "docx", e.currentTarget)),
         );
         li.append(actions);
+        if (item.cv?.resumo) {
+          li.append(Object.assign(document.createElement("p"), { className: "cv-item__summary", textContent: item.cv.resumo }));
+        }
       } else if (item.status === "erro" && files.has(item.id)) {
         const actions = Object.assign(document.createElement("div"), { className: "cv-item__actions" });
         actions.append(button("Tentar de novo", () => retry(item.id)));
