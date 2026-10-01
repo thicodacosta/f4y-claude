@@ -146,13 +146,16 @@ Conversa com IA no estilo Claude/ChatGPT (`src/chat/`):
 Nada do ToolsKit abre sem login (`src/auth/`), no painel, nas Configurações e
 na aba de permissão do microfone:
 
-1. **E-mail e senha** (contas criadas só pelo administrador);
-2. **Código de 6 dígitos por e-mail** (2ª etapa) — a senha é conferida e a
-   sessão só é liberada com o código;
+1. **E-mail e senha**: o administrador cria a conta e envia a senha inicial
+   ao usuário por mensagem;
+2. **Primeiro login**: antes de qualquer outra tela, o usuário cria a própria
+   senha (mín. 8 caracteres, letras e números). Quem já criou fica marcado em
+   `user_metadata.senhaPropria`;
 3. **Manter conectado** (padrão ligado): a sessão sobrevive ao fechar o
    Chrome; desligado, dura até o Chrome ser fechado;
-4. **Esqueci a senha**: código por e-mail + nova senha (mín. 8 caracteres,
-   letras e números), sem sair da extensão.
+4. **Esqueci a senha**: chega por e-mail uma **senha provisória** (o código de
+   recuperação do Supabase, `{{ .Token }}`). O usuário a digita no campo Senha
+   do login e em seguida cria uma nova senha.
 
 No **primeiro login de cada usuário**, as Configurações abrem em modo de
 boas-vindas (identidade da empresa e integração com o LinkedIn). "Sair" fica
@@ -164,8 +167,8 @@ Contas no Supabase (`SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` em
 | Onde | O quê |
 |---|---|
 | Authentication → Sign In / Providers | Desligar **Allow new users to sign up** (só o admin cria contas) |
-| Authentication → Emails → Templates → **Magic Link** | Corpo com o código: `Seu código de acesso ao ToolsKit: {{ .Token }}` |
-| Authentication → Emails → Templates → **Reset Password** | Corpo com o código: `Código para criar uma nova senha: {{ .Token }}` |
+| Authentication → Sign In / Providers → **Email** | **Minimum password length** = 8 (igual à regra da extensão) |
+| Authentication → Emails → Templates → **Reset Password** | Corpo com a senha provisória: `Sua senha provisória do ToolsKit: {{ .Token }}` (sem link) |
 | Authentication → Emails → SMTP Settings | SMTP próprio (ex.: Resend): o envio padrão do Supabase permite poucos e-mails por hora |
 | Authentication → Users → **Add user → Create new user** | E-mail + senha inicial, com **Auto Confirm User** marcado |
 

@@ -571,7 +571,7 @@ let user = null;
 
 async function init() {
   await initTheme();
-  // Nada do ToolsKit abre sem login (senha + código por e-mail).
+  // Nada do ToolsKit abre sem login (senha; no 1º acesso, criação da senha própria).
   user = await requireAuth();
   $("logout-btn").hidden = !user;
   $("logout-btn").addEventListener("click", logout);
