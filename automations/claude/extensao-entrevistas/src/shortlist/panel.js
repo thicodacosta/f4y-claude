@@ -46,6 +46,17 @@ function candidateItem(c) {
     el("p", `cv-item__status${statusClass}`, c.status === "analisando" ? "Analisando…" : statusLabel(c.status)),
   );
   if (c.resumo) text.append(el("p", "cv-item__status", c.resumo));
+  // Abaixo da aderência: mostra o que faltou, para a recrutadora entender a nota.
+  if (c.aderencia != null && !isAdherent(c) && c.avaliacoes) {
+    const gaps = (nivel) => c.avaliacoes.filter((a) => a.nivel === nivel).map((a) => a.descricao);
+    const missing = gaps("nao_evidenciado");
+    const partial = gaps("parcial");
+    if (missing.length) text.append(el("p", "cv-item__status sl-gap", `Não aparece no perfil: ${missing.join("; ")}`));
+    if (partial.length) text.append(el("p", "cv-item__status", `Parcial: ${partial.join("; ")}`));
+    if (c.semExperiencia) {
+      text.append(el("p", "cv-item__status", "O LinkedIn não mostrou a seção de experiência deste perfil; a nota considerou só o topo."));
+    }
+  }
   top.append(text);
   li.append(top);
   return li;
@@ -53,18 +64,28 @@ function candidateItem(c) {
 
 let minScore = 70;
 
-/** Só os aderentes (e o perfil em análise) aparecem; os demais entram na contagem. */
 function isAdherent(c) {
   return c.aderencia != null && c.aderencia >= minScore;
 }
 
+/**
+ * Os aderentes (e o perfil em análise) ficam na lista principal; os abaixo
+ * da aderência mínima, numa lista recolhida com o que faltou em cada um.
+ */
 function renderList() {
   const visible = candidates.filter((c) => c.status === "analisando" || isAdherent(c));
   $("sl-list").replaceChildren(...visible.map(candidateItem));
+  const below = candidates
+    .filter((c) => c.status !== "analisando" && c.aderencia != null && !isAdherent(c))
+    .sort((a, b) => b.aderencia - a.aderencia);
+  $("sl-below").replaceChildren(...below.map(candidateItem));
+  $("sl-below-box").hidden = below.length === 0;
+  $("sl-below-title").textContent = `Perfis abaixo de ${minScore}% (${below.length})`;
   const analyzed = candidates.filter((c) => c.status !== "analisando");
-  const below = analyzed.filter((c) => !isAdherent(c)).length;
+  const skipped = analyzed.filter((c) => c.aderencia == null).length;
   $("sl-analyzed").textContent = analyzed.length
-    ? `Perfis analisados: ${analyzed.length} · abaixo de ${minScore}% ou indisponíveis (não listados): ${below}`
+    ? `Perfis analisados: ${analyzed.length} · aderentes: ${analyzed.filter(isAdherent).length} · abaixo de ${minScore}%: ${below.length}` +
+      (skipped ? ` · já conectados ou com convite pendente: ${skipped}` : "")
     : "";
 }
 

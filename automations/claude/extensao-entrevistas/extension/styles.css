@@ -1520,6 +1520,27 @@ input[type="search"] {
   color: var(--success);
 }
 
+.sl-below {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 12px 14px;
+}
+
+.sl-below > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.sl-below > .hint {
+  margin: 8px 0;
+}
+
+.sl-gap {
+  color: var(--ink);
+}
+
 .steps__header {
   display: flex;
   align-items: baseline;
