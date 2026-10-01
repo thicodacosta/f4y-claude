@@ -157,6 +157,9 @@ export default async function VagaCarreiras({ params }: { params: Promise<{ id: 
             tipoContratacao: vaga.tipoContratacao ?? "",
             equipeId: vaga.equipeId ?? "",
             gestorId: vaga.gestorId ?? "",
+            prioridade: vaga.prioridade,
+            prazoFechamento: vaga.prazoFechamento ? vaga.prazoFechamento.toISOString().slice(0, 10) : "",
+            posicoes: String(vaga.posicoes),
           }}
         />
       </Cartao>

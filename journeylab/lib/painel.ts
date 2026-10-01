@@ -19,6 +19,9 @@ import { transacao } from "@/lib/db";
 import { urlRespostaNr1 } from "@/lib/nr1/links";
 import { plataformaNr1 } from "@/lib/nr1/publico";
 import type { Modulo } from "@/lib/permissoes";
+import { filtroAcoesRetencao } from "@/lib/retencao-talentos/regras";
+import { carregarBase } from "@/lib/analytics/base";
+import { calcularTurnover } from "@/lib/analytics/calculo";
 
 export type BlocoPendencias = {
   modulo: Modulo;
@@ -220,6 +223,58 @@ const PROVEDORES: Provedor[] = [
     },
   },
   {
+    // Entrevistas de desligamento pendentes (só RH/Admin: escopo mínimo "todos").
+    modulo: "offboarding",
+    async montar(ctx) {
+      const lista = await dbTenant(ctx.org.id, ctx.usuario.id).desligamento.findMany({
+        where: { entrevistaStatus: { in: ["pendente", "enviada"] } },
+        include: { colaborador: { select: { nome: true } } },
+        orderBy: { data: "desc" },
+        take: 5,
+      });
+      return {
+        modulo: "offboarding",
+        titulo: "Entrevistas de desligamento",
+        href: "/offboarding?entrevista=pendente",
+        vazio: "Nenhuma entrevista de desligamento pendente.",
+        itens: lista.map((d) => ({
+          texto: d.colaborador.nome,
+          subtitulo: `Saída em ${formatarData(d.data)}`,
+          detalhe: d.entrevistaStatus === "enviada" ? "Aguardando resposta" : "Pendente",
+          alerta: d.entrevistaStatus === "pendente",
+          href: `/offboarding/${d.id}`,
+        })),
+      };
+    },
+  },
+  {
+    // Ações de retenção vencidas ou vencendo em 7 dias (escopo do papel).
+    modulo: "retencao",
+    async montar(ctx) {
+      const escopo = pode(ctx, "retencao", "visualizar")!;
+      const h = hojeCivil();
+      const lista = await dbTenant(ctx.org.id, ctx.usuario.id).acaoRetencao.findMany({
+        where: { AND: [filtroAcoesRetencao(ctx, escopo), { status: { in: ["planejada", "em_andamento"] }, prazo: { lte: somarDias(h, 7) } }] },
+        include: { colaborador: { select: { nome: true } }, equipe: { select: { nome: true } } },
+        orderBy: { prazo: "asc" },
+        take: 5,
+      });
+      return {
+        modulo: "retencao",
+        titulo: "Ações de retenção com prazo próximo",
+        href: "/retencao/acoes",
+        vazio: "Nenhuma ação de retenção vencida ou vencendo nos próximos 7 dias.",
+        itens: lista.map((a) => ({
+          texto: a.titulo,
+          subtitulo: a.colaborador?.nome ?? a.equipe?.nome ?? "Organização",
+          detalhe: a.prazo! < h ? `Vencida · ${formatarData(a.prazo!)}` : `Prazo ${formatarData(a.prazo!)}`,
+          alerta: a.prazo! < h,
+          href: "/retencao/acoes",
+        })),
+      };
+    },
+  },
+  {
     // Cadência de feedback: atrasados e próximos (mesma fonte da página do módulo).
     modulo: "feedback",
     async montar(ctx) {
@@ -405,6 +460,42 @@ const INDICADORES: ProvedorIndicadores[] = [
     },
   },
 ];
+
+INDICADORES.push(
+  {
+    modulo: "offboarding",
+    async montar(ctx) {
+      const pendentes = await dbTenant(ctx.org.id, ctx.usuario.id).desligamento.count({ where: { entrevistaStatus: { in: ["pendente", "enviada"] } } });
+      return [
+        {
+          modulo: "offboarding",
+          rotulo: "Entrevistas de saída",
+          valor: String(pendentes),
+          detalhe: pendentes ? "pendentes ou aguardando resposta" : "Nenhuma pendente",
+          href: "/offboarding?entrevista=pendente",
+          alerta: pendentes > 0,
+        },
+      ];
+    },
+  },
+  {
+    modulo: "analytics",
+    async montar(ctx) {
+      const { pessoas, saidas } = await carregarBase(ctx);
+      const h = hojeCivil();
+      const t = calcularTurnover(pessoas, saidas, somarDias(h, -364), h);
+      return [
+        {
+          modulo: "analytics",
+          rotulo: "Turnover 12 meses",
+          valor: t.turnover === null ? "—" : `${t.turnover.toLocaleString("pt-BR")}%`,
+          detalhe: `${t.saidas} saída(s) · ${t.voluntarias} voluntária(s)`,
+          href: "/people-analytics",
+        },
+      ];
+    },
+  },
+);
 
 export async function montarIndicadores(ctx: Contexto) {
   const ativos = INDICADORES.filter((p) => ctx.modulos.has(p.modulo) && pode(ctx, p.modulo, "visualizar"));

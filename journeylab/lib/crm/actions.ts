@@ -333,7 +333,7 @@ export async function converterEmColaborador(_: EstadoForm, fd: FormData): Promi
     return erroDe(e);
   }
   revalidatePath("/crm");
-  revalidatePath("/pessoas");
+  revalidatePath("/colaboradores");
   revalidatePath("/onboarding");
-  redirect(`/pessoas/${colaboradorId}${avisoOnboarding ? `?onboarding=${avisoOnboarding}` : ""}`);
+  redirect(`/colaboradores/${colaboradorId}${avisoOnboarding ? `?onboarding=${avisoOnboarding}` : ""}`);
 }

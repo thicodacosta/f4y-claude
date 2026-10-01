@@ -7,6 +7,7 @@ import {
   Building2,
   Check,
   ChevronDown,
+  Contact,
   Globe,
   House,
   LifeBuoy,
@@ -17,6 +18,7 @@ import {
   PanelLeftOpen,
   Settings2,
   ShieldCheck,
+  SquareKanban,
   Target,
   UserRound,
   type LucideIcon,
@@ -46,23 +48,43 @@ type Grupo = { titulo: string; itens: ItemNav[] };
 
 export const COOKIE_MENU = "jl_menu_recolhido";
 
+/**
+ * Menu por jornada do colaborador. Cada item só aparece se o módulo estiver
+ * contratado e o papel puder visualizar (a checagem real ocorre de novo em cada
+ * página/ação). Pipeline de Vagas e Página de Carreiras fazem parte do CRM
+ * (mesmo módulo e mesmas permissões); Colaboradores é o cadastro de pessoas.
+ */
 function montarGrupos(d: DadosShell): Grupo[] {
+  const tem = new Map(d.modulos.map((m) => [m.chave, m]));
+  const modulo = (chave: string, href = `/${chave}`): ItemNav[] => {
+    const m = tem.get(chave);
+    return m ? [{ href, rotulo: m.nome, icone: ICONE_MODULO[chave] ?? Target }] : [];
+  };
   const grupos: Grupo[] = [{ titulo: "", itens: [{ href: "/inicio", rotulo: "Início", icone: House }] }];
-  if (d.modulos.length > 0) {
-    grupos.push({
-      titulo: "Produtos",
-      // A Página de Carreiras faz parte do CRM: aparece logo abaixo dele, com a mesma permissão.
-      itens: d.modulos.flatMap((m) => [
-        { href: `/${m.chave}`, rotulo: m.nome, icone: ICONE_MODULO[m.chave] ?? Target },
-        ...(m.chave === "crm" ? [{ href: "/pagina-carreiras", rotulo: "Página de Carreiras", icone: Globe }] : []),
-      ]),
-    });
-  }
+  const jornada: Grupo[] = [
+    {
+      titulo: "Atração e Seleção",
+      itens: [
+        ...modulo("crm"),
+        ...(tem.has("crm")
+          ? [
+              { href: "/pagina-carreiras", rotulo: "Página de Carreiras", icone: Globe },
+              { href: "/pipeline-vagas", rotulo: "Pipeline de Vagas", icone: SquareKanban },
+            ]
+          : []),
+      ],
+    },
+    {
+      titulo: "Desenvolvimento",
+      itens: [...(d.cadastro ? [{ href: "/colaboradores", rotulo: "Colaboradores", icone: Contact }] : []), ...modulo("onboarding"), ...modulo("feedback"), ...modulo("pdi")],
+    },
+    { titulo: "Saúde do Colaborador", itens: [...modulo("pulse"), ...modulo("nr1")] },
+    { titulo: "Turnover", itens: [...modulo("offboarding"), ...modulo("retencao")] },
+    { titulo: "People Analytics", itens: modulo("analytics", "/people-analytics") },
+  ];
+  grupos.push(...jornada.filter((g) => g.itens.length > 0));
   const org: ItemNav[] = [];
-  if (d.cadastro) {
-    org.push({ href: "/pessoas", rotulo: "Pessoas", icone: UserRound });
-    org.push({ href: "/equipes", rotulo: "Áreas e equipes", icone: Network });
-  }
+  if (d.cadastro) org.push({ href: "/equipes", rotulo: "Áreas e equipes", icone: Network });
   if (d.configuracoes) org.push({ href: "/configuracoes", rotulo: "Configurações", icone: Settings2 });
   if (org.length) grupos.push({ titulo: "Organização", itens: org });
   if (d.usuario.superadmin) {
@@ -93,7 +115,7 @@ function Navegacao({ d, recolhido = false, aoNavegar }: { d: DadosShell; recolhi
         </div>
       )}
 
-      <nav aria-label="Navegação principal" className="flex w-full flex-1 flex-col gap-5 overflow-y-auto">
+      <nav aria-label="Navegação principal" className="flex w-full flex-1 flex-col gap-4 overflow-y-auto">
         {montarGrupos(d).map((g) => (
           <div key={g.titulo || "inicio"} className="flex flex-col gap-1">
             {g.titulo &&
@@ -102,7 +124,7 @@ function Navegacao({ d, recolhido = false, aoNavegar }: { d: DadosShell; recolhi
               ) : (
                 <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/55">{g.titulo}</p>
               ))}
-            <ul className="flex flex-col gap-1">
+            <ul className="flex flex-col gap-0.5">
               {g.itens.map((i) => {
                 const atual = ativo(i.href);
                 return (
@@ -114,7 +136,7 @@ function Navegacao({ d, recolhido = false, aoNavegar }: { d: DadosShell; recolhi
                       title={recolhido ? i.rotulo : undefined}
                       className={cn(
                         "group relative flex items-center gap-3 rounded-md text-[13.5px] font-medium text-sidebar-foreground/80 transition-colors outline-none hover:bg-white/6 hover:text-white focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-                        recolhido ? "size-11 justify-center" : "px-3 py-2.5",
+                        recolhido ? "size-10 justify-center" : "px-3 py-2",
                         atual && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                       )}
                     >
@@ -249,6 +271,7 @@ function tituloSecao(pathname: string, d: DadosShell) {
   const raiz = pathname.split("/")[1] ?? "";
   for (const g of montarGrupos(d)) for (const i of g.itens) if (i.href === `/${raiz}`) return i.rotulo;
   if (raiz === "conta") return "Minha conta";
+  if (raiz === "pessoas") return "Colaboradores";
   return "";
 }
 

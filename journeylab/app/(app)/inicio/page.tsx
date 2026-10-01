@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, CalendarDays, Lock } from "lucide-react";
 import { exigirContexto, pode } from "@/lib/contexto";
-import { MODULOS, NOME_MODULO, type Modulo } from "@/lib/permissoes";
+import { MODULOS, NOME_MODULO, ROTA_MODULO, type Modulo } from "@/lib/permissoes";
 import { montarIndicadores, montarPendencias } from "@/lib/painel";
 import { EstadoVazio } from "@/components/app/lista";
 import { ICONE_MODULO } from "@/components/app/icones-modulo";
@@ -101,7 +101,7 @@ export default async function InicioPage({ searchParams }: { searchParams: Promi
               return (
                 <li key={m.chave}>
                   <Link
-                    href={`/${m.chave}`}
+                    href={ROTA_MODULO[m.chave]}
                     className="group flex h-full items-start gap-4 rounded-lg border border-border bg-card p-5 shadow-surface transition-shadow outline-none hover:shadow-hover focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
                     <ChipIcone icone={ICONE_MODULO[m.chave]} tom="navy" className="size-11" />

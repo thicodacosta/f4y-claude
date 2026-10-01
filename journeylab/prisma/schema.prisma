@@ -24,6 +24,9 @@ enum Modulo {
   pulse
   pdi
   nr1
+  offboarding
+  retencao
+  analytics
 }
 
 enum StatusEntitlement {
@@ -49,7 +52,7 @@ enum PapelBase {
   personalizado
 }
 
-/// Área de permissão: os 6 módulos + áreas comuns da organização.
+/// Área de permissão: os módulos + áreas comuns da organização.
 enum AreaPermissao {
   organizacao
   cadastro
@@ -59,6 +62,9 @@ enum AreaPermissao {
   pulse
   pdi
   nr1
+  offboarding
+  retencao
+  analytics
 }
 
 enum Acao {
@@ -363,10 +369,11 @@ model Equipe {
   gestorId String?  @map("gestor_id") @db.Uuid
   criadoEm DateTime @default(now()) @map("criado_em")
 
-  area    Area?         @relation(fields: [areaId], references: [id], onDelete: SetNull)
-  gestor  Colaborador?  @relation("GestorEquipe", fields: [gestorId], references: [id], onDelete: SetNull)
-  membros Colaborador[] @relation("MembrosEquipe")
-  vagas   Vaga[]
+  area          Area?          @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  gestor        Colaborador?   @relation("GestorEquipe", fields: [gestorId], references: [id], onDelete: SetNull)
+  membros       Colaborador[]  @relation("MembrosEquipe")
+  vagas         Vaga[]
+  acoesRetencao AcaoRetencao[]
 
   @@unique([tenantId, nome])
   @@map("equipes")
@@ -390,21 +397,24 @@ model Colaborador {
   criadoEm          DateTime          @default(now()) @map("criado_em")
   atualizadoEm      DateTime          @updatedAt @map("atualizado_em")
 
-  equipe                  Equipe?             @relation("MembrosEquipe", fields: [equipeId], references: [id], onDelete: SetNull)
-  candidatoOrigem         Candidato?          @relation("CandidatoConvertido", fields: [candidatoOrigemId], references: [id], onDelete: SetNull)
-  vagasGeridas            Vaga[]
-  onboardings             Onboarding[]
-  tarefasOnboarding       TarefaOnboarding[]  @relation("ResponsavelTarefa")
-  gestor                  Colaborador?        @relation("Gestor", fields: [gestorId], references: [id], onDelete: SetNull)
-  liderados               Colaborador[]       @relation("Gestor")
-  equipesGeridas          Equipe[]            @relation("GestorEquipe")
-  associacao              Associacao?
-  reunioesComoGestor      Reuniao[]           @relation("ReuniaoGestor")
-  reunioesComoColaborador Reuniao[]           @relation("ReuniaoColaborador")
-  compromissos            Compromisso[]       @relation("CompromissoResponsavel")
-  pdis                    Pdi[]
-  avaliacoesRecebidas     AvaliacaoFeedback[] @relation("AvaliacaoColaborador")
-  avaliacoesFeitas        AvaliacaoFeedback[] @relation("AvaliacaoGestor")
+  equipe                   Equipe?             @relation("MembrosEquipe", fields: [equipeId], references: [id], onDelete: SetNull)
+  candidatoOrigem          Candidato?          @relation("CandidatoConvertido", fields: [candidatoOrigemId], references: [id], onDelete: SetNull)
+  vagasGeridas             Vaga[]
+  onboardings              Onboarding[]
+  tarefasOnboarding        TarefaOnboarding[]  @relation("ResponsavelTarefa")
+  gestor                   Colaborador?        @relation("Gestor", fields: [gestorId], references: [id], onDelete: SetNull)
+  liderados                Colaborador[]       @relation("Gestor")
+  equipesGeridas           Equipe[]            @relation("GestorEquipe")
+  associacao               Associacao?
+  reunioesComoGestor       Reuniao[]           @relation("ReuniaoGestor")
+  reunioesComoColaborador  Reuniao[]           @relation("ReuniaoColaborador")
+  compromissos             Compromisso[]       @relation("CompromissoResponsavel")
+  pdis                     Pdi[]
+  avaliacoesRecebidas      AvaliacaoFeedback[] @relation("AvaliacaoColaborador")
+  avaliacoesFeitas         AvaliacaoFeedback[] @relation("AvaliacaoGestor")
+  desligamentos            Desligamento[]      @relation("DesligamentoColaborador")
+  acoesRetencao            AcaoRetencao[]      @relation("AcaoRetencaoColaborador")
+  acoesRetencaoResponsavel AcaoRetencao[]      @relation("AcaoRetencaoResponsavel")
 
   @@unique([tenantId, email])
   @@index([tenantId, status])
@@ -421,6 +431,16 @@ enum StatusVaga {
   pausada
   fechada
   cancelada
+}
+
+/// Etapas do Pipeline de Vagas. "concluida" corresponde à vaga encerrada (status fechada).
+enum EtapaPipelineVaga {
+  planejamento
+  divulgacao
+  triagem
+  entrevistas
+  proposta
+  concluida
 }
 
 enum StatusCandidatura {
@@ -540,31 +560,39 @@ model AnexoCandidato {
 /// Vaga do CRM — também publicada na Página de Carreiras (/carreiras/{org}/vagas/{slug}).
 /// Pública só quando `publicada` e status "aberta". Notificações vão ao criador, no e-mail confirmado antes de publicar.
 model Vaga {
-  id                 String     @id @default(uuid()) @db.Uuid
-  tenantId           String     @map("tenant_id") @db.Uuid
+  id                 String            @id @default(uuid()) @db.Uuid
+  tenantId           String            @map("tenant_id") @db.Uuid
   titulo             String
   /// Identificador estável da URL pública (único na organização).
   slug               String
   descricao          String?
   requisitos         String?
-  equipeId           String?    @map("equipe_id") @db.Uuid
-  gestorId           String?    @map("gestor_id") @db.Uuid
+  equipeId           String?           @map("equipe_id") @db.Uuid
+  gestorId           String?           @map("gestor_id") @db.Uuid
   local              String?
   /// Modalidade: presencial · híbrido · remoto
   modelo             String?
   /// CLT · PJ · estágio · temporário · aprendiz
-  tipoContratacao    String?    @map("tipo_contratacao")
-  status             StatusVaga @default(aberta)
-  publicada          Boolean    @default(false)
-  publicadaEm        DateTime?  @map("publicada_em")
-  abertaEm           DateTime   @default(now()) @map("aberta_em")
-  fechadaEm          DateTime?  @map("fechada_em")
-  criadoPor          String     @map("criado_por")
-  criadoPorUsuarioId String?    @map("criado_por_usuario_id") @db.Uuid
+  tipoContratacao    String?           @map("tipo_contratacao")
+  status             StatusVaga        @default(aberta)
+  publicada          Boolean           @default(false)
+  publicadaEm        DateTime?         @map("publicada_em")
+  abertaEm           DateTime          @default(now()) @map("aberta_em")
+  fechadaEm          DateTime?         @map("fechada_em")
+  criadoPor          String            @map("criado_por")
+  criadoPorUsuarioId String?           @map("criado_por_usuario_id") @db.Uuid
   /// E-mail do criador para avisos de candidatura (conferido antes de publicar).
-  emailNotificacao   String?    @map("email_notificacao")
-  emailConfirmadoEm  DateTime?  @map("email_confirmado_em")
-  atualizadoEm       DateTime   @default(now()) @updatedAt @map("atualizado_em")
+  emailNotificacao   String?           @map("email_notificacao")
+  emailConfirmadoEm  DateTime?         @map("email_confirmado_em")
+  /// Pipeline de Vagas: etapa do processo seletivo (quadro estilo Trello).
+  etapaPipeline      EtapaPipelineVaga @default(planejamento) @map("etapa_pipeline")
+  /// baixa · media · alta · urgente
+  prioridade         String            @default("media")
+  /// Data-alvo para fechar a vaga (SLA do processo).
+  prazoFechamento    DateTime?         @map("prazo_fechamento") @db.Date
+  /// Número de posições a preencher.
+  posicoes           Int               @default(1)
+  atualizadoEm       DateTime          @default(now()) @updatedAt @map("atualizado_em")
 
   equipe       Equipe?       @relation(fields: [equipeId], references: [id], onDelete: SetNull)
   gestor       Colaborador?  @relation(fields: [gestorId], references: [id], onDelete: SetNull)
@@ -1557,4 +1585,131 @@ model PoliticaRetencao {
   organizacao Organizacao @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("politicas_retencao")
+}
+
+// ─── Offboarding ──────────────────────────────────────────────────────────
+// Registro do desligamento + entrevista de desligamento (link assinado de uso
+// único, enviado ao e-mail pessoal, ou conduzida pelo RH). Respostas visíveis
+// só a quem tem escopo "todos" no módulo (RH/Admin) — nunca ao gestor.
+// Cargo, equipe, área, gestor e admissão são gravados no momento da saída
+// (fotografia) para os indicadores não mudarem quando o cadastro mudar.
+
+enum TipoDesligamento {
+  pedido_demissao
+  dispensa_sem_justa_causa
+  dispensa_justa_causa
+  acordo
+  termino_contrato
+  aposentadoria
+  outro
+}
+
+model Desligamento {
+  id                     String           @id @default(uuid()) @db.Uuid
+  tenantId               String           @map("tenant_id") @db.Uuid
+  colaboradorId          String           @map("colaborador_id") @db.Uuid
+  data                   DateTime         @db.Date
+  tipo                   TipoDesligamento
+  /// Saída por iniciativa do colaborador (turnover voluntário).
+  voluntario             Boolean
+  /// Motivo informado no registro (categoria de lib/offboarding/motivos.ts).
+  motivoDeclarado        String           @map("motivo_declarado")
+  observacao             String?
+  /// "Perda lamentada": saída que a empresa gostaria de ter evitado.
+  perdaLamentada         Boolean          @default(false) @map("perda_lamentada")
+  elegivelRecontratacao  Boolean?         @map("elegivel_recontratacao")
+  cargo                  String?
+  equipeId               String?          @map("equipe_id") @db.Uuid
+  equipeNome             String?          @map("equipe_nome")
+  areaId                 String?          @map("area_id") @db.Uuid
+  areaNome               String?          @map("area_nome")
+  gestorId               String?          @map("gestor_id") @db.Uuid
+  gestorNome             String?          @map("gestor_nome")
+  admissao               DateTime?        @db.Date
+  /// pendente · enviada · respondida · dispensada
+  entrevistaStatus       String           @default("pendente") @map("entrevista_status")
+  /// link (respondida pela pessoa) · conduzida (registrada pelo RH em conversa)
+  entrevistaModo         String?          @map("entrevista_modo")
+  emailContato           String?          @map("email_contato")
+  entrevistaEnviadaEm    DateTime?        @map("entrevista_enviada_em")
+  entrevistaExpiraEm     DateTime?        @map("entrevista_expira_em")
+  entrevistaRespondidaEm DateTime?        @map("entrevista_respondida_em")
+  entrevistaErro         String?          @map("entrevista_erro")
+  /// Respostas completas (validadas por lib/offboarding/questionario.ts).
+  respostas              Json?
+  /// Motivos reais apontados na entrevista (categorias) e o principal.
+  motivosReais           String[]         @map("motivos_reais")
+  motivoPrincipalReal    String?          @map("motivo_principal_real")
+  /// "Recomendaria a empresa?" (0–10) — base do eNPS de saída.
+  enps                   Int?             @db.SmallInt
+  /// sim · talvez · nao
+  voltaria               String?
+  /// sim · talvez · nao — algo poderia ter evitado a saída?
+  evitavel               String?
+  registradoPor          String           @map("registrado_por")
+  registradoPorId        String?          @map("registrado_por_id") @db.Uuid
+  criadoEm               DateTime         @default(now()) @map("criado_em")
+  atualizadoEm           DateTime         @default(now()) @updatedAt @map("atualizado_em")
+
+  colaborador Colaborador @relation("DesligamentoColaborador", fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, data])
+  @@index([tenantId, colaboradorId])
+  @@map("desligamentos")
+}
+
+// ─── Retenção de talentos ─────────────────────────────────────────────────
+// Ações para reduzir saídas (individuais, de equipe ou da organização). O risco
+// de saída é CALCULADO (lib/retencao-talentos/risco.ts), nunca gravado.
+
+enum StatusAcaoRetencao {
+  planejada
+  em_andamento
+  concluida
+  cancelada
+}
+
+model AcaoRetencao {
+  id            String             @id @default(uuid()) @db.Uuid
+  tenantId      String             @map("tenant_id") @db.Uuid
+  titulo        String
+  descricao     String?
+  /// Fator de saída tratado (categoria de lib/offboarding/motivos.ts).
+  categoria     String
+  /// individual · equipe · organizacao
+  alcance       String
+  colaboradorId String?            @map("colaborador_id") @db.Uuid
+  equipeId      String?            @map("equipe_id") @db.Uuid
+  responsavelId String?            @map("responsavel_id") @db.Uuid
+  prazo         DateTime?          @db.Date
+  status        StatusAcaoRetencao @default(planejada)
+  resultado     String?
+  /// manual · risco · offboarding · analytics
+  origem        String             @default("manual")
+  concluidaEm   DateTime?          @map("concluida_em")
+  criadoPor     String             @map("criado_por")
+  criadoPorId   String?            @map("criado_por_id") @db.Uuid
+  criadoEm      DateTime           @default(now()) @map("criado_em")
+  atualizadoEm  DateTime           @default(now()) @updatedAt @map("atualizado_em")
+
+  colaborador Colaborador? @relation("AcaoRetencaoColaborador", fields: [colaboradorId], references: [id], onDelete: SetNull)
+  responsavel Colaborador? @relation("AcaoRetencaoResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
+  equipe      Equipe?      @relation(fields: [equipeId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@map("acoes_retencao")
+}
+
+// ─── People Analytics ─────────────────────────────────────────────────────
+// Referências de mercado e premissas de custo, editáveis por organização.
+// Validadas por lib/analytics/referencias.ts (valores nulos = padrão do produto).
+
+model ConfiguracaoAnalytics {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @unique @map("tenant_id") @db.Uuid
+  referencias   Json     @default("{}")
+  atualizadoPor String   @map("atualizado_por")
+  atualizadoEm  DateTime @default(now()) @updatedAt @map("atualizado_em")
+
+  @@map("configuracoes_analytics")
 }

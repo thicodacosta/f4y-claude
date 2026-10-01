@@ -72,6 +72,15 @@ export default async function PessoaPage({ params, searchParams }: { params: Pro
       ? db.pdi.findFirst({ where: { AND: [{ colaboradorId: pessoa.id }, filtroPdis(ctx, escopoPdi)] }, orderBy: { criadoEm: "desc" }, include: COM_ACOES })
       : null,
   ]);
+  // Offboarding (RH/Admin) e Retenção: registro de saída e ações abertas desta pessoa.
+  const escopoOff = pode(ctx, "offboarding", "visualizar");
+  const escopoRet = pode(ctx, "retencao", "visualizar");
+  const [desligamento, acoesRet] = await Promise.all([
+    escopoOff ? db.desligamento.findFirst({ where: { colaboradorId: pessoa.id }, orderBy: { data: "desc" }, select: { id: true, data: true, entrevistaStatus: true } }) : null,
+    escopoRet && (escopoRet === "todos" || pessoa.gestorId === ctx.colaboradorId)
+      ? db.acaoRetencao.count({ where: { colaboradorId: pessoa.id, status: { in: ["planejada", "em_andamento"] } } })
+      : null,
+  ]);
   const jornada = [
     candidato && { chave: "crm", titulo: "Origem no CRM", texto: `Candidato cadastrado em ${formatarData(candidato.criadoEm)}`, href: `/crm/candidatos/${candidato.id}` },
     escopoFb && {
@@ -86,7 +95,20 @@ export default async function PessoaPage({ params, searchParams }: { params: Pro
       texto: pdi ? (() => { const c = calcularPdi(pdi.focos, hojePdi()); return `${pdi.titulo} · ${STATUS_PDI[c.status].nome} · ${c.progresso}% de progresso`; })() : "Sem PDI",
       href: pdi ? `/pdi/${pdi.id}` : "/pdi",
     },
+    desligamento && {
+      chave: "offboarding",
+      titulo: "Offboarding",
+      texto: `Desligamento em ${formatarData(desligamento.data)} · ${desligamento.entrevistaStatus === "respondida" ? "entrevista respondida" : desligamento.entrevistaStatus === "dispensada" ? "sem entrevista" : "entrevista pendente"}`,
+      href: `/offboarding/${desligamento.id}`,
+    },
+    acoesRet !== null && pessoa.status !== "desligado" && {
+      chave: "retencao",
+      titulo: "Retenção",
+      texto: acoesRet ? `${acoesRet} ação(ões) de retenção em aberto` : "Nenhuma ação de retenção em aberto",
+      href: acoesRet ? `/retencao/acoes?pessoa=${pessoa.id}` : "/retencao/risco",
+    },
   ].filter(Boolean) as { chave: string; titulo: string; texto: string; href: string }[];
+  const podeDesligar = !desligamento && pessoa.status !== "pre_admissao" && pode(ctx, "offboarding", "criar") === "todos" && !ctx.suporte;
 
   const [equipes, gestores] = await Promise.all([
     db.equipe.findMany({ select: { id: true, nome: true }, orderBy: { nome: "asc" } }),
@@ -96,7 +118,7 @@ export default async function PessoaPage({ params, searchParams }: { params: Pro
   return (
     <>
       <div className="flex flex-col gap-2">
-        <Link href="/pessoas" className="text-sm text-muted-foreground hover:text-foreground">← Pessoas</Link>
+        <Link href="/colaboradores" className="text-sm text-muted-foreground hover:text-foreground">← Colaboradores</Link>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-2xl font-bold">{pessoa.nome}</h1>
           <Selo tom={STATUS_PESSOA[pessoa.status].tom}>{STATUS_PESSOA[pessoa.status].nome}</Selo>
@@ -108,6 +130,11 @@ export default async function PessoaPage({ params, searchParams }: { params: Pro
           {pessoa.candidatoOrigemId && " · Originada de candidato no CRM."}
           {pessoa.desligadoEm && ` · Desligada em ${formatarData(pessoa.desligadoEm)}.`}
         </p>
+        {podeDesligar && (
+          <Link href={`/offboarding/novo?colaborador=${pessoa.id}`} className="w-fit rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted">
+            Registrar desligamento
+          </Link>
+        )}
       </div>
       {aviso && (
         <p role={aviso.tom === "perigo" ? "alert" : "status"} className={`rounded-lg border px-4 py-3 text-sm ${aviso.tom === "sucesso" ? "border-success/30 bg-success/10" : aviso.tom === "perigo" ? "border-destructive/30 bg-destructive/10" : "border-warning/40 bg-warning/10"}`}>

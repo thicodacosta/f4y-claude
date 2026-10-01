@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { salvarVagaCarreiras } from "@/lib/carreiras/actions";
 import { MODALIDADE, TIPO_CONTRATACAO } from "@/lib/carreiras/regras";
+import { PRIORIDADES } from "@/lib/crm/pipeline";
 import { cn } from "@/lib/utils";
 
 export type VagaForm = {
@@ -18,6 +19,9 @@ export type VagaForm = {
   tipoContratacao: string;
   equipeId: string;
   gestorId: string;
+  prioridade: string;
+  prazoFechamento: string;
+  posicoes: string;
 };
 
 const campo = "w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-70";
@@ -35,7 +39,9 @@ export function FormVagaCarreiras({
   somenteLeitura?: boolean;
 }) {
   const router = useRouter();
-  const [d, setD] = useState<VagaForm>(inicial ?? { titulo: "", descricao: "", requisitos: "", local: "", modelo: "", tipoContratacao: "", equipeId: "", gestorId: "" });
+  const [d, setD] = useState<VagaForm>(
+    inicial ?? { titulo: "", descricao: "", requisitos: "", local: "", modelo: "", tipoContratacao: "", equipeId: "", gestorId: "", prioridade: "media", prazoFechamento: "", posicoes: "1" },
+  );
   const [erro, setErro] = useState<string | null>(null);
   const [pendente, iniciar] = useTransition();
   const set = (p: Partial<VagaForm>) => setD((x) => ({ ...x, ...p }));
@@ -120,7 +126,27 @@ export function FormVagaCarreiras({
             ))}
           </select>
         </label>
-        <p className="text-xs text-muted-foreground lg:col-span-2">Equipe e gestor não aparecem na página pública.</p>
+        <div className="grid gap-4 sm:grid-cols-3 lg:col-span-2">
+          <label className={rotulo}>
+            Prioridade
+            <select name="prioridade" value={d.prioridade} onChange={(e) => set({ prioridade: e.target.value })} className={cn(campo, "h-10 font-normal")}>
+              {Object.entries(PRIORIDADES).map(([v, p]) => (
+                <option key={v} value={v}>
+                  {p.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className={rotulo}>
+            Prazo para fechar
+            <input type="date" name="prazoFechamento" value={d.prazoFechamento} onChange={(e) => set({ prazoFechamento: e.target.value })} className={cn(campo, "h-10 font-normal")} />
+          </label>
+          <label className={rotulo}>
+            Posições
+            <input type="number" name="posicoes" min={1} max={999} value={d.posicoes} onChange={(e) => set({ posicoes: e.target.value })} className={cn(campo, "h-10 font-normal")} />
+          </label>
+        </div>
+        <p className="text-xs text-muted-foreground lg:col-span-2">Equipe, gestor, prioridade, prazo e posições são internos (Pipeline de Vagas) e não aparecem na página pública.</p>
       </fieldset>
       {erro && (
         <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive lg:col-span-2">

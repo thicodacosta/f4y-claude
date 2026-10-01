@@ -73,8 +73,8 @@ try {
   await esperar(4000);
   e = await nav.estado();
   checar("Suporte abre a Aurora com faixa de aviso", e.url.startsWith("/inicio") && /somente leitura/.test(await nav.avaliar("document.body.innerText")));
-  e = await nav.ir("/pessoas/nova");
-  checar("Suporte não pode criar pessoa (redirecionado)", !e.url.startsWith("/pessoas/nova"), e.url);
+  e = await nav.ir("/colaboradores/nova");
+  checar("Suporte não pode criar pessoa (redirecionado)", !e.url.startsWith("/colaboradores/nova"), e.url);
   e = await nav.ir("/equipes");
   checar("Suporte vê equipes sem formulários de edição", /Produto/.test(e.texto) && !/Nova equipe/.test(e.texto));
   const audSup = await um("select count(*)::int n from auditoria where tenant_id=$1 and acao='suporte.iniciar'", [AURORA]);
@@ -99,14 +99,14 @@ try {
 
   // 5. RH cria pessoa; gestor não pode
   e = await nav.entrar("rafael@aurora.test");
-  e = await nav.ir("/pessoas/nova");
+  e = await nav.ir("/colaboradores/nova");
   await nav.preencher({ "input[name=nome]": "Pessoa Criada E2E", "input[name=email]": `pessoa.${Date.now()}@aurora.test`, "input[name=cargo]": "Analista" });
   e = await nav.enviar("input[name=nome]", 4000);
   // Sem data de admissão: a ficha abre com o aviso de que o onboarding não foi criado.
-  checar("RH cadastra pessoa e abre a ficha", /^\/pessoas\/[0-9a-f-]{36}(\?onboarding=sem_data)?$/.test(e.url), e.url);
+  checar("RH cadastra pessoa e abre a ficha", /^\/colaboradores\/[0-9a-f-]{36}(\?onboarding=sem_data)?$/.test(e.url), e.url);
   e = await nav.entrar("bruno@aurora.test");
-  e = await nav.ir("/pessoas/nova");
-  checar("Gestor não acessa cadastro de nova pessoa", !e.url.startsWith("/pessoas/nova"), e.url);
+  e = await nav.ir("/colaboradores/nova");
+  checar("Gestor não acessa cadastro de nova pessoa", !e.url.startsWith("/colaboradores/nova"), e.url);
 } finally {
   nav.fechar();
   // Limpeza: devolve a Bravo ao estado do seed (entitlement e histórico ficam como registro).

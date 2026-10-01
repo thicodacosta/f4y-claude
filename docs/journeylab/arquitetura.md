@@ -100,6 +100,9 @@ pelo administrador da organização):
 | Pulse | tudo | tudo (criar, enviar, encerrar, exportar) | ver resultados agregados da empresa (somente leitura) | — (responde pelo link/Início) |
 | PDI | tudo (inclui excluir) | criar/ver/editar/exportar/excluir (todos) | criar/ver/editar (só liderados diretos; não exclui) | — (não acessa nesta versão) |
 | Diagnóstico NR-1 | tudo | administrar (criar, ativar, enviar, encerrar, analisar, exportar) | — por padrão; se concedido (escopo equipe): agregados só das áreas que lidera | — (responde só pela página pública do convite) |
+| Offboarding | tudo | registrar, entrevistar, exportar (todos) | — (entrevistas confidenciais; escopo mínimo "todos") | — (responde só pelo link da entrevista) |
+| Retenção | tudo | painel, risco, ações, exportar (todos) | risco e ações só dos liderados diretos (sem painel da organização) | — |
+| People Analytics | tudo (inclui editar referências) | ver e exportar (todos) | — (escopo mínimo "todos") | — |
 
 \* **Anotações de 1:1:** as *compartilhadas* são vistas só pelos dois
 participantes; as *privadas* só pelo autor. Nem RH nem administrador leem
@@ -412,3 +415,86 @@ aplica a política de retenção de cada organização.
 - **Feedback 1:1:** o módulo não exibe mais o botão "Agendar 1:1" nem a aba
   "Compromissos". As rotas continuam existindo para links já enviados e para as
   integrações (sugestão do primeiro 1:1 no Onboarding e painel de pendências).
+
+## 17. Menu por jornada, Colaboradores, Pipeline, Offboarding, Retenção e People Analytics
+
+**Menu** (`components/app/app-shell.tsx`): o grupo "Produtos" deu lugar a grupos da
+jornada do colaborador — **Atração e Seleção** (CRM de Candidatos, Página de
+Carreiras, Pipeline de Vagas), **Desenvolvimento** (Colaboradores, Onboarding,
+Feedback 1:1, PDI), **Saúde do Colaborador** (Pulse, Diagnóstico NR-1),
+**Turnover** (Offboarding, Retenção), **People Analytics** e **Organização**
+(Áreas e equipes, Configurações). Cada item continua aparecendo só se o módulo
+estiver contratado e o papel puder visualizar; grupos vazios somem.
+
+**Novos módulos contratáveis** (`Modulo`/`AreaPermissao`): `offboarding`,
+`retencao`, `analytics`. Migração `20261002100000_turnover_analytics` (+ `…_permissoes`,
+separada porque valores novos de enum só valem após o commit) cria as tabelas e
+dá as permissões padrão aos papéis de sistema já existentes. Ativação por
+organização como os demais módulos (Administração › Organização ou compra).
+
+**Colaboradores** (`/colaboradores`, antigo `/pessoas` — redirecionamento
+permanente em `next.config.ts`): a base de pessoas da empresa (cadastro único).
+Indicadores (ativos, admissões 90 d, desligados 12 m, tempo médio de casa),
+filtros por situação/área/equipe, sinais da jornada por pessoa (onboarding,
+último feedback, PDI) só se o papel puder ver o módulo, **importação CSV**
+(`lib/colaboradores/`: chave = e-mail, cria equipes/áreas, gestor pelo e-mail
+mesmo dentro do arquivo, tudo numa transação, erros por linha) e exportação
+auditada. A ficha mostra o registro de saída e as ações de retenção.
+
+**Pipeline de Vagas** (`/pipeline-vagas`, parte do CRM — mesmas permissões):
+quadro estilo Trello com as vagas por etapa do processo (Planejamento,
+Divulgação, Triagem, Entrevistas, Proposta, Concluída — `vagas.etapa_pipeline`),
+prioridade, prazo de fechamento e posições (`vagas.prioridade`,
+`prazo_fechamento`, `posicoes`, editáveis também no formulário da vaga). O cartão
+traz o mini-funil de candidatos e os mais avançados, com link para o Kanban da
+vaga no CRM. Concluir encerra a vaga (sai da Página de Carreiras); tirar de
+"Concluída" reabre sem publicar. Publicar uma vaga em planejamento a leva para
+Divulgação; encerrar/reabrir na Página de Carreiras ajusta a etapa. Movimentos
+auditados.
+
+**Offboarding** (`/offboarding`): registro do desligamento (tipo, iniciativa
+voluntária/involuntária, motivo informado, perda lamentada, elegível para
+recontratação) com **fotografia** de cargo, equipe, área, gestor e admissão —
+os indicadores não mudam quando o cadastro muda. A pessoa passa a "desligado".
+**Entrevista de desligamento** com questionário fixo (`lib/offboarding/questionario.ts`:
+motivos e principal, experiência em 10 dimensões de 1 a 5, evitabilidade,
+recomendação 0–10, voltaria, próximo passo, sugestões), por:
+- **link** ao e-mail pessoal: `<id>.<envio>.<HMAC>` (`OFFBOARDING_LINK_SECRET`, ou
+  `PULSE_LINK_SECRET`), nenhum token gravado; reenviar invalida o link anterior;
+  vale 30 dias; uso único (linha bloqueada na transação); página pública
+  `/desligamento/:token` sem login, limites por IP e por link, módulo conferido;
+- **conduzida pelo RH**, registrada no sistema;
+- ou marcada como não realizada (motivo na auditoria).
+
+As respostas só são vistas por quem tem escopo "todos" no módulo (RH/Admin) —
+nunca pela liderança direta. Os demais módulos usam só agregados.
+
+**Retenção** (`/retencao`): painel da organização (RH/Admin) com turnover mensal,
+voluntárias, perdas lamentadas, saídas precoces, retenção 12 m, custo estimado,
+motivos reais × informados, saídas por tempo de casa/área/liderança e o playbook
+do principal fator. **Risco de saída** por pessoa (`lib/retencao-talentos/risco.ts`):
+pontuação **indicativa** com os fatores escritos (tempo de casa, semáforo e queda
+do feedback, ausência de feedback, PDI vencido/ausente, talento-chave sem PDI,
+onboarding atrasado, gestor com saídas recorrentes, área com turnover alto);
+cada sinal só entra se o papel puder ver o módulo de origem; não é decisão
+automatizada sobre a pessoa. **Ações de retenção** (individual, equipe ou
+organização) com fator tratado, responsável, prazo e resultado obrigatório na
+conclusão; o gestor só cria para liderados diretos ou a equipe que lidera.
+
+**People Analytics** (`/people-analytics`): filtros por período (30 d, 90 d,
+6 m, 12 m, ano, personalizado) e área, com comparação ao período anterior de
+mesma duração. Seções: resumo executivo, insights por regras explícitas
+(`lib/analytics/insights.ts`), ações necessárias priorizadas, análise preditiva
+(projeção de saídas em 90 dias, headcount projetado, tendência, distribuição de
+risco), análise executiva por IA (opcional, só agregados), movimentação e
+turnover, motivos de saída, atração e seleção (funil, time to fill/hire,
+origem), desenvolvimento, saúde e **comparativo de mercado**. Fórmulas únicas em
+`lib/analytics/calculo.ts` (turnover sobre headcount médio, anualizado,
+rotatividade geral (admissões + saídas) ÷ 2, retenção 12 m, saída precoce).
+As **referências** são pontos de partida editáveis por organização
+(`configuracoes_analytics`) — não são dados oficiais; a tela diz a fonte
+informada pela empresa. Premissas opcionais (salário médio e custo de
+reposição em salários) estimam o custo do turnover. Exportação CSV só com
+agregados, auditada. Cada seção só aparece se o módulo de origem estiver ativo
+e o papel puder ver a organização inteira; Pulse e NR-1 usam apenas resultados
+agregados liberados.

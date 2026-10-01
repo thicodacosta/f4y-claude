@@ -5,7 +5,7 @@
  * administrador de cada organização.
  */
 
-export type Modulo = "crm" | "onboarding" | "feedback" | "pulse" | "pdi" | "nr1";
+export type Modulo = "crm" | "onboarding" | "feedback" | "pulse" | "pdi" | "nr1" | "offboarding" | "retencao" | "analytics";
 export type AreaPermissao = "organizacao" | "cadastro" | Modulo;
 export type Acao = "visualizar" | "criar" | "editar" | "concluir" | "exportar" | "administrar";
 export type Escopo = "proprio" | "equipe" | "todos";
@@ -18,7 +18,23 @@ export const MODULOS: { chave: Modulo; nome: string; resumo: string; icone: stri
   { chave: "pulse", nome: "Pulse", resumo: "Pesquisas rápidas com resultados agregados.", icone: "Activity" },
   { chave: "pdi", nome: "PDI", resumo: "Planos individuais de desenvolvimento.", icone: "Target" },
   { chave: "nr1", nome: "Diagnóstico NR-1", resumo: "Ciclos sobre fatores psicossociais e planos de ação.", icone: "ShieldCheck" },
+  { chave: "offboarding", nome: "Offboarding", resumo: "Registro de desligamentos e entrevista de saída para entender os motivos reais.", icone: "DoorClosed" },
+  { chave: "retencao", nome: "Retenção", resumo: "Turnover, motivos de saída, risco de saída e ações de retenção.", icone: "HeartHandshake" },
+  { chave: "analytics", nome: "People Analytics", resumo: "Indicadores integrados, insights, projeções e comparativo de mercado.", icone: "ChartNoAxesCombined" },
 ];
+
+/** Rota de cada módulo (padrão: /{chave}). */
+export const ROTA_MODULO: Record<Modulo, string> = {
+  crm: "/crm",
+  onboarding: "/onboarding",
+  feedback: "/feedback",
+  pulse: "/pulse",
+  pdi: "/pdi",
+  nr1: "/nr1",
+  offboarding: "/offboarding",
+  retencao: "/retencao",
+  analytics: "/people-analytics",
+};
 
 export const NOME_MODULO = Object.fromEntries(MODULOS.map((m) => [m.chave, m.nome])) as Record<Modulo, string>;
 
@@ -63,6 +79,9 @@ export const PAPEIS_PADRAO: { nome: string; base: PapelBase; regras: Regra[] }[]
       ["pulse", TUDO, "todos"],
       ["pdi", TUDO, "todos"],
       ["nr1", TUDO, "todos"],
+      ["offboarding", TUDO, "todos"],
+      ["retencao", TUDO, "todos"],
+      ["analytics", TUDO, "todos"],
     ],
   },
   {
@@ -76,6 +95,10 @@ export const PAPEIS_PADRAO: { nome: string; base: PapelBase; regras: Regra[] }[]
       ["pulse", ["visualizar", "criar", "editar", "concluir", "exportar"], "todos"],
       ["pdi", ["visualizar", "criar", "editar", "exportar"], "todos"],
       ["nr1", ["visualizar", "criar", "editar", "concluir", "exportar"], "todos"],
+      // Offboarding: entrevistas de desligamento são confidenciais (RH/Admin; nunca o gestor).
+      ["offboarding", ["visualizar", "criar", "editar", "concluir", "exportar"], "todos"],
+      ["retencao", ["visualizar", "criar", "editar", "concluir", "exportar"], "todos"],
+      ["analytics", ["visualizar", "exportar"], "todos"],
     ],
   },
   {
@@ -88,6 +111,8 @@ export const PAPEIS_PADRAO: { nome: string; base: PapelBase; regras: Regra[] }[]
       // Pulse: leitura dos resultados agregados da empresa (sem criar/editar).
       ["pulse", ["visualizar"], "todos"],
       ["pdi", ["visualizar", "criar", "editar", "concluir"], "equipe"],
+      // Retenção: risco e ações da própria equipe.
+      ["retencao", ["visualizar", "criar", "editar", "concluir"], "equipe"],
     ],
   },
   {

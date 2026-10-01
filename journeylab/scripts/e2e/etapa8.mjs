@@ -160,7 +160,7 @@ try {
 
   // ── 8. Jornada integrada na ficha da pessoa ──
   const carla = await um("select id from colaboradores where email='carla@aurora.test'");
-  e = await nav.ir(`/pessoas/${carla.id}`);
+  e = await nav.ir(`/colaboradores/${carla.id}`);
   checar("Ficha da pessoa mostra a jornada entre módulos (1:1 e PDI)", /Jornada na organização/.test(e.texto) && /Feedback 1:1/.test(e.texto) && /Desenvolvimento 2026/.test(e.texto));
 
   // ── 9. Permissões de exportação ──

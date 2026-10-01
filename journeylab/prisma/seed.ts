@@ -2,7 +2,7 @@
  * Seed de DESENVOLVIMENTO do JourneyLab — dados fictícios.
  *   npm run db:seed
  * Duas organizações para testar isolamento:
- *   Aurora Tecnologia — os 6 módulos ativos
+ *   Aurora Tecnologia — todos os módulos ativos (inclui histórico de turnover: prisma/seed-turnover.ts)
  *   Bravo Logística   — apenas CRM de Candidatos
  * Senha de todas as contas: JourneyLab2026
  */
@@ -18,6 +18,7 @@ import { hoje as hojeCivil, somarDias } from "../lib/datas";
 import { MODELO_PADRAO } from "../lib/onboarding/modelo-padrao";
 import { CRITERIOS_CULTURA, CRITERIOS_PERFORMANCE } from "../lib/feedback/avaliacao";
 import { MODELOS_GLOBAIS } from "../lib/pulse/modelos-globais";
+import { turnoverDemo } from "./seed-turnover";
 
 if (process.env.NODE_ENV === "production") throw new Error("Seed de desenvolvimento não roda em produção.");
 
@@ -594,7 +595,7 @@ async function main() {
   await modelosPulseGlobais();
 
   // ── Aurora: todos os módulos ──
-  const aurora = await organizacao("aurora-tecnologia", "Aurora Tecnologia", ["crm", "onboarding", "feedback", "pulse", "pdi", "nr1"], superadmin);
+  const aurora = await organizacao("aurora-tecnologia", "Aurora Tecnologia", ["crm", "onboarding", "feedback", "pulse", "pdi", "nr1", "offboarding", "retencao", "analytics"], superadmin);
   const A = aurora.org.id;
   const produto = await equipe(A, "Produto", "Tecnologia");
   const comercial = await equipe(A, "Comercial", "Negócios");
@@ -685,6 +686,9 @@ async function main() {
     ["Isabela Freitas", "isabela.freitas@exemplo.test", "(51) 93333-6002", "Canoas", "RS", ["CNH D", "Empilhadeira"], ["Operações"], 0, "entrevista"],
     ["João Batista", "joao.batista@exemplo.test", "(51) 93333-6003", "Porto Alegre", "RS", ["Roteirização"], ["Banco de talentos"], null, null],
   ]);
+
+  // ── Offboarding, Retenção e People Analytics (histórico fictício) ──
+  await turnoverDemo(db, A);
 
   console.log("Seed concluído. Senha de todas as contas:", SENHA);
 }

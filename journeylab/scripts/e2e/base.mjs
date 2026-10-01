@@ -30,7 +30,7 @@ try {
   for (const m of ["CRM de Candidatos", "Onboarding", "Feedback 1:1", "Pulse", "PDI", "Diagnóstico NR-1"]) {
     checar(`Aurora vê ${m}`, produtos(e.texto).includes(m));
   }
-  e = await nav.ir("/pessoas");
+  e = await nav.ir("/colaboradores");
   const totalAurora = (await um("select count(*)::int n from colaboradores where tenant_id=$1", [AURORA])).n;
   checar("Aurora: cadastro mostra todas as pessoas da organização", new RegExp(`\\b${totalAurora} registros`).test(e.texto), `${e.texto.match(/\d+ registros?/)?.[0]} (banco: ${totalAurora})`);
 
@@ -38,23 +38,23 @@ try {
   e = await nav.entrar("helena@bravo.test");
   checar("Bravo vê só CRM", produtos(e.texto).includes("CRM de Candidatos") && !produtos(e.texto).includes("Onboarding"));
   checar("Bravo vê outros produtos como não contratados", /Conhecer outros produtos/.test(e.texto) && /Diagnóstico NR-1/.test(e.texto));
-  e = await nav.ir("/pessoas");
+  e = await nav.ir("/colaboradores");
   checar("Bravo: só pessoas da Bravo", !/aurora\.test/.test(e.texto) && /bravo\.test/.test(e.texto));
 
   // 3. Isolamento: URL de registro de outra organização
-  e = await nav.ir(`/pessoas/${carlaAurora}`);
+  e = await nav.ir(`/colaboradores/${carlaAurora}`);
   checar("Bravo não abre pessoa da Aurora pela URL", !/Carla Mendes/.test(e.texto), e.h1);
   e = await nav.ir(`/configuracoes/papeis/${papelAurora}`);
   checar("Bravo não abre papel da Aurora pela URL", !/Administrador da organização|Líder\/Gestor/.test(e.h1), e.h1);
 
   // 4. Isolamento: cookie de organização forjado
   await nav.cookie("jl_org", AURORA);
-  e = await nav.ir("/pessoas");
-  checar("Cookie forjado com id da Aurora é rejeitado", !/aurora\.test/.test(e.texto) && !e.url.startsWith("/pessoas"), e.url);
+  e = await nav.ir("/colaboradores");
+  checar("Cookie forjado com id da Aurora é rejeitado", !/aurora\.test/.test(e.texto) && !e.url.startsWith("/colaboradores"), e.url);
 
   // 5. Escopo do gestor e do colaborador
   e = await nav.entrar("bruno@aurora.test");
-  e = await nav.ir("/pessoas");
+  e = await nav.ir("/colaboradores");
   const nomes = ["Carla Mendes", "Diego Ferreira", "Elisa Rocha", "Fábio Nunes", "Gabriela Alves", "Bruno Martins"];
   checar("Gestor vê sua equipe", nomes.every((n) => e.texto.includes(n)));
   checar("Gestor não vê outras equipes", !/Marina Costa|Lucas Prado|Rafael Lima/.test(e.texto));
@@ -64,8 +64,8 @@ try {
   checar("Gestor não acessa administração JourneyLab", !e.url.startsWith("/plataforma"), e.url);
 
   e = await nav.entrar("carla@aurora.test");
-  e = await nav.ir("/pessoas");
-  checar("Colaboradora não lista o cadastro", !e.url.startsWith("/pessoas"), e.url);
+  e = await nav.ir("/colaboradores");
+  checar("Colaboradora não lista o cadastro", !e.url.startsWith("/colaboradores"), e.url);
   checar("Colaboradora não vê NR-1 nem CRM no menu", !/CRM de Candidatos/.test(produtos((await nav.ir("/inicio")).texto)));
 
   // 6. Usuário em duas organizações

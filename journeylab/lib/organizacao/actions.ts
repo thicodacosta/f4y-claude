@@ -244,7 +244,7 @@ export async function salvarColaborador(_: EstadoForm, fd: FormData): Promise<Es
         await auditar(tx, { tenantId: ctx.org.id, usuario: quem(ctx), acao: "colaborador.criar", entidade: "colaborador", entidadeId: c.id, detalhes: dados });
       }
     });
-    revalidatePath("/pessoas");
+    revalidatePath("/colaboradores");
     // Integração com o Onboarding (se contratado): criação automática após o cadastro já estar salvo.
     if (novoId && ctx.modulos.has("onboarding") && fd.get("criarOnboarding") === "on") {
       const r = await criarOnboardingAutomatico({ tenantId: ctx.org.id, usuario: quem(ctx) }, novoId, "cadastro");
@@ -254,7 +254,7 @@ export async function salvarColaborador(_: EstadoForm, fd: FormData): Promise<Es
   } catch (e) {
     return erroDe(e);
   }
-  if (novoId) redirect(`/pessoas/${novoId}${resultadoOnboarding ? `?onboarding=${resultadoOnboarding}` : ""}`);
+  if (novoId) redirect(`/colaboradores/${novoId}${resultadoOnboarding ? `?onboarding=${resultadoOnboarding}` : ""}`);
   return { ok: "Cadastro atualizado. A mudança vale para todos os módulos." };
 }
 

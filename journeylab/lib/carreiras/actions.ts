@@ -10,6 +10,8 @@ import { emailValido } from "@/lib/email";
 import { filtroVagas } from "@/lib/crm/consultas";
 import { enviarAvisoCandidatura } from "./notificacao";
 import { MODALIDADE, slugificar, TIPO_CONTRATACAO } from "./regras";
+import { PRIORIDADES } from "@/lib/crm/pipeline";
+import { dataDeTexto } from "@/lib/datas";
 
 export type RespostaVaga = { ok?: string; erro?: string; id?: string };
 
@@ -43,6 +45,13 @@ const vagaSchema = z.object({
   tipoContratacao: z.enum(Object.keys(TIPO_CONTRATACAO) as [string, ...string[]]).nullable().optional().or(z.literal("").transform(() => null)),
   equipeId: uuid.nullable().optional().or(z.literal("").transform(() => null)),
   gestorId: uuid.nullable().optional().or(z.literal("").transform(() => null)),
+  prioridade: z.enum(Object.keys(PRIORIDADES) as [string, ...string[]]).optional().default("media"),
+  prazoFechamento: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((v) => (v ? dataDeTexto(v) : null)),
+  posicoes: z.coerce.number().int("Informe um número inteiro de posições.").min(1, "Ao menos 1 posição.").max(999).optional().default(1),
 });
 
 /** Vaga visível ao usuário (organização pela RLS + escopo do papel). */
@@ -57,7 +66,19 @@ export async function salvarVagaCarreiras(dados: z.input<typeof vagaSchema>): Pr
   try {
     const { ctx, escopo } = await exigirPermissaoAcao("crm", dados?.id ? "editar" : "criar");
     const d = vagaSchema.parse(dados);
-    const campos = { titulo: d.titulo, descricao: d.descricao, requisitos: d.requisitos, local: d.local, modelo: d.modelo ?? null, tipoContratacao: d.tipoContratacao ?? null, equipeId: d.equipeId ?? null, gestorId: d.gestorId ?? null };
+    const campos = {
+      titulo: d.titulo,
+      descricao: d.descricao,
+      requisitos: d.requisitos,
+      local: d.local,
+      modelo: d.modelo ?? null,
+      tipoContratacao: d.tipoContratacao ?? null,
+      equipeId: d.equipeId ?? null,
+      gestorId: d.gestorId ?? null,
+      prioridade: d.prioridade,
+      prazoFechamento: d.prazoFechamento,
+      posicoes: d.posicoes,
+    };
     const id = await transacao(escopoTx(ctx), async (tx) => {
       if (campos.equipeId && !(await tx.equipe.findUnique({ where: { id: campos.equipeId } }))) throw new ErroAcesso("Equipe inválida.");
       if (campos.gestorId && !(await tx.colaborador.findUnique({ where: { id: campos.gestorId } }))) throw new ErroAcesso("Gestor inválido.");
@@ -94,7 +115,11 @@ export async function publicarVaga(id: string, emailConfirmado: string): Promise
       if (!v.emailNotificacao || !emailValido(v.emailNotificacao) || !v.criadoPorUsuarioId)
         throw new ErroAcesso("A vaga não tem um e-mail válido do criador para receber as candidaturas. Configure o responsável pelas notificações antes de publicar.");
       if (emailConfirmado.trim().toLowerCase() !== v.emailNotificacao.toLowerCase()) throw new ErroAcesso("Confirme o e-mail de notificação exibido antes de publicar.");
-      await tx.vaga.update({ where: { id: v.id }, data: { publicada: true, publicadaEm: v.publicadaEm ?? new Date(), emailConfirmadoEm: new Date(), status: "aberta" } });
+      await tx.vaga.update({
+        where: { id: v.id },
+        // Pipeline: vaga em planejamento passa a "Divulgação" ao ser publicada.
+        data: { publicada: true, publicadaEm: v.publicadaEm ?? new Date(), emailConfirmadoEm: new Date(), status: "aberta", ...(v.etapaPipeline === "planejamento" ? { etapaPipeline: "divulgacao" as const } : {}) },
+      });
       await auditar(tx, { tenantId: ctx.org.id, usuario: quem(ctx), acao: "carreiras.vaga.publicar", entidade: "vaga", entidadeId: v.id, detalhes: { emailNotificacao: v.emailNotificacao } });
     });
     revalidatePath("/pagina-carreiras");
@@ -127,14 +152,19 @@ export async function despublicarVaga(id: string): Promise<RespostaVaga> {
 }
 
 export async function encerrarVaga(id: string): Promise<RespostaVaga> {
-  return alterar(id, "carreiras.vaga.encerrar", { publicada: false, status: "fechada", fechadaEm: new Date() }, "Vaga encerrada. Candidaturas e histórico foram mantidos.");
+  return alterar(id, "carreiras.vaga.encerrar", { publicada: false, status: "fechada", fechadaEm: new Date(), etapaPipeline: "concluida" }, "Vaga encerrada. Candidaturas e histórico foram mantidos.");
 }
 
 export async function reabrirVaga(id: string): Promise<RespostaVaga> {
-  return alterar(id, "carreiras.vaga.reabrir", { status: "aberta", fechadaEm: null }, "Vaga reaberta (ainda não publicada).");
+  return alterar(id, "carreiras.vaga.reabrir", { status: "aberta", fechadaEm: null, etapaPipeline: "triagem" }, "Vaga reaberta (ainda não publicada).");
 }
 
-async function alterar(id: string, acao: string, data: { publicada?: boolean; status?: "aberta" | "fechada"; fechadaEm?: Date | null }, ok: string): Promise<RespostaVaga> {
+async function alterar(
+  id: string,
+  acao: string,
+  data: { publicada?: boolean; status?: "aberta" | "fechada"; fechadaEm?: Date | null; etapaPipeline?: "concluida" | "triagem" },
+  ok: string,
+): Promise<RespostaVaga> {
   try {
     const { ctx, escopo } = await exigirPermissaoAcao("crm", "editar");
     await transacao(escopoTx(ctx), async (tx) => {
@@ -144,6 +174,7 @@ async function alterar(id: string, acao: string, data: { publicada?: boolean; st
     });
     revalidatePath("/pagina-carreiras");
     revalidatePath(`/pagina-carreiras/vagas/${id}`);
+    revalidatePath("/pipeline-vagas");
     return { ok };
   } catch (e) {
     return erroDe(e);

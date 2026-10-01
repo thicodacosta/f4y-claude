@@ -163,11 +163,21 @@ export async function exigirContexto(): Promise<Contexto> {
 }
 
 /**
- * Escopo mínimo por área: Onboarding, Feedback 1:1, Pulse e PDI (nesta versão) são de RH/Admin e gestores —
+ * Escopo mínimo por área: Onboarding, Feedback 1:1, Pulse, PDI, NR-1 e Retenção são de RH/Admin e gestores —
  * uma permissão com escopo "próprio" (colaborador) não dá acesso, mesmo se
- * concedida no editor de papéis.
+ * concedida no editor de papéis. Offboarding (entrevistas de saída confidenciais)
+ * e People Analytics (dados da organização inteira) exigem escopo "todos".
  */
-const ESCOPO_MINIMO: Partial<Record<AreaPermissao, Escopo>> = { onboarding: "equipe", feedback: "equipe", pulse: "equipe", pdi: "equipe", nr1: "equipe" };
+const ESCOPO_MINIMO: Partial<Record<AreaPermissao, Escopo>> = {
+  onboarding: "equipe",
+  feedback: "equipe",
+  pulse: "equipe",
+  pdi: "equipe",
+  nr1: "equipe",
+  retencao: "equipe",
+  offboarding: "todos",
+  analytics: "todos",
+};
 
 function escopoEfetivo(ctx: Contexto, area: AreaPermissao, acao: Acao): Escopo | null {
   const e = escopoDe(ctx.permissoes, area, acao);

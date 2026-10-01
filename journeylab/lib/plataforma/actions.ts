@@ -14,7 +14,7 @@ import { convidarParaOrganizacao } from "@/lib/convites";
 import { aplicar as aplicarEventoIntegracao, processarRecebido } from "@/lib/integracoes/processar";
 import type { EstadoForm } from "@/lib/auth/actions";
 
-const MODULOS = ["crm", "onboarding", "feedback", "pulse", "pdi", "nr1"] as const;
+const MODULOS = ["crm", "onboarding", "feedback", "pulse", "pdi", "nr1", "offboarding", "retencao", "analytics"] as const;
 
 function slugify(s: string) {
   return s

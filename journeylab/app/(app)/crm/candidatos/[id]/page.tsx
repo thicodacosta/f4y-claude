@@ -88,7 +88,7 @@ export default async function CandidatoPage({ params }: { params: Promise<{ id: 
           <p className="flex items-center gap-2 text-sm">
             <UserCheck className="size-4 text-success" aria-hidden />
             Convertido em colaborador:{" "}
-            <Link href={`/pessoas/${c.colaborador.id}`} className="font-medium text-teal-strong hover:underline">{c.colaborador.nome}</Link>
+            <Link href={`/colaboradores/${c.colaborador.id}`} className="font-medium text-teal-strong hover:underline">{c.colaborador.nome}</Link>
           </p>
         )}
       </div>

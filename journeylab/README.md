@@ -1,7 +1,10 @@
 # JourneyLab — aplicação multitenant
 
-Aplicação autenticada dos produtos JourneyLab (CRM de Candidatos, Onboarding,
-Feedback 1:1, Pulse, PDI, Diagnóstico NR-1). Arquitetura, modelo de dados,
+Aplicação autenticada dos produtos JourneyLab, organizados pela jornada do
+colaborador: Atração e Seleção (CRM de Candidatos, Página de Carreiras, Pipeline
+de Vagas), Desenvolvimento (Colaboradores, Onboarding, Feedback 1:1, PDI), Saúde
+do Colaborador (Pulse, Diagnóstico NR-1), Turnover (Offboarding, Retenção) e
+People Analytics. Arquitetura, modelo de dados,
 isolamento e permissões: [`docs/journeylab/arquitetura.md`](../docs/journeylab/arquitetura.md).
 O site comercial é outro projeto (Claude Design).
 
@@ -18,6 +21,8 @@ O site comercial é outro projeto (Claude Design).
 | 6. Pulse (templates globais e da empresa, 16 tipos de pergunta, assistente em 3 passos, audiência por departamento/equipe/pessoa, envio white-label com link pessoal, página pública de resposta, anônima ou identificada, eNPS, mapa de calor por departamento, Insights IA, lembretes, mínimo de respondentes e regra do complemento no banco) | **Funcional e testada** (IA testada com servidor falso; sem chamada à API real) |
 | 7. Diagnóstico NR-1 (biblioteca de 50 perguntas em 13 fatores, versões completa/rápida/personalizada, pontuação direta/reversa de exposição, convites por e-mail de uso único sem ligação com as respostas, página pública sem login, departamento opcional com proteção de recortes, matriz indicativa revisável, plano de ação com revisão humana, sugestões de IA em prévia, relatório PDF e CSV) | **Funcional e testada** (IA: só estado indisponível) |
 | 8. Painel integrado, jornada da pessoa entre módulos, exportações com permissão, retenção configurável, rotina diária, compra Kiwify/site → ativação | **Funcional e testada** |
+| 9. Menu por jornada; Colaboradores (base com indicadores e sinais da jornada, importação/exportação CSV); Pipeline de Vagas (quadro por etapa com prioridade, prazo, posições e mini-funil de candidatos) | **Funcional e testada** |
+| 10. Offboarding (registro com fotografia do vínculo, entrevista de desligamento por link de uso único ou conduzida pelo RH, confidencial), Retenção (painel, risco de saída indicativo com fatores, ações com playbook) e People Analytics (indicadores integrados, insights, ações necessárias, projeção 90 dias, comparativo com referências editáveis, IA opcional, exportação) | **Funcional e testada** (IA: só estado indisponível) |
 
 ## Rodar
 
@@ -30,6 +35,7 @@ cp .env.example .env.local        # preencha com `supabase status -o env`
 npm run db:migrate
 npm run db:rls                    # RLS + papel journeylab_app (senha do .env.local)
 npm run db:seed                   # dados fictícios de desenvolvimento
+npx tsx prisma/seed-turnover.ts   # só o histórico de turnover (base já existente; idempotente)
 npm run dev
 ```
 
@@ -47,14 +53,15 @@ Integrações e rotina diária (variáveis em `.env.example`):
 | `PULSE_LINK_SECRET` | Assina os links pessoais das pesquisas (mín. 32 caracteres; trocar invalida os links enviados) |
 | `NR1_LINK_SECRET` | Opcional: segredo próprio dos convites do Diagnóstico NR-1 (sem ele, usa `PULSE_LINK_SECRET` com contexto separado) |
 | `NEXT_PUBLIC_SITE_URL` | Endereço público usado nos links dos e-mails |
-| `ANTHROPIC_API_KEY`, `IA_MODELO` | IA opcional (Insights do Pulse, sugestões do NR-1). As duas são obrigatórias para habilitar; nenhum modelo é fixo no código |
+| `OFFBOARDING_LINK_SECRET` | Assinatura dos links da entrevista de desligamento (opcional: sem ela, usa `PULSE_LINK_SECRET`; mínimo 32 caracteres) |
+| `ANTHROPIC_API_KEY`, `IA_MODELO` | IA opcional (Insights do Pulse, sugestões do NR-1, análise executiva do People Analytics). As duas são obrigatórias para habilitar; nenhum modelo é fixo no código |
 
 ## Contas de teste (senha `JourneyLab2026`)
 
 | Conta | Organização / papel |
 |---|---|
 | `admin@journeylab.local` | Superadmin JourneyLab |
-| `ana@aurora.test` | Aurora Tecnologia (6 módulos) — Administradora |
+| `ana@aurora.test` | Aurora Tecnologia (todos os módulos, com histórico fictício de turnover) — Administradora |
 | `rafael@aurora.test` | Aurora — RH/Recrutador |
 | `bruno@aurora.test` | Aurora — Líder/Gestor (equipe Produto) |
 | `carla@aurora.test` | Aurora — Colaboradora |
@@ -81,6 +88,7 @@ node scripts/e2e/pdi.mjs             # PDI: RLS por papel/vínculo, cálculo de 
 npx tsx --conditions=react-server scripts/e2e/ia.mts   # IA: cliente contra servidor falso (sem chave real) e dados enviados só agregados
 node scripts/e2e/nr1.mjs             # NR-1: privacidade no banco, direção dos itens, convite de uso único, recortes, relatório/CSV, plano
 node scripts/e2e/etapa8.mjs          # Compra → ativação, rotina diária, retenção, exportações, jornada
+node scripts/e2e/turnover-analytics.mjs # Menu por jornada, importação de colaboradores, Pipeline, Offboarding + entrevista pública, Retenção, People Analytics, permissões
 ```
 
 Os testes reaplicam o seed das partes que alteram; rode-os com o servidor recém-iniciado

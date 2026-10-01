@@ -203,7 +203,7 @@ try {
   const produto = await um("select id from equipes where tenant_id=$1 and nome='Produto'", [AURORA]);
   const email = `e2e.${Date.now()}@aurora.test`;
   const futuro = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
-  e = await nav.ir("/pessoas/nova");
+  e = await nav.ir("/colaboradores/nova");
   checar("Cadastro oferece a criação automática do onboarding", await nav.avaliar("!!document.querySelector('input[name=criarOnboarding]:checked')"));
   await nav.preencher({ "input[name=nome]": "Pessoa Nova E2E", "input[name=email]": email, "input[name=dataAdmissao]": futuro, "select[name=equipeId]": produto.id });
   await nav.enviar("input[name=nome]", 1000);
@@ -213,14 +213,14 @@ try {
   checar("Cadastro cria o onboarding automaticamente (origem cadastro) e avisa", !!novo && novo.origem === "cadastro" && /Onboarding criado automaticamente/.test(e.texto), e.url);
   checar("…com o template da área da pessoa", novo?.modelo_nome === nomeTpl, novo?.modelo_nome);
   checar("…e a data de entrada preservada (sem deslocamento)", novo?.inicio.toISOString().slice(0, 10) === futuro, novo?.inicio.toISOString());
-  e = await nav.ir("/pessoas/nova");
+  e = await nav.ir("/colaboradores/nova");
   await nav.preencher({ "input[name=nome]": "Pessoa Nova E2E", "input[name=email]": email, "input[name=dataAdmissao]": futuro });
   await nav.enviar("input[name=nome]", 3000);
   const qtd = await um("select count(*)::int n from onboardings o join colaboradores c on c.id=o.colaborador_id where c.email=$1", [email]);
   checar("Reenvio do cadastro não duplica pessoa nem onboarding", qtd.n === 1 && /Já existe/.test(await nav.mensagem()), await nav.mensagem());
 
   const semData = `e2e.semdata.${Date.now()}@aurora.test`;
-  e = await nav.ir("/pessoas/nova");
+  e = await nav.ir("/colaboradores/nova");
   await nav.preencher({ "input[name=nome]": "Sem Data E2E", "input[name=email]": semData });
   await nav.enviar("input[name=nome]", 1000);
   await nav.esperarAte("location.search.includes('onboarding=')");

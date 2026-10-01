@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Nova pessoa" };
 
 export default async function NovaPessoaPage() {
   const ctx = await exigirContexto();
-  if (pode(ctx, "cadastro", "criar") !== "todos") redirect("/pessoas");
+  if (pode(ctx, "cadastro", "criar") !== "todos") redirect("/colaboradores");
   const db = dbTenant(ctx.org.id, ctx.usuario.id);
   const [equipes, gestores] = await Promise.all([
     db.equipe.findMany({ select: { id: true, nome: true }, orderBy: { nome: "asc" } }),
@@ -18,7 +18,7 @@ export default async function NovaPessoaPage() {
   return (
     <>
       <div>
-        <Link href="/pessoas" className="text-sm text-muted-foreground hover:text-foreground">← Pessoas</Link>
+        <Link href="/colaboradores" className="text-sm text-muted-foreground hover:text-foreground">← Colaboradores</Link>
         <h1 className="mt-2 font-heading text-2xl font-bold">Nova pessoa</h1>
       </div>
       <FormPessoa equipes={equipes} gestores={gestores} onboardingAutomatico={ctx.modulos.has("onboarding")} />

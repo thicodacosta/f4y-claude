@@ -91,9 +91,9 @@ try {
   await nav.ir(`/crm/candidatos/${candId}`);
   await nav.preencher({ "input[name=cargo]": "Analista de RH", "input[name=dataAdmissao]": "2026-10-15", "select[name=candidaturaId]": cd.id });
   await nav.enviar("input[name=dataAdmissao]", 1000);
-  await nav.esperarAte("location.pathname.startsWith('/pessoas/')");
+  await nav.esperarAte("location.pathname.startsWith('/colaboradores/')");
   e = await nav.estado();
-  checar("Conversão cria colaborador e abre o cadastro de pessoas", e.url.startsWith("/pessoas/") && /Originada de candidato/.test(e.texto), e.url);
+  checar("Conversão cria colaborador e abre o cadastro de pessoas", e.url.startsWith("/colaboradores/") && /Originada de candidato/.test(e.texto), e.url);
   const colab = await um("select status, candidato_origem_id from colaboradores where candidato_origem_id=$1", [candId]);
   checar("Colaborador em pré-admissão vinculado ao candidato", colab?.status === "pre_admissao");
   await nav.ir(`/crm/candidatos/${candId}`);
