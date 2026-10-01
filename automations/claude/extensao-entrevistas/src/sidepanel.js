@@ -208,7 +208,15 @@ async function startRecording(input) {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const meta = { candidato: input.candidato, vagaTitulo: input.vagaTitulo, vagaRequisitos: input.vagaRequisitos };
     const response = await toBackground({ type: "START", tabId: tab?.id, meta });
-    if (!response?.ok) showFormError(response?.error ?? "Não foi possível iniciar a gravação.");
+    if (response?.code === "not_invoked") {
+      // O Chrome só libera o áudio de uma aba depois de um clique no ícone da
+      // extensão nela; o background inicia a gravação nesse clique.
+      await chrome.storage.session.set({ pendingStart: { meta, at: Date.now() } });
+      showFormError(
+        "Falta um passo: com a aba da reunião aberta, clique no ícone do JourneyLab na barra do Chrome " +
+          "(ao lado do endereço; se não aparecer, está no ícone de quebra-cabeça). A gravação começa sozinha.",
+      );
+    } else if (!response?.ok) showFormError(response?.error ?? "Não foi possível iniciar a gravação.");
   } finally {
     submit.disabled = false;
     submit.textContent = SUBMIT_TEXT[mode()];
@@ -512,6 +520,11 @@ $("new-btn").addEventListener("click", async () => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && ("apiKey" in changes || "groqKey" in changes)) loadKeys();
   if (area !== "session") return;
+  if (changes.startError?.newValue) {
+    showFormError(changes.startError.newValue);
+    chrome.storage.session.remove("startError");
+  }
+  if (changes.capture?.newValue && !changes.capture.oldValue) showFormError(null);
   if ("result" in changes) {
     if (changes.result.newValue) showResult(changes.result.newValue);
     else current = null; // limpo ao iniciar uma nova gravação
