@@ -24,12 +24,20 @@
       <h1 id="page-title" class="title">Configurações</h1>
       <div id="welcome" class="note welcome" hidden>
         <p class="note__title">Boas-vindas!</p>
-        <p>Configure a identidade da sua empresa uma única vez. O logo escolhido aparece no topo do painel e em todos os currículos gerados. Você pode voltar aqui quando quiser, em "Configurações".</p>
+        <p>Configure uma única vez: a identidade da sua empresa (o logo aparece no topo do painel, nos currículos e nos registros) e a integração com o LinkedIn, mais abaixo. Você pode voltar aqui quando quiser, em "Configurações".</p>
       </div>
       <div id="welcome-done" class="note welcome" role="status" hidden>
         <p class="note__title">Tudo pronto.</p>
         <p>Clique no ícone da extensão, na barra do Chrome, para abrir o painel.</p>
       </div>
+
+      <section id="account-section" class="group account" aria-labelledby="account-title" hidden>
+        <h2 id="account-title" class="subtitle">Conta</h2>
+        <div class="linkedin-status">
+          <p class="hint">Conectado como <strong id="account-email"></strong></p>
+          <button type="button" id="account-logout" class="btn btn--ghost">Sair</button>
+        </div>
+      </section>
 
       <section id="keys-section" class="group" aria-labelledby="keys-title">
         <h2 id="keys-title" class="subtitle">Chaves de API</h2>

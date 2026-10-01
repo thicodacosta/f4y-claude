@@ -9,6 +9,8 @@ import { initTurnoverArea } from "./turnover/panel.js";
 import { loadKeys as resolveKeys } from "./keys.js";
 import { initHeader } from "./header.js";
 import { initTheme } from "./theme.js";
+import { logout, requireAuth } from "./auth/gate.js";
+import { isOnboarded } from "./auth/onboarding.js";
 import { translateRecord } from "./translate.js";
 import { renderAnalysis, toMarkdown } from "./render.js";
 import { FriendlyError } from "./errors.js";
@@ -551,8 +553,8 @@ for (const [name, tab] of Object.entries(TABS)) tab.addEventListener("click", ()
  * uma vez por sessão do navegador, abre Configurações direto.
  */
 async function checkOnboarding() {
-  const { onboardingDone } = await chrome.storage.local.get("onboardingDone");
-  $("onboarding-banner").hidden = Boolean(onboardingDone);
+  const onboardingDone = await isOnboarded(user);
+  $("onboarding-banner").hidden = onboardingDone;
   if (onboardingDone) return;
   const { onboardingOpened } = await chrome.storage.session.get("onboardingOpened");
   if (!onboardingOpened) {
@@ -562,11 +564,17 @@ async function checkOnboarding() {
 }
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && "onboardingDone" in changes) $("onboarding-banner").hidden = Boolean(changes.onboardingDone.newValue);
+  if (area === "local" && "onboardingDone" in changes) isOnboarded(user).then((done) => ($("onboarding-banner").hidden = done));
 });
+
+let user = null;
 
 async function init() {
   await initTheme();
+  // Nada do ToolsKit abre sem login (senha + código por e-mail).
+  user = await requireAuth();
+  $("logout-btn").hidden = !user;
+  $("logout-btn").addEventListener("click", logout);
   initHeader();
   checkOnboarding();
   await loadKeys();

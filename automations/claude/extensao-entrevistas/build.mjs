@@ -41,11 +41,16 @@ const options = {
   define: {
     __EMBEDDED_ANTHROPIC_KEY__: JSON.stringify(env.ANTHROPIC_API_KEY ?? ""),
     __EMBEDDED_GROQ_KEY__: JSON.stringify(env.GROQ_API_KEY ?? ""),
+    // Projeto Supabase das contas de acesso (login). A chave publicável é
+    // pública por natureza; a segurança vem das regras do projeto.
+    __SUPABASE_URL__: JSON.stringify(env.SUPABASE_URL ?? ""),
+    __SUPABASE_PUBLISHABLE_KEY__: JSON.stringify(env.SUPABASE_PUBLISHABLE_KEY ?? ""),
   },
 };
 
 console.log(
-  `Chaves embutidas: Anthropic ${env.ANTHROPIC_API_KEY ? "sim" : "não"} · Groq ${env.GROQ_API_KEY ? "sim" : "não"}`,
+  `Chaves embutidas: Anthropic ${env.ANTHROPIC_API_KEY ? "sim" : "não"} · Groq ${env.GROQ_API_KEY ? "sim" : "não"} · ` +
+    `login (Supabase) ${env.SUPABASE_URL && env.SUPABASE_PUBLISHABLE_KEY ? "sim" : "não"}`,
 );
 
 // Script injetado na página do LinkedIn (Shortlist). Scripts injetados por

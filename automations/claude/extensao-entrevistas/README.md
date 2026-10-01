@@ -141,6 +141,38 @@ Conversa com IA no estilo Claude/ChatGPT (`src/chat/`):
   e botão Copiar. A conversa (texto e nomes dos anexos) fica em
   `chrome.storage.session`; o conteúdo dos anexos, só em memória.
 
+## Acesso (login)
+
+Nada do ToolsKit abre sem login (`src/auth/`), no painel, nas Configurações e
+na aba de permissão do microfone:
+
+1. **E-mail e senha** (contas criadas só pelo administrador);
+2. **Código de 6 dígitos por e-mail** (2ª etapa) — a senha é conferida e a
+   sessão só é liberada com o código;
+3. **Manter conectado** (padrão ligado): a sessão sobrevive ao fechar o
+   Chrome; desligado, dura até o Chrome ser fechado;
+4. **Esqueci a senha**: código por e-mail + nova senha (mín. 8 caracteres,
+   letras e números), sem sair da extensão.
+
+No **primeiro login de cada usuário**, as Configurações abrem em modo de
+boas-vindas (identidade da empresa e integração com o LinkedIn). "Sair" fica
+no topo do painel e em Configurações → Conta.
+
+Contas no Supabase (`SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` em
+`.env.local`). Configuração do projeto, feita uma vez no painel do Supabase:
+
+| Onde | O quê |
+|---|---|
+| Authentication → Sign In / Providers | Desligar **Allow new users to sign up** (só o admin cria contas) |
+| Authentication → Emails → Templates → **Magic Link** | Corpo com o código: `Seu código de acesso ao ToolsKit: {{ .Token }}` |
+| Authentication → Emails → Templates → **Reset Password** | Corpo com o código: `Código para criar uma nova senha: {{ .Token }}` |
+| Authentication → Emails → SMTP Settings | SMTP próprio (ex.: Resend): o envio padrão do Supabase permite poucos e-mails por hora |
+| Authentication → Users → **Add user → Create new user** | E-mail + senha inicial, com **Auto Confirm User** marcado |
+
+**Limite de segurança:** o login controla quem usa a extensão, mas as chaves
+de IA ainda vão no pacote. A proteção completa é mover as chamadas de IA para
+uma Edge Function do Supabase que só responde a sessões válidas.
+
 ## Interface
 
 Segue o *CRM UI Kit for SaaS Dashboards* (Figma) do mesmo jeito que a

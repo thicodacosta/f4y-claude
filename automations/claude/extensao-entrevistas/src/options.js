@@ -1,3 +1,5 @@
+import { logout, requireAuth } from "./auth/gate.js";
+import { isOnboarded, markOnboarded } from "./auth/onboarding.js";
 import { initHeader } from "./header.js";
 import { hasEmbeddedKeys } from "./keys.js";
 import { getTheme, initTheme, setTheme } from "./theme.js";
@@ -5,6 +7,15 @@ import { DEFAULT_NOTE, loadLinkedInSettings, saveLinkedInSettings } from "./shor
 import { LINKEDIN_PEOPLE_SEARCH, findLinkedInTab, linkedInStatus } from "./shortlist/runner.js";
 
 const $ = (id) => document.getElementById(id);
+
+// Configurações também exigem login.
+await initTheme();
+const user = await requireAuth();
+if (user) {
+  $("account-section").hidden = false;
+  $("account-email").textContent = user.email;
+  $("account-logout").addEventListener("click", logout);
+}
 
 // Pacote com chaves embutidas: a equipe não tem nada a configurar.
 if (hasEmbeddedKeys) $("keys-section").hidden = true;
@@ -139,7 +150,8 @@ $("branding-form").addEventListener("submit", async (event) => {
     cor: $("cor").value,
     ocultarContatos: $("ocultarContatos").checked,
   };
-  await chrome.storage.local.set({ branding, onboardingDone: true });
+  await chrome.storage.local.set({ branding });
+  await markOnboarded(user);
   setBrandingStatus("Identidade salva. O painel e os próximos currículos já usam este padrão.");
   if (!$("welcome").hidden) {
     $("welcome").hidden = true;
@@ -153,7 +165,6 @@ renderBranding();
 
 // ---- Aparência ---------------------------------------------------------------
 
-await initTheme();
 initHeader();
 const temaAtual = await getTheme();
 for (const radio of document.querySelectorAll('input[name="tema"]')) {
@@ -172,8 +183,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // Aberta na instalação (ou pelo painel) antes da identidade ser configurada:
 // modo de boas-vindas, direto no que precisa ser ajustado.
 
-const { onboardingDone } = await chrome.storage.local.get("onboardingDone");
-if (!onboardingDone) {
+if (!(await isOnboarded(user))) {
   $("welcome").hidden = false;
   $("page-title").textContent = "Configure sua empresa";
 }
