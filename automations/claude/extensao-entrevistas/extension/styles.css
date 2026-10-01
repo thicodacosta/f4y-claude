@@ -1021,6 +1021,15 @@ input[type="color"] {
   width: auto;
 }
 
+.cv-item__summary {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--muted);
+}
+
 .btn--sm {
   min-height: 32px;
   padding: 5px 12px;

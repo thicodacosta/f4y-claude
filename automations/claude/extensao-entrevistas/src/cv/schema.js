@@ -23,7 +23,7 @@ const CV_SCHEMA = {
     resumo: {
       type: "string",
       description:
-        "Resumo profissional de 3 a 5 linhas, em terceira pessoa, montado só com fatos do currículo: área, tempo de experiência (se explícito), principais empresas, especialidades.",
+        "Resumo profissional em um único parágrafo de 3 a 5 linhas, em terceira pessoa, montado só com fatos do currículo: área, tempo de experiência (se explícito), principais empresas, especialidades. Nunca cite o nome do candidato nem pronomes de tratamento com o nome; comece, por exemplo, por 'Profissional de…' ou 'Atua como…'.",
     },
     experiencias: {
       type: "array",
