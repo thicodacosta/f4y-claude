@@ -22,7 +22,10 @@ recrutador. A captura reaproveita as soluções já validadas no Candydate
 ## Como a gravação funciona
 
 1. O recrutador abre a reunião, clica no ícone da extensão e em "Iniciar
-   gravação".
+   gravação". O Chrome só libera o áudio de uma aba depois do clique no
+   ícone nela (`activeTab`); como o painel continua aberto ao trocar de aba,
+   se faltar esse clique o painel guarda o pedido (`pendingStart`, 3 min) e o
+   background inicia a gravação no próximo clique no ícone.
 2. O offscreen document captura duas trilhas separadas: o áudio da aba
    (rotulado "Candidato") e o microfone ("Recrutador"). O áudio da aba
    continua tocando normalmente.

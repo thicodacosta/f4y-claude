@@ -15,8 +15,28 @@ const OFFSCREEN_URL = "offscreen.html";
 // Abrir o painel a partir do clique no ícone amarra a invocação àquela
 // aba (activeTab), condição do Chrome para capturar o áudio dela.
 chrome.action.onClicked.addListener((tab) => {
-  if (tab.id !== undefined) chrome.sidePanel.open({ tabId: tab.id }).catch(console.error);
+  if (tab.id === undefined) return;
+  chrome.sidePanel.open({ tabId: tab.id }).catch(console.error);
+  startPending(tab.id);
 });
+
+// O painel continua aberto ao trocar de aba, então a recrutadora pode clicar
+// em "Iniciar gravação" numa aba onde o ícone nunca foi clicado. Nesse caso o
+// painel deixa o pedido em `pendingStart` e a gravação começa no próximo
+// clique no ícone, já com a aba da reunião liberada.
+const PENDING_START_MS = 3 * 60_000;
+
+async function startPending(tabId) {
+  const { pendingStart } = await chrome.storage.session.get("pendingStart");
+  if (!pendingStart) return;
+  await chrome.storage.session.remove("pendingStart");
+  if (Date.now() - pendingStart.at > PENDING_START_MS) return;
+  try {
+    await start({ tabId, meta: pendingStart.meta });
+  } catch (error) {
+    await chrome.storage.session.set({ startError: error.message });
+  }
+}
 
 // Primeiro acesso: abre direto em Configurações para a empresa configurar
 // logo e identidade uma única vez. (Quando houver login, este gatilho passa
@@ -75,9 +95,15 @@ async function start({ tabId, meta }) {
   try {
     streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
   } catch (error) {
-    throw new Error(
-      "O Chrome não liberou o áudio desta aba. Com a reunião aberta, clique no ícone da extensão na barra " +
-        `do Chrome e tente de novo. (Detalhe: ${error?.message ?? error})`,
+    console.warn("tabCapture:", error);
+    const notInvoked = /not been invoked|activeTab/i.test(error?.message ?? "");
+    throw Object.assign(
+      new Error(
+        notInvoked
+          ? "Falta liberar o áudio desta aba."
+          : "O Chrome não permite gravar esta aba. Abra a aba da reunião (Meet, Teams ou Zoom no navegador) e tente de novo.",
+      ),
+      { code: notInvoked ? "not_invoked" : "capture_blocked" },
     );
   }
 
@@ -88,7 +114,7 @@ async function start({ tabId, meta }) {
     throw new Error(response?.error ?? "Não foi possível iniciar a gravação.");
   }
 
-  await chrome.storage.session.remove("result");
+  await chrome.storage.session.remove(["result", "pendingStart", "startError"]);
   await chrome.storage.session.set({
     capture: {
       phase: "recording",
@@ -179,7 +205,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.target !== "background") return false;
   handle(message).then(
     () => sendResponse({ ok: true }),
-    (error) => sendResponse({ ok: false, error: error.message }),
+    (error) => sendResponse({ ok: false, error: error.message, code: error.code }),
   );
   return true;
 });
