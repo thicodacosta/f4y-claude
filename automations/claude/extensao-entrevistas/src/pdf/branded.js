@@ -47,9 +47,21 @@ export function section(title, items, branding) {
 }
 
 /** Monta e gera o PDF (Blob) com cabeçalho e rodapé da marca. */
-export function renderBrandedPdf({ branding, title, footer, content, styles = {} }) {
+export function renderBrandedPdf({ branding, title, footer, content, styles = {}, headerText = "" }) {
   const accent = accentOf(branding);
-  const logo = branding.logoDataUrl ? { image: branding.logoDataUrl, ...logoSize(branding) } : { text: "" };
+  const logoImage = branding.logoDataUrl ? { image: branding.logoDataUrl, ...logoSize(branding) } : { text: "" };
+  // Texto opcional à direita do logo (ex.: cargo da vaga no currículo).
+  const logo = headerText
+    ? {
+        columns: [
+          { ...logoImage, width: "auto" },
+          { text: headerText, style: "headerText", color: accent, alignment: "right",
+            // Centralizado na altura do logo.
+            margin: [12, branding.logoDataUrl ? Math.max(0, (logoSize(branding).height - 15) / 2) : 0, 0, 0] },
+        ],
+        columnGap: 0,
+      }
+    : logoImage;
   const doc = {
     pageSize: "A4",
     pageMargins: [48, 96, 48, 56],
@@ -77,6 +89,7 @@ export function renderBrandedPdf({ branding, title, footer, content, styles = {}
       period: { fontSize: 9, color: MUTED },
       body: { fontSize: 9.5 },
       footer: { fontSize: 7.5, color: MUTED },
+      headerText: { fontSize: 12, bold: true },
       ...styles,
     },
   };

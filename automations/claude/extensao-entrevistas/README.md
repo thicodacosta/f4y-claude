@@ -55,8 +55,26 @@ em PDF ou Word (.docx) para o painel. Cada um é:
    formação, idiomas, competências, certificações), sem inventar nada e
    sem dados sensíveis (idade, estado civil, documentos, endereço,
    pretensão salarial);
-3. gerado sob demanda em PDF (pdfmake) e Word (docx), com o logo no
-   cabeçalho, a cor da empresa e "Apresentado por …" no rodapé.
+3. gerado sob demanda em PDF (pdfmake) e Word (docx), com o logo e o
+   **cargo da vaga** (campo opcional do painel) no cabeçalho, a cor da
+   empresa e "Apresentado por …" no rodapé. No Word, logo e cargo ficam numa
+   tabela sem bordas, para alinharem em qualquer leitor.
+
+**Modelo de currículo** (Configurações → Currículos padronizados, opcional):
+o usuário envia o currículo no formato que a empresa prefere (PDF ou Word).
+A Groq extrai o layout (`src/cv/model.js`, guardado em `cvModelo`): ordem e
+títulos das seções, títulos em caixa-alta ou não, cargo ou empresa em
+destaque em cada experiência, atividades em tópicos ou parágrafo,
+competências em linha ou tópicos e orientações de escrita (tamanho do resumo,
+tópicos por experiência, tempo verbal). As orientações vão para a
+padronização; o layout, para o PDF e o Word (`src/cv/layout.js`). Seções que o
+modelo não tem entram no fim, com o título padrão, para não perder conteúdo.
+Os dados da pessoa do modelo nunca são usados.
+
+**Nome do arquivo:** `Nome da Empresa - Cargo ｜ Nome do Candidato.pdf` (ou
+`.docx`; partes vazias são omitidas). O Chrome troca "|" por "_" em nomes de
+arquivo, então a barra é a "｜" (U+FF5C), visualmente igual. O título interno
+do PDF e do Word usa o mesmo texto, com "|".
 
 Até 3 currículos são processados ao mesmo tempo, com cerca de 15s cada. A
 identidade é aplicada no momento do download, então trocar o logo vale

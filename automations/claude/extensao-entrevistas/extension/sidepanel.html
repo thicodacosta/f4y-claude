@@ -199,6 +199,13 @@
           <span id="cv-brand-name" class="brand-strip__name"></span>
           <a href="options.html#curriculos" target="_blank" class="brand-strip__edit">Editar identidade</a>
         </div>
+        <p id="cv-model-info" class="hint" hidden></p>
+
+        <div class="field">
+          <label for="cv-cargo">Cargo da vaga <span class="optional">opcional</span></label>
+          <input id="cv-cargo" type="text" autocomplete="off" placeholder="Ex.: Gerente de Controladoria" aria-describedby="cv-cargo-hint" />
+          <p id="cv-cargo-hint" class="hint">Aparece no cabeçalho do currículo, ao lado do logo, e no nome do arquivo.</p>
+        </div>
 
         <label id="cv-drop" class="dropzone">
           <input id="cv-files" type="file" multiple accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden" />

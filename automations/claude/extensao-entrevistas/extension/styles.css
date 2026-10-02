@@ -800,6 +800,23 @@ input[type="search"]:focus {
   gap: 8px;
 }
 
+.model-picker {
+  padding: 12px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.model-picker > .hint {
+  margin: 0 0 8px;
+}
+
+.model-picker__sections {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .color-row {
   display: flex;
   align-items: center;
