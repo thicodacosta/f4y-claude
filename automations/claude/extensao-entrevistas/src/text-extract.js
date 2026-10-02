@@ -33,6 +33,42 @@ async function pdfToText(file) {
   return pages.join("\n\n");
 }
 
+/**
+ * Primeiras páginas de um PDF como imagens PNG (data URL), para a IA ver o
+ * visual do documento. Precisa de DOM (canvas): roda nas páginas da extensão.
+ */
+export async function pdfPageImages(file, { maxPages = 2, width = 1100 } = {}) {
+  const task = getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false });
+  const pdf = await task.promise;
+  const images = [];
+  try {
+    for (let n = 1; n <= Math.min(pdf.numPages, maxPages); n++) {
+      const page = await pdf.getPage(n);
+      const viewport = page.getViewport({ scale: width / page.getViewport({ scale: 1 }).width });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(viewport.width);
+      canvas.height = Math.round(viewport.height);
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: context, canvas, viewport }).promise;
+      images.push(canvas.toDataURL("image/png"));
+    }
+  } finally {
+    await task.destroy();
+  }
+  return images;
+}
+
+/** HTML simplificado de um .docx (títulos, negrito, listas), sem imagens. */
+export async function docxToHtml(file) {
+  const { value } = await mammoth.convertToHtml(
+    { arrayBuffer: await file.arrayBuffer() },
+    { convertImage: mammoth.images.imgElement(() => Promise.resolve({ src: "" })) },
+  );
+  return value.replace(/<img[^>]*>/g, "[imagem]");
+}
+
 export async function fileToText(file) {
   const name = file.name.toLowerCase();
   let text;

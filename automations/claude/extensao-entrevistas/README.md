@@ -55,21 +55,33 @@ em PDF ou Word (.docx) para o painel. Cada um é:
    formação, idiomas, competências, certificações), sem inventar nada e
    sem dados sensíveis (idade, estado civil, documentos, endereço,
    pretensão salarial);
-3. gerado sob demanda em PDF (pdfmake) e Word (docx), com o logo e o
-   **cargo da vaga** (campo opcional do painel) no cabeçalho, a cor da
-   empresa e "Apresentado por …" no rodapé. No Word, logo e cargo ficam numa
-   tabela sem bordas, para alinharem em qualquer leitor.
+3. gerado sob demanda em PDF (pdfmake) e Word (docx), com o logo, a cor da
+   empresa e "Apresentado por …" no rodapé. O **cargo da vaga** (campo
+   opcional do painel) aparece logo abaixo do nome do candidato; sem ele, vai
+   o título profissional do próprio currículo.
 
 **Modelo de currículo** (Configurações → Currículos padronizados, opcional):
-o usuário envia o currículo no formato que a empresa prefere (PDF ou Word).
-A Groq extrai o layout (`src/cv/model.js`, guardado em `cvModelo`): ordem e
-títulos das seções, títulos em caixa-alta ou não, cargo ou empresa em
-destaque em cada experiência, atividades em tópicos ou parágrafo,
-competências em linha ou tópicos e orientações de escrita (tamanho do resumo,
-tópicos por experiência, tempo verbal). As orientações vão para a
-padronização; o layout, para o PDF e o Word (`src/cv/layout.js`). Seções que o
-modelo não tem entram no fim, com o título padrão, para não perder conteúdo.
-Os dados da pessoa do modelo nunca são usados.
+o usuário envia o currículo no formato que a empresa prefere (PDF ou Word) e
+a extensão reconhece e aplica o padrão (`src/cv/model.js`, guardado em
+`cvModelo`):
+
+- **PDF:** a 1ª página vira imagem (pdf.js + canvas) e o modelo de visão da
+  Groq (Qwen) descreve o visual; o gpt-oss junta essa descrição ao texto e
+  monta o layout estruturado;
+- **Word:** o HTML do documento (mammoth: títulos, negrito, listas) faz o
+  papel da imagem.
+
+O layout (`src/cv/layout.js`) cobre: posição do logo (esquerda, centro,
+direita) e linha do cabeçalho; alinhamento e caixa-alta do nome; alinhamento
+do cargo e da localização; estilo dos títulos (pequenos com linha, grandes em
+negrito, negrito com linha), caixa-alta e cor; ordem e títulos das seções;
+experiência em blocos ou em linha única ("Empresa — Cargo | Período"),
+atividades em tópicos ou parágrafo; formação em blocos ou em lista;
+competências em linha ou tópicos; e orientações de escrita, que vão para a
+padronização. Configurações mostra o que foi reconhecido, para conferir.
+Seções que o modelo não tem entram no fim, com o título padrão, para não
+perder conteúdo. Os dados da pessoa do modelo nunca são usados. Fontes não
+são copiadas: o PDF usa Roboto e o Word, Arial.
 
 **Nome do arquivo:** `Nome da Empresa - Cargo ｜ Nome do Candidato.pdf` (ou
 `.docx`; partes vazias são omitidas). O Chrome troca "|" por "_" em nomes de

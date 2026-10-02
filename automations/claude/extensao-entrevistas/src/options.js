@@ -1,6 +1,7 @@
 import { logout, requireAuth } from "./auth/gate.js";
 import { isOnboarded, markOnboarded } from "./auth/onboarding.js";
 import { initHeader } from "./header.js";
+import { normalizeLayout } from "./cv/layout.js";
 import { FriendlyError } from "./errors.js";
 import { hasEmbeddedKeys, loadKeys } from "./keys.js";
 import { getTheme, initTheme, setTheme } from "./theme.js";
@@ -167,12 +168,20 @@ renderBranding();
 // ---- Modelo de currículo -------------------------------------------------------
 
 const MAX_MODEL_BYTES = 10 * 1024 * 1024;
-const FORMAT_LABEL = {
-  cargo_primeiro: "cargo em destaque",
-  empresa_primeiro: "empresa em destaque",
-  topicos: "atividades em tópicos",
-  paragrafo: "atividades em parágrafo",
-};
+/** Resumo, em português, do que foi reconhecido no modelo. */
+function describeLayout(l) {
+  const where = { esquerda: "à esquerda", centro: "centralizado", direita: "à direita" };
+  return [
+    `logo ${where[l.logoPosicao]}${l.linhaCabecalho ? " com linha abaixo" : ", sem linha"}`,
+    `nome ${where[l.nomeAlinhamento]}${l.nomeMaiusculo ? " em maiúsculas" : ""}`,
+    { faixa: "títulos pequenos com linha", destaque: "títulos grandes em negrito", sublinhado: "títulos em negrito com linha" }[l.estiloTitulos],
+    l.experienciaFormato === "linha_unica"
+      ? `experiência em uma linha (${l.experienciaCabecalho === "empresa_primeiro" ? "Empresa — Cargo" : "Cargo — Empresa"} | Período)`
+      : `experiência com ${l.experienciaCabecalho === "empresa_primeiro" ? "a empresa" : "o cargo"} em destaque`,
+    l.atividadesFormato === "paragrafo" ? "atividades em parágrafo" : "atividades em tópicos",
+    l.formacaoFormato === "lista" ? "formação em lista" : "formação em blocos",
+  ].join(" · ");
+}
 
 async function renderCvModel() {
   const { cvModelo } = await chrome.storage.local.get("cvModelo");
@@ -184,9 +193,8 @@ async function renderCvModel() {
     list.hidden = true;
     return;
   }
-  const { layout } = cvModelo;
-  $("cv-model-status").textContent =
-    `Modelo: ${cvModelo.fileName} · ${FORMAT_LABEL[layout.experienciaCabecalho]}, ${FORMAT_LABEL[layout.atividadesFormato]}. Seções, nesta ordem:`;
+  const layout = normalizeLayout(cvModelo.layout);
+  $("cv-model-status").textContent = `Modelo: ${cvModelo.fileName}. Reconhecido: ${describeLayout(layout)}. Seções, nesta ordem:`;
   list.replaceChildren(...layout.secoes.map((s) => Object.assign(document.createElement("li"), { textContent: s.titulo })));
   list.hidden = false;
 }
@@ -202,7 +210,7 @@ $("cv-model-file").addEventListener("change", async (event) => {
   if (!groqKey) return ($("cv-model-status").textContent = "Cadastre a chave da Groq antes de enviar o modelo.");
   const button = $("cv-model-btn");
   button.disabled = true;
-  $("cv-model-status").textContent = "Lendo o modelo…";
+  $("cv-model-status").textContent = "Lendo o modelo e reconhecendo o visual… (10 a 30 segundos)";
   try {
     const { analyzeCvModel } = await import("./cv/model.js");
     const layout = await analyzeCvModel({ groqKey, file });

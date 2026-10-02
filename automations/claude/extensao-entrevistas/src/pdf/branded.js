@@ -41,34 +41,33 @@ export function sectionHeading(title, branding) {
  * Seção: título + itens, com o título sempre na mesma página do primeiro
  * item (nunca sozinho no fim da página).
  */
-export function section(title, items, branding) {
+export function section(title, items, branding, heading = sectionHeading(title, branding)) {
   const [first, ...rest] = Array.isArray(items) ? items : [items];
-  return [{ stack: [sectionHeading(title, branding), first], unbreakable: true }, ...rest];
+  return [{ stack: [heading, first], unbreakable: true }, ...rest];
 }
 
-/** Monta e gera o PDF (Blob) com cabeçalho e rodapé da marca. */
-export function renderBrandedPdf({ branding, title, footer, content, styles = {}, headerText = "" }) {
+const PDF_ALIGN = { esquerda: "left", centro: "center", direita: "right" };
+
+/**
+ * Monta e gera o PDF (Blob) com cabeçalho e rodapé da marca. `header`
+ * ajusta o cabeçalho ao modelo de currículo: posição do logo e linha abaixo.
+ */
+export function renderBrandedPdf({ branding, title, footer, content, styles = {}, header = {} }) {
   const accent = accentOf(branding);
-  const logoImage = branding.logoDataUrl ? { image: branding.logoDataUrl, ...logoSize(branding) } : { text: "" };
-  // Texto opcional à direita do logo (ex.: cargo da vaga no currículo).
-  const logo = headerText
-    ? {
-        columns: [
-          { ...logoImage, width: "auto" },
-          { text: headerText, style: "headerText", color: accent, alignment: "right",
-            // Centralizado na altura do logo.
-            margin: [12, branding.logoDataUrl ? Math.max(0, (logoSize(branding).height - 15) / 2) : 0, 0, 0] },
-        ],
-        columnGap: 0,
-      }
-    : logoImage;
+  const { logoPosicao = "esquerda", linha = true } = header;
+  const logo = branding.logoDataUrl
+    ? { image: branding.logoDataUrl, ...logoSize(branding), alignment: PDF_ALIGN[logoPosicao] ?? "left" }
+    : { text: "" };
   const doc = {
     pageSize: "A4",
     pageMargins: [48, 96, 48, 56],
     info: { title, author: branding.empresa || undefined },
     header: () => ({
       margin: [48, 28, 48, 0],
-      stack: [logo, { canvas: [{ type: "line", x1: 0, y1: 10, x2: CONTENT_WIDTH, y2: 10, lineWidth: 1.5, lineColor: accent }] }],
+      stack: [
+        logo,
+        ...(linha ? [{ canvas: [{ type: "line", x1: 0, y1: 10, x2: CONTENT_WIDTH, y2: 10, lineWidth: 1.5, lineColor: accent }] }] : []),
+      ],
     }),
     footer: (currentPage, pageCount) => ({
       margin: [48, 16, 48, 0],
@@ -89,7 +88,6 @@ export function renderBrandedPdf({ branding, title, footer, content, styles = {}
       period: { fontSize: 9, color: MUTED },
       body: { fontSize: 9.5 },
       footer: { fontSize: 7.5, color: MUTED },
-      headerText: { fontSize: 12, bold: true },
       ...styles,
     },
   };
