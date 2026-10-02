@@ -31,9 +31,30 @@
 
   const label = (el) => clean(el.getAttribute("aria-label") || el.innerText || el.textContent);
 
+  // Shadow root fechado: só a API de extensões alcança. Para não consultar
+  // todos os elementos, tenta só nos candidatos a host (elementos
+  // personalizados e o #interop-outlet do LinkedIn).
+  const shadowOf = (el) =>
+    el.id === "interop-outlet" || el.localName.includes("-") ? (chrome.dom?.openOrClosedShadowRoot?.(el) ?? null) : null;
+
+  /**
+   * querySelectorAll que entra nos shadow roots (abertos e fechados). O LinkedIn (2026)
+   * desenha o diálogo de convite dentro de um shadow DOM (#interop-outlet),
+   * invisível para o querySelectorAll comum.
+   */
+  function deepQueryAll(selector, root = document) {
+    const found = [...root.querySelectorAll(selector)];
+    for (const el of root.querySelectorAll("*")) {
+      const shadow = el.shadowRoot ?? shadowOf(el);
+      if (shadow) found.push(...deepQueryAll(selector, shadow));
+    }
+    return found;
+  }
+
   /** Botões/itens clicáveis visíveis dentro de `root` cujo texto ou rótulo casa com `pattern`. */
   function findClickable(root, pattern) {
-    return [...root.querySelectorAll('button, a, [role="button"], [role="menuitem"], div[tabindex]')].find(
+    if (!root) return null;
+    return deepQueryAll('button, a, [role="button"], [role="menuitem"], div[tabindex]', root).find(
       (el) => visible(el) && pattern.test(label(el)),
     );
   }
@@ -224,17 +245,17 @@
 
   // Diálogos do LinkedIn: role="dialog" (artdeco-modal) ou <dialog> nativo.
   const DIALOG = '[role="dialog"], [role="alertdialog"], dialog[open], [aria-modal="true"], .artdeco-modal';
-  const dialog = () => [...document.querySelectorAll(DIALOG)].find(visible);
+  const dialog = () => deepQueryAll(DIALOG).find(visible);
   // Campo da nota: textarea ou, em versões novas, um editor de texto rico.
   const NOTE_FIELD = 'textarea, [contenteditable="true"], [role="textbox"]';
   const noteField = () => {
     const d = dialog();
-    return d && [...d.querySelectorAll(NOTE_FIELD)].find(visible);
+    return d && deepQueryAll(NOTE_FIELD, d).find(visible);
   };
 
   async function closeDialog() {
     const d = dialog();
-    const close = d && (findClickable(d, CLOSE) ?? d.querySelector('button[aria-label]'));
+    const close = d && (findClickable(d, CLOSE) ?? deepQueryAll("button[aria-label]", d)[0]);
     close?.click();
     await sleep(500);
   }
@@ -245,6 +266,11 @@
     if (field.isContentEditable) {
       document.execCommand("selectAll", false);
       document.execCommand("insertText", false, text);
+      // Dentro de shadow DOM o execCommand pode não chegar ao editor.
+      if (clean(field.innerText) !== clean(text)) {
+        field.textContent = text;
+        field.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: text }));
+      }
       return;
     }
     field.select?.();
@@ -252,8 +278,8 @@
     if (!ok || field.value !== text) {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set;
       setter.call(field, text);
-      field.dispatchEvent(new Event("input", { bubbles: true }));
-      field.dispatchEvent(new Event("change", { bubbles: true }));
+      field.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+      field.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
     }
   }
 
@@ -265,7 +291,7 @@
       if (!more) return false;
       more.click();
       button = await waitFor(() => {
-        const menus = [...document.querySelectorAll('[role="menu"], .artdeco-dropdown__content, [data-test-dropdown]')].filter(visible);
+        const menus = deepQueryAll('[role="menu"], .artdeco-dropdown__content, [data-test-dropdown]').filter(visible);
         for (const menu of menus) {
           const item = findClickable(menu, CONNECT);
           if (item) return item;
@@ -296,7 +322,8 @@
     }
 
     // Alguns perfis pedem o e-mail do candidato para convidar.
-    if (dialog()?.querySelector('input[type="email"]')) {
+    const current = dialog();
+    if (current && deepQueryAll('input[type="email"]', current).length) {
       await closeDialog();
       return { status: "exige_email" };
     }

@@ -294,7 +294,9 @@ preserva a transcrição para tentar de novo.
    (`/preload/search-custom-invite/?vanityName=…`, capturado da página de
    resultados; sem ele, `/preload/custom-invite/?vanityName=…`). Se não abrir,
    tenta o botão do perfil (inclusive dentro de "Mais"). A nota é escrita em
-   campo comum ou editor rico. Pausas de 25 a 45s entre convites; no máximo 20
+   campo comum ou editor rico. O diálogo de convite do LinkedIn (2026) fica
+   dentro de um shadow DOM (`#interop-outlet`): o script procura dentro de
+   shadow roots abertos e fechados (`chrome.dom.openOrClosedShadowRoot`). Pausas de 25 a 45s entre convites; no máximo 20
    perfis abertos e 5 páginas por execução. Botão **Parar** a qualquer momento.
 6. O painel lista os candidatos com a aderência mínima ou mais (padrão 70%).
    Os demais ficam numa lista recolhida, **"Perfis abaixo de 70%"**, com a nota
