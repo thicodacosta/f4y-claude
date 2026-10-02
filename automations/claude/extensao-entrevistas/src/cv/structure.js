@@ -63,18 +63,25 @@ export async function fileToBlocks(file, label = "curriculo") {
 
 const INSTRUCTION = "Padronize este currículo no formato estruturado solicitado.";
 
+/** Instrução com as orientações de escrita do modelo de currículo da empresa. */
+function instructionFor(layout) {
+  if (!layout?.orientacoes) return INSTRUCTION;
+  return `${INSTRUCTION}\n\nSiga o padrão de escrita do modelo de currículo da empresa, sem inventar nada além do que está no currículo:\n${layout.orientacoes}`;
+}
+
 /**
  * Lê um currículo (PDF ou .docx) e devolve os dados padronizados. Usa o
  * Claude, que lê o PDF inteiro (inclusive escaneado); se a Anthropic estiver
  * indisponível para a conta, extrai o texto no navegador e usa a Groq.
  */
-export async function structureCv({ apiKey, groqKey, file, signal }) {
+export async function structureCv({ apiKey, groqKey, file, layout, signal }) {
+  const instruction = instructionFor(layout);
   if (apiKey) {
     try {
       return await requestStructured({
         apiKey,
         system: SYSTEM_PROMPT,
-        content: [...(await fileToBlocks(file)), { type: "text", text: INSTRUCTION }],
+        content: [...(await fileToBlocks(file)), { type: "text", text: instruction }],
         format: CV_OUTPUT_FORMAT,
         // Extração e organização, não raciocínio longo: esforço médio responde
         // mais rápido, o que importa ao processar vários currículos seguidos.
@@ -91,7 +98,7 @@ export async function structureCv({ apiKey, groqKey, file, signal }) {
   return groqStructured({
     apiKey: groqKey,
     system: SYSTEM_PROMPT,
-    user: `<curriculo arquivo="${file.name}">\n${text}\n</curriculo>\n\n${INSTRUCTION}`,
+    user: `<curriculo arquivo="${file.name}">\n${text}\n</curriculo>\n\n${instruction}`,
     name: "curriculo_padronizado",
     schema: CV_OUTPUT_FORMAT.schema,
     signal,

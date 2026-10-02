@@ -7,6 +7,7 @@
  * novo" enquanto o painel estiver aberto.
  */
 import { FriendlyError } from "../errors.js";
+import { normalizeLayout } from "./layout.js";
 
 // Leitura de Word e geração de PDF/Word somam ~2,5 MB (bibliotecas e
 // fontes): só carregam quando a aba de currículos é usada.
@@ -22,6 +23,7 @@ const $ = (id) => document.getElementById(id);
 let items = []; // { id, fileName, status: "fila"|"processando"|"pronto"|"erro", cv?, error? }
 const files = new Map(); // id → File (só em memória)
 let branding = {};
+let cvModelo = null; // modelo de currículo da empresa (Configurações)
 let getApiKey = () => null;
 let getGroqKey = () => null;
 let running = 0;
@@ -152,7 +154,7 @@ function pump() {
     running++;
     update(next.id, { status: "processando" });
     loadStructure()
-      .then(({ structureCv }) => structureCv({ apiKey, groqKey, file: files.get(next.id) }))
+      .then(({ structureCv }) => structureCv({ apiKey, groqKey, file: files.get(next.id), layout: cvModelo?.layout }))
       .then((cv) => update(next.id, { status: "pronto", cv }))
       .catch((error) => {
         console.error(`Falha ao padronizar ${next.fileName}`, error);
@@ -190,18 +192,23 @@ function saveBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** Layout do modelo da empresa e cargo da vaga digitado no painel. */
+const documentOptions = () => ({ layout: normalizeLayout(cvModelo?.layout), cargo: $("cv-cargo").value.trim() });
+
 function downloadAs(item, extension, buttonEl) {
   return withBusy(buttonEl, async () => {
     const { buildCvDocx, buildCvPdf, cvFileName } = await loadDocuments();
-    const blob = extension === "pdf" ? await buildCvPdf(item.cv, branding) : await buildCvDocx(item.cv, branding);
-    saveBlob(blob, cvFileName(item.cv, branding, extension));
+    const options = documentOptions();
+    const blob =
+      extension === "pdf" ? await buildCvPdf(item.cv, branding, options) : await buildCvDocx(item.cv, branding, options);
+    saveBlob(blob, cvFileName(item.cv, branding, extension, options.cargo));
   });
 }
 
 function preview(item, buttonEl) {
   return withBusy(buttonEl, async () => {
     const { buildCvPdf } = await loadDocuments();
-    const url = URL.createObjectURL(await buildCvPdf(item.cv, branding));
+    const url = URL.createObjectURL(await buildCvPdf(item.cv, branding, documentOptions()));
     window.open(url, "_blank");
     // A aba já carregou o PDF; libera a memória depois de um tempo.
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -232,10 +239,31 @@ function renderBranding() {
   }
 }
 
+function renderModel() {
+  const info = $("cv-model-info");
+  info.hidden = false;
+  const link = Object.assign(document.createElement("a"), {
+    href: "options.html#curriculos",
+    target: "_blank",
+    textContent: cvModelo ? "Trocar" : "Configurações",
+  });
+  if (cvModelo) {
+    info.replaceChildren(`Modelo de currículo: ${cvModelo.fileName}. `, link);
+  } else {
+    info.replaceChildren("Sem modelo de currículo: usa o padrão. Envie o modelo da sua empresa em ", link, ".");
+  }
+}
+
 export async function initCvArea({ apiKeyGetter, groqKeyGetter }) {
   getApiKey = apiKeyGetter;
   getGroqKey = groqKeyGetter;
-  ({ branding = {} } = await chrome.storage.local.get("branding"));
+  ({ branding = {}, cvModelo = null } = await chrome.storage.local.get(["branding", "cvModelo"]));
+  renderModel();
+
+  // Cargo da vaga: lembrado enquanto o Chrome estiver aberto.
+  const { cvCargo = "" } = await chrome.storage.session.get("cvCargo");
+  $("cv-cargo").value = cvCargo;
+  $("cv-cargo").addEventListener("input", () => chrome.storage.session.set({ cvCargo: $("cv-cargo").value }));
 
   // Itens que estavam em processamento quando o painel fechou não têm mais
   // o arquivo em memória.
@@ -250,9 +278,15 @@ export async function initCvArea({ apiKeyGetter, groqKeyGetter }) {
   renderBranding();
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local" || !("branding" in changes)) return;
-    branding = changes.branding.newValue ?? {};
-    renderBranding();
+    if (area !== "local") return;
+    if ("cvModelo" in changes) {
+      cvModelo = changes.cvModelo.newValue ?? null;
+      renderModel();
+    }
+    if ("branding" in changes) {
+      branding = changes.branding.newValue ?? {};
+      renderBranding();
+    }
   });
 
   $("cv-files").addEventListener("change", (event) => {

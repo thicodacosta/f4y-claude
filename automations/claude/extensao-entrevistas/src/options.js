@@ -1,7 +1,8 @@
 import { logout, requireAuth } from "./auth/gate.js";
 import { isOnboarded, markOnboarded } from "./auth/onboarding.js";
 import { initHeader } from "./header.js";
-import { hasEmbeddedKeys } from "./keys.js";
+import { FriendlyError } from "./errors.js";
+import { hasEmbeddedKeys, loadKeys } from "./keys.js";
 import { getTheme, initTheme, setTheme } from "./theme.js";
 import { DEFAULT_NOTE, loadLinkedInSettings, saveLinkedInSettings } from "./shortlist/settings.js";
 import { LINKEDIN_PEOPLE_SEARCH, findLinkedInTab, linkedInStatus } from "./shortlist/runner.js";
@@ -162,6 +163,64 @@ $("branding-form").addEventListener("submit", async (event) => {
 });
 
 renderBranding();
+
+// ---- Modelo de currículo -------------------------------------------------------
+
+const MAX_MODEL_BYTES = 10 * 1024 * 1024;
+const FORMAT_LABEL = {
+  cargo_primeiro: "cargo em destaque",
+  empresa_primeiro: "empresa em destaque",
+  topicos: "atividades em tópicos",
+  paragrafo: "atividades em parágrafo",
+};
+
+async function renderCvModel() {
+  const { cvModelo } = await chrome.storage.local.get("cvModelo");
+  const list = $("cv-model-sections");
+  $("cv-model-remove").hidden = !cvModelo;
+  $("cv-model-btn").textContent = cvModelo ? "Trocar modelo" : "Enviar modelo";
+  if (!cvModelo) {
+    $("cv-model-status").textContent = "Nenhum modelo: os currículos saem no padrão.";
+    list.hidden = true;
+    return;
+  }
+  const { layout } = cvModelo;
+  $("cv-model-status").textContent =
+    `Modelo: ${cvModelo.fileName} · ${FORMAT_LABEL[layout.experienciaCabecalho]}, ${FORMAT_LABEL[layout.atividadesFormato]}. Seções, nesta ordem:`;
+  list.replaceChildren(...layout.secoes.map((s) => Object.assign(document.createElement("li"), { textContent: s.titulo })));
+  list.hidden = false;
+}
+
+$("cv-model-btn").addEventListener("click", () => $("cv-model-file").click());
+$("cv-model-file").addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+  if (!/\.(pdf|docx)$/i.test(file.name)) return ($("cv-model-status").textContent = "Use um arquivo PDF ou Word (.docx).");
+  if (file.size > MAX_MODEL_BYTES) return ($("cv-model-status").textContent = "O arquivo passa de 10 MB. Use uma versão menor.");
+  const { groqKey } = await loadKeys();
+  if (!groqKey) return ($("cv-model-status").textContent = "Cadastre a chave da Groq antes de enviar o modelo.");
+  const button = $("cv-model-btn");
+  button.disabled = true;
+  $("cv-model-status").textContent = "Lendo o modelo…";
+  try {
+    const { analyzeCvModel } = await import("./cv/model.js");
+    const layout = await analyzeCvModel({ groqKey, file });
+    await chrome.storage.local.set({ cvModelo: { fileName: file.name, layout, savedAt: Date.now() } });
+    await renderCvModel();
+  } catch (error) {
+    console.error(error);
+    $("cv-model-status").textContent =
+      error instanceof FriendlyError ? error.message : "Não foi possível ler este modelo. Tente outro arquivo.";
+  } finally {
+    button.disabled = false;
+  }
+});
+$("cv-model-remove").addEventListener("click", async () => {
+  await chrome.storage.local.remove("cvModelo");
+  await renderCvModel();
+});
+await renderCvModel();
 
 // ---- Aparência ---------------------------------------------------------------
 
