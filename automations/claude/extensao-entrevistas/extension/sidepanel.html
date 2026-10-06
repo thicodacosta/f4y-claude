@@ -85,7 +85,8 @@
           <div id="record-help" class="note">
             <p class="note__title">Antes de iniciar</p>
             <ul class="list">
-              <li>Na aba da reunião (Meet, Teams ou Zoom no navegador), clique no ícone do JourneyLab na barra do Chrome. Sem esse clique, o Chrome não libera o áudio da aba.</li>
+              <li>Na aba da reunião (Meet, Teams ou Zoom no navegador), clique no ícone do JourneyLab na barra do Chrome. Sem esse clique, o Chrome não libera o áudio da aba.
+                <img src="icons/toolbar-hint.png" class="icon-hint__img" alt="Ícone do JourneyLab e, ao lado, o ícone de quebra-cabeça das extensões, na barra do Chrome" /></li>
               <li>Use fones de ouvido: assim sua fala e a do candidato ficam em trilhas separadas.</li>
               <li>Depois de iniciar, pode trocar de aba ou fechar este painel; a gravação continua.</li>
             </ul>
@@ -469,7 +470,10 @@
             <p id="sl-analyzed" class="hint"></p>
             <p class="hint">Não feche este painel nem use a aba do LinkedIn até terminar.</p>
           </div>
-          <button type="button" id="sl-stop" class="btn btn--ghost btn--danger">Parar</button>
+          <div class="actions">
+            <button type="button" id="sl-pause" class="btn btn--ghost" aria-pressed="false">Pausar busca</button>
+            <button type="button" id="sl-stop" class="btn btn--ghost btn--danger">Parar</button>
+          </div>
         </div>
 
         <div id="sl-result" hidden>
