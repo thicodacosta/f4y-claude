@@ -365,6 +365,21 @@ input[type="search"]:focus {
   font-size: 13px;
 }
 
+/* Aviso de "clique no ícone": texto + imagem do ícone na barra do Chrome. */
+.icon-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.icon-hint__img {
+  display: block;
+  width: 112px;
+  height: auto;
+  margin-top: 6px;
+}
+
 /* Botões */
 .btn {
   display: inline-flex;

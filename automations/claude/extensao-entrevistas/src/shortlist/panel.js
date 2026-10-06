@@ -4,6 +4,7 @@ import { $, copyText, el, showError } from "../ui.js";
 import {
   LINKEDIN_PEOPLE_SEARCH,
   MAX_INVITES,
+  createPauser,
   findLinkedInTab,
   runShortlist,
   statusLabel,
@@ -13,6 +14,8 @@ import { loadLinkedInSettings } from "./settings.js";
 
 let getGroqKey = () => null;
 let abort = null;
+let pauser = null;
+let lastStatus = "";
 let job = null; // análise da JD (reaproveitada ao iniciar, se a JD não mudou)
 let jobJd = "";
 let candidates = [];
@@ -206,6 +209,8 @@ async function start(event) {
   candidates = [];
   renderList();
   abort = new AbortController();
+  pauser = createPauser();
+  setPauseButton(false);
   $("sl-mode").textContent = dryRun ? "Simulação em andamento" : "Shortlist em andamento";
   $("sl-progress").textContent = `0/${quantidade}`;
   $("sl-status").textContent = "Iniciando…";
@@ -223,8 +228,20 @@ async function start(event) {
       settings,
       dryRun,
       signal: abort.signal,
+      pauser,
       onEvent: (e) => {
-        if (e.type === "status") $("sl-status").textContent = e.text;
+        if (e.type === "status") {
+          lastStatus = e.text;
+          if (!pauser.paused) $("sl-status").textContent = e.text;
+        }
+        if (e.type === "paused") {
+          $("sl-mode").textContent = "Shortlist pausada";
+          $("sl-status").textContent = "Pausada. A aba do LinkedIn está livre; clique em “Retomar busca” para continuar.";
+        }
+        if (e.type === "resumed") {
+          $("sl-mode").textContent = dryRun ? "Simulação em andamento" : "Shortlist em andamento";
+          $("sl-status").textContent = lastStatus;
+        }
         if (e.type === "candidate") {
           upsert(e.candidate);
           const done = candidates.filter((c) => c.status === "enviado" || c.status === "simulado").length;
@@ -246,7 +263,16 @@ async function start(event) {
     if (!candidates.length) showError("sl-error", $("sl-summary").textContent);
   } finally {
     abort = null;
+    pauser = null;
   }
+}
+
+function setPauseButton(paused) {
+  const button = $("sl-pause");
+  button.textContent = paused ? "Retomar busca" : "Pausar busca";
+  button.setAttribute("aria-pressed", String(paused));
+  button.classList.toggle("btn--primary", paused);
+  button.classList.toggle("btn--ghost", !paused);
 }
 
 export function initShortlistArea({ groqKeyGetter }) {
@@ -263,8 +289,21 @@ export function initShortlistArea({ groqKeyGetter }) {
     showError("sl-error", null);
     $("sl-jd").focus();
   });
+  $("sl-pause").addEventListener("click", () => {
+    if (!pauser) return;
+    if (pauser.paused) {
+      pauser.resume();
+      setPauseButton(false);
+      $("sl-status").textContent = "Retomando…";
+    } else {
+      pauser.pause();
+      setPauseButton(true);
+      $("sl-status").textContent = "Pausando após a ação atual…";
+    }
+  });
   $("sl-stop").addEventListener("click", () => {
     $("sl-status").textContent = "Parando após a ação atual…";
+    pauser?.resume();
     abort?.abort();
   });
   $("sl-copy").addEventListener("click", () => copyText(summaryText(lastResult), "sl-copy-status", "Resumo copiado."));

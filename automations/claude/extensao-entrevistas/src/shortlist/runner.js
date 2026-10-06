@@ -26,6 +26,40 @@ const PACE = {
 
 export const LINKEDIN_PEOPLE_SEARCH = "https://www.linkedin.com/search/results/people/";
 
+/**
+ * Pausa pedida pela recrutadora ("Pausar busca"). A Shortlist termina a ação
+ * em andamento e para no próximo ponto seguro (antes de abrir um perfil, de
+ * avaliar ou de convidar), até "Retomar".
+ */
+export function createPauser() {
+  let paused = false;
+  let release = null;
+  let gate = Promise.resolve();
+  return {
+    get paused() {
+      return paused;
+    },
+    pause() {
+      if (paused) return;
+      paused = true;
+      gate = new Promise((resolve) => (release = resolve));
+    },
+    resume() {
+      if (!paused) return;
+      paused = false;
+      release();
+    },
+    /** Espera enquanto estiver pausado; "Parar" encerra mesmo pausado. */
+    wait(signal) {
+      if (!paused) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        gate.then(resolve);
+        signal?.addEventListener("abort", () => reject(new FriendlyError("Shortlist interrompida.")));
+      });
+    },
+  };
+}
+
 function pause([min, max], signal) {
   const ms = min + Math.random() * (max - min);
   return new Promise((resolve, reject) => {
@@ -110,7 +144,7 @@ export const statusLabel = (status) => STATUS_LABEL[status] ?? status;
  * Executa a Shortlist. `onEvent` recebe { type: "status", text } e
  * { type: "candidate", candidate } para o painel acompanhar ao vivo.
  */
-export async function runShortlist({ groqKey, tabId, jd, job, quantidade, aderenciaMinima, settings, dryRun, signal, onEvent }) {
+export async function runShortlist({ groqKey, tabId, jd, job, quantidade, aderenciaMinima, settings, dryRun, signal, pauser, onEvent }) {
   const limit = Math.min(Math.max(1, quantidade), MAX_INVITES);
   const maxProfiles = limit * PROFILES_PER_INVITE;
   const candidates = [];
@@ -120,6 +154,15 @@ export async function runShortlist({ groqKey, tabId, jd, job, quantidade, aderen
 
   const emit = (candidate) => onEvent?.({ type: "candidate", candidate: { ...candidate } });
   const say = (text) => onEvent?.({ type: "status", text });
+  // Ponto seguro: confere "Parar" e espera se a recrutadora pausou.
+  const checkpoint = async () => {
+    checkAbort(signal);
+    if (pauser?.paused) {
+      onEvent?.({ type: "paused" });
+      await pauser.wait(signal);
+      onEvent?.({ type: "resumed" });
+    }
+  };
 
   say("Verificando a página do LinkedIn…");
   const status = await linkedInStatus(tabId);
@@ -135,7 +178,7 @@ export async function runShortlist({ groqKey, tabId, jd, job, quantidade, aderen
   }
 
   for (let page = 1; page <= MAX_PAGES && invited < limit && opened < maxProfiles; page++) {
-    checkAbort(signal);
+    await checkpoint();
     if (page > 1) {
       const url = new URL(searchUrl);
       url.searchParams.set("page", String(page));
@@ -154,7 +197,7 @@ export async function runShortlist({ groqKey, tabId, jd, job, quantidade, aderen
 
     for (const card of ranked) {
       if (invited >= limit || opened >= maxProfiles) break;
-      checkAbort(signal);
+      await checkpoint();
       seen.add(card.url);
       opened++;
 
@@ -183,6 +226,7 @@ export async function runShortlist({ groqKey, tabId, jd, job, quantidade, aderen
         continue;
       }
 
+      await checkpoint();
       say(`Avaliando ${card.name} frente à vaga…`);
       const evaluation = await evaluateProfile({
         apiKey: groqKey,
@@ -226,6 +270,7 @@ export async function runShortlist({ groqKey, tabId, jd, job, quantidade, aderen
         : settings.personalizarNota && personalized && personalized.length <= NOTE_MAX
           ? personalized
           : templateNote;
+      await checkpoint();
       say(dryRun ? `Simulando o convite para ${candidate.nome}…` : `Enviando convite para ${candidate.nome}…`);
       // Convite pela página de convite do LinkedIn, o mesmo destino do botão
       // "Conectar" do cartão da busca (/preload/search-custom-invite/…). É mais

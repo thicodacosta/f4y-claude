@@ -55,9 +55,27 @@ function readForm() {
   return Object.fromEntries(FIELDS.map((f) => [f, $(f).value]));
 }
 
+/** Mensagem de erro em texto ou, quando precisa de imagem, em elementos. */
 function showError(id, message) {
-  $(id).textContent = message ?? "";
+  if (message instanceof Node) $(id).replaceChildren(message);
+  else $(id).textContent = message ?? "";
   $(id).hidden = !message;
+}
+
+/** Aviso de "clique no ícone", com a imagem do ícone na barra do Chrome. */
+function iconHint() {
+  const box = document.createElement("span");
+  box.className = "icon-hint";
+  const text = document.createElement("span");
+  text.textContent =
+    "Falta um passo: com a aba da reunião aberta, clique no ícone do JourneyLab na barra do Chrome, " +
+    "ao lado do endereço. Se ele não aparecer, clique no quebra-cabeça e depois em JourneyLab. A gravação começa sozinha.";
+  const img = document.createElement("img");
+  img.src = "icons/toolbar-hint.png";
+  img.alt = "Ícone do JourneyLab e, ao lado, o ícone de quebra-cabeça das extensões, na barra do Chrome";
+  img.className = "icon-hint__img";
+  box.append(text, img);
+  return box;
 }
 
 const showFormError = (message) => showError("form-error", message);
@@ -212,10 +230,7 @@ async function startRecording(input) {
       // O Chrome só libera o áudio de uma aba depois de um clique no ícone da
       // extensão nela; o background inicia a gravação nesse clique.
       await chrome.storage.session.set({ pendingStart: { meta, at: Date.now() } });
-      showFormError(
-        "Falta um passo: com a aba da reunião aberta, clique no ícone do JourneyLab na barra do Chrome " +
-          "(ao lado do endereço; se não aparecer, está no ícone de quebra-cabeça). A gravação começa sozinha.",
-      );
+      showFormError(iconHint());
     } else if (!response?.ok) showFormError(response?.error ?? "Não foi possível iniciar a gravação.");
   } finally {
     submit.disabled = false;

@@ -25,7 +25,8 @@ recrutador. A captura reaproveita as soluções já validadas no Candydate
    gravação". O Chrome só libera o áudio de uma aba depois do clique no
    ícone nela (`activeTab`); como o painel continua aberto ao trocar de aba,
    se faltar esse clique o painel guarda o pedido (`pendingStart`, 3 min) e o
-   background inicia a gravação no próximo clique no ícone.
+   background inicia a gravação no próximo clique no ícone. O aviso mostra a imagem do ícone na barra
+   do Chrome (`extension/icons/toolbar-hint.png`).
 2. O offscreen document captura duas trilhas separadas: o áudio da aba
    (rotulado "Candidato") e o microfone ("Recrutador"). O áudio da aba
    continua tocando normalmente.
@@ -297,7 +298,9 @@ preserva a transcrição para tentar de novo.
    campo comum ou editor rico. O diálogo de convite do LinkedIn (2026) fica
    dentro de um shadow DOM (`#interop-outlet`): o script procura dentro de
    shadow roots abertos e fechados (`chrome.dom.openOrClosedShadowRoot`). Pausas de 25 a 45s entre convites; no máximo 20
-   perfis abertos e 5 páginas por execução. Botão **Parar** a qualquer momento.
+   perfis abertos e 5 páginas por execução. **Pausar busca** para no próximo
+   ponto seguro (antes de abrir um perfil, de avaliar ou de convidar) e libera
+   a aba do LinkedIn até **Retomar busca**; **Parar** encerra a qualquer momento.
 6. O painel lista os candidatos com a aderência mínima ou mais (padrão 70%).
    Os demais ficam numa lista recolhida, **"Perfis abaixo de 70%"**, com a nota
    e o que não aparece no perfil, para a recrutadora ajustar a busca. Ao
