@@ -307,13 +307,23 @@ espaços e maiúsculas) e são reaproveitados pelas duas telas, e a avaliação
 roda com temperatura 0. Teste: o mesmo perfil de QA Engineer tirou 85% em 3
 execuções no Comparativo e 85% em 3 na Shortlist.
 
-**Leitura do perfil:** o LinkedIn só carrega Experiência, Formação e
-Competências ao rolar a página. O script rola o perfil até o fim, espera a
-seção de experiência e envia à IA só o topo do perfil e as seções
-profissionais (Sobre, Experiência, Formação, Licenças e certificados,
-Competências, Idiomas, Projetos…), sem Atividade, Destaques, Interesses nem
-anúncios e sem o texto duplicado para leitores de tela. Sem a seção de
-experiência, recarrega o perfil uma vez antes de avaliar.
+**Leitura do perfil completo:** a página principal do perfil mostra só
+alguns itens de cada seção e os carrega aos poucos. Por isso, para cada
+perfil, a extensão lê:
+
+1. a página principal: nome, título, localização e "Sobre";
+2. as páginas de detalhes, que trazem cada seção inteira:
+   `/details/experience/`, `/details/education/`, `/details/certifications/` e
+   `/details/skills/`.
+
+Em cada página, rola até o fim (a janela e o contêiner interno com rolagem
+própria, que é onde o LinkedIn atual carrega o conteúdo) e só conclui quando a
+página não cresce mais. Tira o texto duplicado para leitores de tela e os
+botões ("Exibir mais", "Voltar"). Limites de texto por seção (experiência
+6.000 caracteres; formação e certificações 1.200; competências 1.500), para o
+perfil inteiro caber num pedido do plano gratuito da Groq. Página de detalhe
+que não abre é pulada; o resto do perfil segue para a avaliação. Leva cerca de
+20 a 40 segundos por perfil.
 
 **Configurações → Integração com o LinkedIn:** conectar (confirma o login na
 sessão do LinkedIn aberta no Chrome) e a compatibilidade mínima padrão.

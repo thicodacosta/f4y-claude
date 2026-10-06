@@ -154,22 +154,63 @@
     textLines(document.querySelector("main")).some((line) => /^(experiência|experience)$/i.test(line));
 
   /**
-   * Rola o perfil até o fim, em passos, para o LinkedIn carregar as seções
-   * (Experiência, Formação, Competências só aparecem ao rolar).
+   * Elementos que rolam a página: a janela e, no LinkedIn atual, também um
+   * contêiner interno com rolagem própria (rolar só a janela não carrega nada).
    */
-  async function loadWholeProfile() {
-    let lastHeight = 0;
+  function scrollers() {
+    const inner = [...document.querySelectorAll("main, main *, body > div, [class*='scaffold']")].filter((el) => {
+      const style = getComputedStyle(el);
+      return /(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight + 100;
+    });
+    return [document.scrollingElement ?? document.documentElement, ...inner];
+  }
+
+  /**
+   * Rola a página até o fim, em passos, para o LinkedIn carregar o conteúdo
+   * que só aparece ao rolar. Para quando a altura deixa de crescer.
+   */
+  async function scrollToEnd({ steps = 16 } = {}) {
+    const height = () => Math.max(...scrollers().map((el) => el.scrollHeight));
+    const atBottom = () => scrollers().every((el) => el.scrollTop + el.clientHeight >= el.scrollHeight - 40);
     let stable = 0;
-    for (let i = 0; i < 14 && stable < 2; i++) {
-      window.scrollBy(0, Math.round(window.innerHeight * 0.8));
+    for (let i = 0; i < steps && stable < 2; i++) {
+      const before = height();
+      for (const el of scrollers()) el.scrollBy(0, Math.round(window.innerHeight * 0.8));
       await sleep(650);
-      const height = document.documentElement.scrollHeight;
-      const atBottom = window.scrollY + window.innerHeight >= height - 20;
-      stable = atBottom && height === lastHeight ? stable + 1 : 0;
-      lastHeight = height;
+      if (!atBottom()) {
+        stable = 0;
+        continue;
+      }
+      // No fim da página: espera o LinkedIn carregar o próximo lote. Só
+      // conclui quando a altura não cresce mais.
+      await sleep(900);
+      stable = height() === before ? stable + 1 : 0;
     }
-    await waitFor(hasExperience, 4000);
-    window.scrollTo(0, 0);
+    for (const el of scrollers()) el.scrollTo(0, 0);
+  }
+
+  // Na página principal, só o topo e o "Sobre" importam: as seções completas
+  // vêm das páginas de detalhes.
+  async function loadWholeProfile() {
+    await scrollToEnd({ steps: 6 });
+    await waitFor(hasExperience, 3000);
+  }
+
+  // Linhas que são só navegação/controle da página, sem informação do perfil.
+  const BOILERPLATE =
+    /^(exibir|ver|mostrar|show|see) (mais|menos|tudo|todas?|all|more|less)\b|^…\s*(mais|more)$|^(voltar|back)$|^(seguir|follow|mensagem|message|conectar|connect|mais|more)$|^(endossar|endorse)$|^\d+ (endosso|endorsement)/i;
+
+  /**
+   * Página de detalhes do perfil (/details/experience/, /details/education/,
+   * …): traz a seção completa, sem o limite de itens da página principal.
+   */
+  async function readDetails() {
+    await waitFor(() => clean(document.querySelector("main")?.innerText).length > 80, 15000);
+    await scrollToEnd({ steps: 20 });
+    const main = document.querySelector("main") ?? document.body;
+    const lines = textLines(main).filter((line) => !BOILERPLATE.test(line));
+    // Página sem itens: só o título da seção (e talvez "Nada para ver").
+    return { text: lines.join("\n"), empty: lines.length <= 2 };
   }
 
   async function readProfile() {
@@ -190,8 +231,12 @@
       url: profileUrl(location.href),
       name: clean(document.querySelector("main h1, main h2")?.innerText),
       firstDegree: FIRST_DEGREE.test(cardText),
-      // Linha abaixo do nome: o título profissional do perfil.
-      headline: textLines(card).find((line, i) => i > 0 && !/^·|^\d+º|^(he|she|ele|ela)\//i.test(line)) ?? "",
+      // Linha abaixo do nome: o título profissional do perfil (pula o grau
+      // de conexão "• 2º", pronomes e linhas curtas).
+      headline:
+        textLines(card)
+          .slice(1)
+          .find((line) => line.length > 3 && !/^[·•]?\s*\d+\s*(º|st|nd|rd|th)(?![a-z])|^[·•]|^(he|she|ele|ela)\b/i.test(line)) ?? "",
       hasExperience: hasExperience(),
       sections: relevant.map((s) => s.title),
       text: text.slice(0, 14000),
@@ -204,6 +249,7 @@
       status: async () => status(),
       readSearch,
       readProfile,
+      readDetails,
     }[message.cmd];
     if (!run) return false;
     Promise.resolve(run())

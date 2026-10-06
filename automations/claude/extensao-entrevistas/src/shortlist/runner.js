@@ -92,6 +92,51 @@ async function command(tabId, cmd) {
   return response.result;
 }
 
+// Páginas de detalhes do perfil: trazem cada seção completa (a página
+// principal mostra só alguns itens e carrega as seções aos poucos).
+const DETAIL_PAGES = [
+  // Limites de texto: o perfil inteiro cabe num pedido do plano gratuito da
+  // Groq (8 mil tokens por minuto), com folga para o prompt.
+  { path: "experience", title: "Experiência", label: "experiências", max: 6000 },
+  { path: "education", title: "Formação acadêmica", label: "formação", max: 1200 },
+  { path: "certifications", title: "Licenças e certificados", label: "certificações", max: 1200 },
+  { path: "skills", title: "Competências", label: "competências", max: 1500 },
+];
+
+/**
+ * Perfil completo: topo e "Sobre" da página principal + as páginas de
+ * detalhes (experiência, formação, certificações, competências). O texto vai
+ * inteiro para a avaliação, como um currículo.
+ */
+async function readFullProfile(tabId, card, { say, signal, checkpoint }) {
+  say(`Abrindo o perfil de ${card.name}…`);
+  await navigate(tabId, card.url);
+  const profile = await command(tabId, "readProfile");
+  const base = (profile.url ?? card.url).replace(/\/?$/, "/");
+
+  const parts = [];
+  let hasExperience = false;
+  for (const page of DETAIL_PAGES) {
+    await checkpoint();
+    if (signal?.aborted) break;
+    say(`Lendo ${page.label} de ${card.name}…`);
+    try {
+      await navigate(tabId, `${base}details/${page.path}/`);
+      const details = await command(tabId, "readDetails");
+      if (details.empty) continue;
+      parts.push(`${page.title}\n${details.text.slice(0, page.max)}`);
+      if (page.path === "experience") hasExperience = true;
+    } catch (error) {
+      // Página de detalhe que não abriu: segue com o resto do perfil.
+      console.warn(`Shortlist: ${page.path} não lido (${card.url})`, error);
+    }
+  }
+
+  // Sem as páginas de detalhe, fica o que a página principal mostrou.
+  const text = parts.length ? [profile.text.slice(0, 2500), ...parts].join("\n\n") : profile.text;
+  return { ...profile, text, hasExperience: hasExperience || profile.hasExperience };
+}
+
 /**
  * Limite por minuto da Groq (plano gratuito: 8 mil tokens/min): espera e
  * tenta de novo, em vez de perder o perfil. O limite diário não é repetido.
@@ -218,16 +263,7 @@ export async function runShortlist({ groqKey, tabId, jd, quantidade, aderenciaMi
         emit(candidate);
 
         try {
-          say(`Abrindo o perfil de ${card.name}…`);
-          await navigate(tabId, card.url);
-          let profile = await command(tabId, "readProfile");
-          // Sem a seção de experiência a avaliação fica injusta (só o título):
-          // recarrega o perfil uma vez antes de avaliar.
-          if (!profile.hasExperience) {
-            say(`Carregando as experiências de ${card.name}…`);
-            await navigate(tabId, card.url);
-            profile = await command(tabId, "readProfile");
-          }
+          const profile = await readFullProfile(tabId, card, { say, signal, checkpoint });
 
           await checkpoint();
           say(`Avaliando ${card.name} frente à vaga…`);
