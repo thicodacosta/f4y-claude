@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JourneyLab · ToolsKit",
-  "version": "1.22.0",
+  "version": "1.23.0",
   "description": "Entrevistas, currículos, comparativo, pesquisa salarial, turnover, prompts, Shortlist no LinkedIn e Chat com IA para RH.",
   "icons": {
     "16": "icons/icon-16.png",

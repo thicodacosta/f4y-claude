@@ -1552,6 +1552,70 @@ input[type="search"] {
   color: var(--success);
 }
 
+ol.cv-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+.sl-rank {
+  display: inline-block;
+  min-width: 28px;
+  color: var(--primary-ink);
+  font-weight: 700;
+}
+
+.sl-url a {
+  color: var(--primary-ink);
+  overflow-wrap: anywhere;
+}
+
+.sl-reqs {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.sl-reqs > summary {
+  cursor: pointer;
+  color: var(--primary-ink);
+  font-weight: 600;
+}
+
+.sl-reqs__list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.sl-req {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  line-height: 18px;
+}
+
+.sl-req__level {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+.sl-req.is-atende .sl-req__level {
+  color: var(--success);
+}
+
+.sl-req.is-parcial .sl-req__level {
+  color: var(--warning, #b7791f);
+}
+
+.sl-req__evidence {
+  grid-column: 2;
+  color: var(--muted);
+}
+
 .sl-below {
   margin-top: 16px;
   border: 1px solid var(--border);

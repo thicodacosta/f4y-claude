@@ -157,7 +157,7 @@ export async function groqChatStream({ apiKey, model = GROQ_MODEL, messages, web
  * O schema precisa ter todos os campos em `required` e
  * `additionalProperties: false` em todos os objetos.
  */
-export async function groqStructured({ apiKey, system, user, name, schema, reasoningEffort = "medium", model, signal }) {
+export async function groqStructured({ apiKey, system, user, name, schema, reasoningEffort = "medium", model, temperature, signal }) {
   const data = await chat({
     apiKey,
     signal,
@@ -169,6 +169,7 @@ export async function groqStructured({ apiKey, system, user, name, schema, reaso
       ],
       reasoning_effort: reasoningEffort,
       max_completion_tokens: 32000,
+      ...(temperature != null && { temperature }),
       response_format: { type: "json_schema", json_schema: { name, strict: true, schema } },
     },
   });

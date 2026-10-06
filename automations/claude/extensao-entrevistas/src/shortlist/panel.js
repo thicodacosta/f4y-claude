@@ -1,13 +1,16 @@
-/** Aba "Shortlist": JD → busca manual no LinkedIn → conexão automática com os aderentes. */
+/**
+ * Aba "Shortlist": JD → busca manual no LinkedIn → ranking de até 10
+ * candidatos com compatibilidade de 0 a 100 e o link de cada perfil. Só lê o
+ * LinkedIn: não conecta nem envia convites ou mensagens.
+ */
 import { FriendlyError } from "../errors.js";
-import { $, copyText, el, showError } from "../ui.js";
+import { $, copyText, el, saveBlob, showError } from "../ui.js";
 import {
   LINKEDIN_PEOPLE_SEARCH,
-  MAX_INVITES,
+  MAX_CANDIDATES,
   createPauser,
   findLinkedInTab,
   runShortlist,
-  statusLabel,
   suggestSearch,
 } from "./runner.js";
 import { loadLinkedInSettings } from "./settings.js";
@@ -16,10 +19,12 @@ let getGroqKey = () => null;
 let abort = null;
 let pauser = null;
 let lastStatus = "";
-let job = null; // análise da JD (reaproveitada ao iniciar, se a JD não mudou)
-let jobJd = "";
 let candidates = [];
+let minScore = 70;
+let lastResult = null;
 let openedThisSession = false;
+
+const LEVEL_LABEL = { atende: "Atende", parcial: "Parcial", nao_evidenciado: "Não evidenciado" };
 
 function show(section) {
   $("sl-form").hidden = section !== "form";
@@ -27,68 +32,80 @@ function show(section) {
   $("sl-result").hidden = section !== "result";
 }
 
-// ---- Lista de candidatos -------------------------------------------------------
+const isCompatible = (c) => c.compatibilidade != null && c.compatibilidade >= minScore;
+const byScore = (a, b) => (b.compatibilidade ?? -1) - (a.compatibilidade ?? -1);
 
-function candidateItem(c) {
-  const li = el("li", "cv-item");
-  const top = el("div", "cv-item__top");
+// ---- Ranking -------------------------------------------------------------------
+
+function candidateItem(c, position) {
+  const li = el("li", "cv-item sl-candidate");
   const text = el("div", "cv-item__text");
   const name = el("p", "cv-item__name");
+  if (position) name.append(el("span", "sl-rank", `${position}º`), " ");
   const link = el("a", null, c.nome);
   link.href = c.url;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
   name.append(link);
-  if (c.aderencia != null) name.append(" · ", el("span", "sl-score", `${c.aderencia}%`));
-  const detail = [c.cargoAtual, c.empresaAtual, c.local].filter(Boolean).join(" · ");
-  const ok = c.status === "enviado" || c.status === "simulado";
-  const statusClass = c.status === "analisando" ? " is-working" : ok ? " is-ok" : "";
-  text.append(
-    name,
-    ...(detail ? [el("p", "cv-item__status", detail)] : []),
-    el("p", `cv-item__status${statusClass}`, c.status === "analisando" ? "Analisando…" : statusLabel(c.status)),
-  );
-  if (c.resumo) text.append(el("p", "cv-item__status", c.resumo));
-  // Abaixo da aderência: mostra o que faltou, para a recrutadora entender a nota.
-  if (c.aderencia != null && !isAdherent(c) && c.avaliacoes) {
-    const gaps = (nivel) => c.avaliacoes.filter((a) => a.nivel === nivel).map((a) => a.descricao);
-    const missing = gaps("nao_evidenciado");
-    const partial = gaps("parcial");
-    if (missing.length) text.append(el("p", "cv-item__status sl-gap", `Não aparece no perfil: ${missing.join("; ")}`));
-    if (partial.length) text.append(el("p", "cv-item__status", `Parcial: ${partial.join("; ")}`));
+  if (c.compatibilidade != null) name.append(" · ", el("span", "sl-score", `${c.compatibilidade}%`));
+  text.append(name);
+
+  if (c.status === "analisando") {
+    text.append(el("p", "cv-item__status is-working", "Analisando…"));
+  } else if (c.status === "erro") {
+    text.append(el("p", "cv-item__status is-error", c.detalhe ?? "Não foi possível ler o perfil."));
+  } else {
+    const detail = [c.titulo, c.conexao].filter(Boolean).join(" · ");
+    if (detail) text.append(el("p", "cv-item__status", detail));
+    if (c.resumo) text.append(el("p", "cv-item__status", c.resumo));
     if (c.semExperiencia) {
-      text.append(el("p", "cv-item__status", "O LinkedIn não mostrou a seção de experiência deste perfil; a nota considerou só o topo."));
+      text.append(el("p", "cv-item__status", "O LinkedIn não mostrou a seção de experiência; a análise considerou só o topo do perfil."));
+    }
+    const url = el("p", "cv-item__status sl-url");
+    const urlLink = el("a", null, c.url.replace("https://www.", ""));
+    urlLink.href = c.url;
+    urlLink.target = "_blank";
+    urlLink.rel = "noopener noreferrer";
+    url.append(urlLink);
+    text.append(url);
+
+    if (c.avaliacoes?.length) {
+      const details = el("details", "sl-reqs");
+      details.append(el("summary", null, "Avaliação por requisito"));
+      const list = el("ul", "sl-reqs__list");
+      for (const a of c.avaliacoes) {
+        const item = el("li", `sl-req is-${a.nivel}`);
+        item.append(
+          el("span", "sl-req__level", LEVEL_LABEL[a.nivel]),
+          el("span", "sl-req__desc", `${a.descricao}${a.tipo === "desejavel" ? " (desejável)" : ""}`),
+          ...(a.evidencia ? [el("span", "sl-req__evidence", a.evidencia)] : []),
+        );
+        list.append(item);
+      }
+      details.append(list);
+      text.append(details);
     }
   }
-  top.append(text);
-  li.append(top);
+  li.append(text);
   return li;
 }
 
-let minScore = 70;
-
-function isAdherent(c) {
-  return c.aderencia != null && c.aderencia >= minScore;
-}
-
-/**
- * Os aderentes (e o perfil em análise) ficam na lista principal; os abaixo
- * da aderência mínima, numa lista recolhida com o que faltou em cada um.
- */
 function renderList() {
-  const visible = candidates.filter((c) => c.status === "analisando" || isAdherent(c));
-  $("sl-list").replaceChildren(...visible.map(candidateItem));
-  const below = candidates
-    .filter((c) => c.status !== "analisando" && c.aderencia != null && !isAdherent(c))
-    .sort((a, b) => b.aderencia - a.aderencia);
-  $("sl-below").replaceChildren(...below.map(candidateItem));
-  $("sl-below-box").hidden = below.length === 0;
-  $("sl-below-title").textContent = `Perfis abaixo de ${minScore}% (${below.length})`;
+  const compatible = candidates.filter(isCompatible).sort(byScore);
+  const analyzing = candidates.filter((c) => c.status === "analisando");
+  $("sl-list").replaceChildren(
+    ...compatible.map((c, i) => candidateItem(c, i + 1)),
+    ...analyzing.map((c) => candidateItem(c)),
+  );
+
+  const others = candidates.filter((c) => c.status !== "analisando" && !isCompatible(c)).sort(byScore);
+  $("sl-below").replaceChildren(...others.map((c) => candidateItem(c)));
+  $("sl-below-box").hidden = others.length === 0;
+  $("sl-below-title").textContent = `Perfis abaixo de ${minScore}% ou não lidos (${others.length})`;
+
   const analyzed = candidates.filter((c) => c.status !== "analisando");
-  const skipped = analyzed.filter((c) => c.aderencia == null).length;
   $("sl-analyzed").textContent = analyzed.length
-    ? `Perfis analisados: ${analyzed.length} · aderentes: ${analyzed.filter(isAdherent).length} · abaixo de ${minScore}%: ${below.length}` +
-      (skipped ? ` · já conectados ou com convite pendente: ${skipped}` : "")
+    ? `Perfis analisados: ${analyzed.length} · com ${minScore}% ou mais: ${compatible.length}`
     : "";
 }
 
@@ -99,26 +116,31 @@ function upsert(candidate) {
   renderList();
 }
 
-function summaryText(result) {
-  const invited = result.candidates.filter((c) => c.status === "enviado" || c.status === "simulado");
-  const adherent = result.candidates.filter(isAdherent);
+function rankingText(result) {
+  const compatible = result.candidates.filter(isCompatible).sort(byScore);
   const lines = [
-    `Shortlist: ${result.job.tituloVaga}${result.dryRun ? " (simulação)" : ""}`,
+    `Shortlist: ${result.job?.vaga?.titulo ?? "vaga"}`,
     `Data: ${new Date().toLocaleDateString("pt-BR")}`,
-    `${result.dryRun ? "Convites preparados" : "Convites enviados"}: ${invited.length} de ${result.limit} · ` +
-      `perfis analisados: ${result.candidates.length} · aderentes (${minScore}% ou mais): ${adherent.length}`,
+    `Candidatos com ${minScore}% ou mais: ${compatible.length} · perfis analisados: ${result.candidates.length}`,
     "",
-    ...adherent.map(
+    ...compatible.map(
       (c, i) =>
-        `${i + 1}. ${c.nome}${c.aderencia != null ? ` (${c.aderencia}%)` : ""}: ${statusLabel(c.status)}` +
-        `${c.cargoAtual ? `\n   ${[c.cargoAtual, c.empresaAtual, c.local].filter(Boolean).join(" · ")}` : ""}\n   ${c.url}`,
+        `${i + 1}. ${c.nome} (${c.compatibilidade}%)${c.titulo ? `\n   ${c.titulo}` : ""}${c.resumo ? `\n   ${c.resumo}` : ""}\n   ${c.url}`,
     ),
   ];
-  for (const c of invited.filter((x) => x.nota)) lines.push("", `Nota para ${c.nome}: "${c.nota}"`);
   return lines.join("\n");
 }
 
-let lastResult = null;
+/** Planilha (.csv, separador ";" para o Excel em português). */
+function rankingCsv(result) {
+  const cell = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+  const rows = [["Posição", "Nome", "Compatibilidade (%)", "Título", "Resumo", "LinkedIn", "Acima do mínimo"]];
+  result.candidates
+    .filter((c) => c.compatibilidade != null)
+    .sort(byScore)
+    .forEach((c, i) => rows.push([i + 1, c.nome, c.compatibilidade, c.titulo, c.resumo, c.url, isCompatible(c) ? "Sim" : "Não"]));
+  return "﻿" + rows.map((r) => r.map(cell).join(";")).join("\r\n");
+}
 
 // ---- LinkedIn --------------------------------------------------------------------
 
@@ -144,8 +166,10 @@ export async function onShortlistShown() {
       " antes da primeira Shortlist.",
     );
   }
-  $("sl-min").value = String(settings.aderenciaMinima);
-  if (!abort) minScore = settings.aderenciaMinima;
+  if (!abort) {
+    $("sl-min").value = String(settings.aderenciaMinima);
+    minScore = settings.aderenciaMinima;
+  }
   if (openedThisSession || abort) return;
   openedThisSession = true;
   if (!(await findLinkedInTab())) await openLinkedIn();
@@ -161,11 +185,10 @@ async function suggestTerms() {
   button.disabled = true;
   button.textContent = "Analisando a vaga…";
   try {
-    job = await suggestSearch({ apiKey: groqKey, jd });
-    jobJd = jd;
+    const search = await suggestSearch({ apiKey: groqKey, jd });
     $("sl-terms").hidden = false;
     $("sl-terms").replaceChildren(
-      ...job.termosBusca.map((term) => {
+      ...search.termosBusca.map((term) => {
         const chip = el("button", "chip", term);
         chip.type = "button";
         chip.title = "Buscar este termo no LinkedIn";
@@ -188,6 +211,31 @@ async function suggestTerms() {
 
 // ---- Execução ----------------------------------------------------------------------
 
+function setPauseButton(paused) {
+  const button = $("sl-pause");
+  button.textContent = paused ? "Retomar busca" : "Pausar busca";
+  button.setAttribute("aria-pressed", String(paused));
+  button.classList.toggle("btn--primary", paused);
+  button.classList.toggle("btn--ghost", !paused);
+}
+
+function finish(result, quantidade) {
+  lastResult = result;
+  const compatible = result.candidates.filter(isCompatible).length;
+  const parts = [
+    `${result.finishedEarly ? "Shortlist finalizada por você" : "Shortlist concluída"}: ${compatible} de ${quantidade} candidatos com ${minScore}% ou mais.`,
+    `${result.candidates.length} perfis analisados.`,
+  ];
+  if (!result.finishedEarly && compatible < quantidade) {
+    parts.push("Não havia mais perfis compatíveis nesta busca: amplie a busca no LinkedIn (cargo, localidade) e rode de novo.");
+  }
+  $("sl-summary").textContent = parts.join(" ");
+  // Perfis que ficaram "analisando" (ex.: erro no meio) saem da lista.
+  candidates = candidates.filter((c) => c.status !== "analisando");
+  renderList();
+  show("result");
+}
+
 async function start(event) {
   event.preventDefault();
   showError("sl-error", null);
@@ -202,31 +250,27 @@ async function start(event) {
     return showError("sl-error", "Abrimos o LinkedIn: faça a busca de pessoas e depois clique em “Iniciar Shortlist”.");
   }
 
-  const settings = await loadLinkedInSettings();
-  const quantidade = Math.min(Number($("sl-qtd").value), MAX_INVITES);
+  const quantidade = Math.min(Number($("sl-qtd").value), MAX_CANDIDATES);
   minScore = Number($("sl-min").value);
-  const dryRun = $("sl-dry").checked;
   candidates = [];
   renderList();
   abort = new AbortController();
   pauser = createPauser();
   setPauseButton(false);
-  $("sl-mode").textContent = dryRun ? "Simulação em andamento" : "Shortlist em andamento";
+  $("sl-stop").disabled = false;
+  $("sl-mode").textContent = "Shortlist em andamento";
   $("sl-progress").textContent = `0/${quantidade}`;
   $("sl-status").textContent = "Iniciando…";
   show("running");
   await chrome.tabs.update(tab.id, { active: true });
 
   try {
-    lastResult = await runShortlist({
+    const result = await runShortlist({
       groqKey,
       tabId: tab.id,
       jd,
-      job: jd === jobJd ? job : null,
       quantidade,
       aderenciaMinima: minScore,
-      settings,
-      dryRun,
       signal: abort.signal,
       pauser,
       onEvent: (e) => {
@@ -239,40 +283,34 @@ async function start(event) {
           $("sl-status").textContent = "Pausada. A aba do LinkedIn está livre; clique em “Retomar busca” para continuar.";
         }
         if (e.type === "resumed") {
-          $("sl-mode").textContent = dryRun ? "Simulação em andamento" : "Shortlist em andamento";
+          $("sl-mode").textContent = "Shortlist em andamento";
           $("sl-status").textContent = lastStatus;
+        }
+        if (e.type === "removed") {
+          candidates = candidates.filter((c) => c.url !== e.url);
+          renderList();
         }
         if (e.type === "candidate") {
           upsert(e.candidate);
-          const done = candidates.filter((c) => c.status === "enviado" || c.status === "simulado").length;
-          $("sl-progress").textContent = `${done}/${quantidade}`;
+          $("sl-progress").textContent = `${candidates.filter(isCompatible).length}/${quantidade}`;
         }
       },
     });
-    const done = lastResult.candidates.filter((c) => c.status === "enviado" || c.status === "simulado").length;
-    $("sl-summary").textContent =
-      `${dryRun ? "Simulação concluída" : "Shortlist concluída"}: ${done} de ${quantidade} ${dryRun ? "convites preparados" : "convites enviados"}. ` +
-      `${lastResult.candidates.length} perfis analisados; ${lastResult.candidates.filter(isAdherent).length} com ${minScore}% ou mais.` +
-      (done < quantidade ? " Não havia mais perfis aderentes nesta busca: amplie a busca no LinkedIn (cargo, localidade) e rode de novo." : "");
-    show("result");
+    finish(result, quantidade);
   } catch (error) {
     console.error(error);
-    lastResult = { job: job ?? { tituloVaga: "vaga" }, candidates, limit: quantidade, dryRun };
-    $("sl-summary").textContent = error instanceof FriendlyError ? error.message : "A Shortlist parou por um erro inesperado.";
-    show(candidates.length ? "result" : "form");
-    if (!candidates.length) showError("sl-error", $("sl-summary").textContent);
+    const message = error instanceof FriendlyError ? error.message : "A Shortlist parou por um erro inesperado.";
+    if (candidates.some((c) => c.status !== "analisando")) {
+      finish({ job: null, candidates, finishedEarly: true }, quantidade);
+      $("sl-summary").textContent = `${message} Abaixo, o que foi analisado até aqui.`;
+    } else {
+      show("form");
+      showError("sl-error", message);
+    }
   } finally {
     abort = null;
     pauser = null;
   }
-}
-
-function setPauseButton(paused) {
-  const button = $("sl-pause");
-  button.textContent = paused ? "Retomar busca" : "Pausar busca";
-  button.setAttribute("aria-pressed", String(paused));
-  button.classList.toggle("btn--primary", paused);
-  button.classList.toggle("btn--ghost", !paused);
 }
 
 export function initShortlistArea({ groqKeyGetter }) {
@@ -282,8 +320,6 @@ export function initShortlistArea({ groqKeyGetter }) {
   $("sl-open").addEventListener("click", () => openLinkedIn());
   $("sl-clear").addEventListener("click", () => {
     $("sl-jd").value = "";
-    job = null;
-    jobJd = "";
     $("sl-terms").hidden = true;
     $("sl-terms").replaceChildren();
     showError("sl-error", null);
@@ -301,13 +337,19 @@ export function initShortlistArea({ groqKeyGetter }) {
       $("sl-status").textContent = "Pausando após a ação atual…";
     }
   });
+  // "Finalizar": encerra antes da quantidade escolhida e mostra o ranking até aqui.
   $("sl-stop").addEventListener("click", () => {
-    $("sl-status").textContent = "Parando após a ação atual…";
+    if (!abort) return;
+    $("sl-status").textContent = "Finalizando e montando o ranking…";
+    $("sl-stop").disabled = true;
     pauser?.resume();
-    abort?.abort();
+    abort.abort();
   });
-  $("sl-copy").addEventListener("click", () => copyText(summaryText(lastResult), "sl-copy-status", "Resumo copiado."));
-  // Cada Shortlist tem no máximo 5 convites: para mais, recomeça.
+  $("sl-copy").addEventListener("click", () => copyText(rankingText(lastResult), "sl-copy-status", "Ranking copiado."));
+  $("sl-csv").addEventListener("click", () => {
+    const date = new Date().toISOString().slice(0, 10);
+    saveBlob(new Blob([rankingCsv(lastResult)], { type: "text/csv;charset=utf-8" }), `shortlist-${date}.csv`);
+  });
   $("sl-new").addEventListener("click", () => {
     candidates = [];
     lastResult = null;

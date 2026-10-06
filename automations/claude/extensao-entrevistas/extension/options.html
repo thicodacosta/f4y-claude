@@ -121,33 +121,14 @@
 
       <section class="group" aria-labelledby="linkedin-title">
         <h2 id="linkedin-title" class="subtitle">Integração com o LinkedIn</h2>
-        <p class="hint branding-intro">Usada pela Shortlist, que se conecta aos candidatos aderentes em nome da recrutadora, usando a sessão do LinkedIn aberta neste Chrome.</p>
+        <p class="hint branding-intro">Usada pela Shortlist, que lê a busca de pessoas e os perfis do LinkedIn na sessão aberta neste Chrome para montar o ranking de candidatos. A extensão não conecta, não envia convites nem mensagens.</p>
         <div class="linkedin-status">
           <p id="li-status" class="hint" role="status">Não conectado.</p>
           <button type="button" id="li-connect" class="btn btn--ghost">Conectar ao LinkedIn</button>
         </div>
         <form id="li-form" novalidate>
           <div class="field">
-            <label for="li-assinatura">Assinatura da nota</label>
-            <input id="li-assinatura" type="text" autocomplete="name" placeholder="Ex.: Thiago" />
-          </div>
-          <label class="consent">
-            <input type="checkbox" id="li-incluir-nota" />
-            <span>Incluir nota no convite</span>
-          </label>
-          <label class="consent">
-            <input type="checkbox" id="li-personalizar" />
-            <span>Personalizar a nota para cada candidato com IA (cita a experiência da pessoa, até 200 caracteres). Desmarcado, usa o modelo abaixo trocando só o nome.</span>
-          </label>
-          <div class="field">
-            <label for="li-modelo">Modelo da nota (usado quando a personalização com IA está desligada)</label>
-            <textarea id="li-modelo" rows="4" maxlength="300" aria-describedby="li-modelo-hint"></textarea>
-            <p id="li-modelo-hint" class="hint">
-              <span id="li-modelo-count">0</span>/300 · Campos: {nome}, {perfil}, {local} e {assinatura}, preenchidos a partir da JD e do perfil. Contas gratuitas do LinkedIn aceitam 200 caracteres e poucas notas por mês.
-            </p>
-          </div>
-          <div class="field">
-            <label for="li-aderencia">Aderência mínima para conectar</label>
+            <label for="li-aderencia">Compatibilidade mínima padrão da Shortlist</label>
             <select id="li-aderencia">
               <option value="60">60%</option>
               <option value="70">70%</option>
@@ -155,16 +136,10 @@
               <option value="90">90%</option>
             </select>
           </div>
-          <label class="consent">
-            <input type="checkbox" id="li-sem-nota" />
-            <span>Se o LinkedIn não permitir nota, enviar o convite sem nota</span>
-          </label>
           <p id="li-form-status" class="hint" role="status"></p>
           <div class="actions">
             <button type="submit" class="btn btn--primary">Salvar LinkedIn</button>
-            <button type="button" id="li-reset" class="btn btn--ghost">Restaurar nota padrão</button>
           </div>
-          <p class="hint">Automatizar ações vai contra os termos de uso do LinkedIn e pode levar à restrição da conta. A Shortlist limita cada execução a 5 convites, com pausas entre eles; use com moderação.</p>
         </form>
       </section>
 
