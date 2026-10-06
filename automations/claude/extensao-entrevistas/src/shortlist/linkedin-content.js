@@ -1,10 +1,11 @@
 /**
- * Roda dentro da aba do LinkedIn, injetado pela Shortlist. Lê a busca de
- * pessoas e os perfis, e executa "Conectar → Adicionar nota → Enviar".
+ * Roda dentro da aba do LinkedIn, injetado pela Shortlist. Só lê: os
+ * resultados da busca de pessoas e os perfis abertos. Não clica em Conectar,
+ * não envia convites nem mensagens.
  *
  * O LinkedIn troca nomes de classes com frequência: tudo aqui se orienta por
  * textos visíveis e rótulos de acessibilidade (português e inglês), não por
- * classes. Nunca envia nada sem um comando explícito da extensão.
+ * classes.
  */
 (() => {
   if (window.__f4yLinkedIn) return;
@@ -12,10 +13,6 @@
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const clean = (text) => (text ?? "").replace(/\s+/g, " ").trim();
-  // offsetParent não serve: é null em elementos com position: fixed (os
-  // diálogos do LinkedIn).
-  const visible = (el) =>
-    Boolean(el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden");
   // "1º"/"1st" = já é conexão. (\b não funciona depois de "º".)
   const FIRST_DEGREE = /(^|[^\d])1º|\b1st\b/;
 
@@ -27,36 +24,6 @@
       await sleep(step);
     }
     return null;
-  }
-
-  const label = (el) => clean(el.getAttribute("aria-label") || el.innerText || el.textContent);
-
-  // Shadow root fechado: só a API de extensões alcança. Para não consultar
-  // todos os elementos, tenta só nos candidatos a host (elementos
-  // personalizados e o #interop-outlet do LinkedIn).
-  const shadowOf = (el) =>
-    el.id === "interop-outlet" || el.localName.includes("-") ? (chrome.dom?.openOrClosedShadowRoot?.(el) ?? null) : null;
-
-  /**
-   * querySelectorAll que entra nos shadow roots (abertos e fechados). O LinkedIn (2026)
-   * desenha o diálogo de convite dentro de um shadow DOM (#interop-outlet),
-   * invisível para o querySelectorAll comum.
-   */
-  function deepQueryAll(selector, root = document) {
-    const found = [...root.querySelectorAll(selector)];
-    for (const el of root.querySelectorAll("*")) {
-      const shadow = el.shadowRoot ?? shadowOf(el);
-      if (shadow) found.push(...deepQueryAll(selector, shadow));
-    }
-    return found;
-  }
-
-  /** Botões/itens clicáveis visíveis dentro de `root` cujo texto ou rótulo casa com `pattern`. */
-  function findClickable(root, pattern) {
-    if (!root) return null;
-    return deepQueryAll('button, a, [role="button"], [role="menuitem"], div[tabindex]', root).find(
-      (el) => visible(el) && pattern.test(label(el)),
-    );
   }
 
   function profileUrl(href) {
@@ -128,15 +95,11 @@
       if (owner && profileUrl(owner.getAttribute("href")) !== url) continue;
       const text = clean(card.innerText);
       if (/^(promovido|promoted)\b/i.test(text)) continue;
-      // Link de convite do próprio cartão (LinkedIn 2026):
-      // <a aria-label="Convidar Fulano para se conectar" href="/preload/search-custom-invite/?vanityName=…">
-      const invite = card.querySelector('a[href*="custom-invite"]');
       cards.set(url, {
         url,
         name,
         text: text.slice(0, 600),
         firstDegree: FIRST_DEGREE.test(text),
-        inviteUrl: invite ? new URL(invite.getAttribute("href"), location.origin).href : null,
       });
     }
     return [...cards.values()];
@@ -227,148 +190,12 @@
       url: profileUrl(location.href),
       name: clean(document.querySelector("main h1, main h2")?.innerText),
       firstDegree: FIRST_DEGREE.test(cardText),
-      pending: Boolean(findClickable(card, /^(pendente|pending)\b/i)),
+      // Linha abaixo do nome: o título profissional do perfil.
+      headline: textLines(card).find((line, i) => i > 0 && !/^·|^\d+º|^(he|she|ele|ela)\//i.test(line)) ?? "",
       hasExperience: hasExperience(),
       sections: relevant.map((s) => s.title),
       text: text.slice(0, 14000),
     };
-  }
-
-  // ---- Conectar ---------------------------------------------------------------
-
-  const CONNECT = /^(conectar|connect)$|(convidar|invite) .*(conectar|connect)/i;
-  const MORE = /^(mais|more)$|mais ações|more actions/i;
-  const ADD_NOTE = /adicionar (uma )?nota|add a note/i;
-  const SEND = /^(enviar|send)( convite| invitation| now| agora)?$/i;
-  const SEND_WITHOUT_NOTE = /enviar sem (uma )?nota|send without a note/i;
-  const CLOSE = /^(cancelar|cancel|fechar|dismiss|descartar)$|fechar|dismiss/i;
-
-  // Diálogos do LinkedIn: role="dialog" (artdeco-modal) ou <dialog> nativo.
-  const DIALOG = '[role="dialog"], [role="alertdialog"], dialog[open], [aria-modal="true"], .artdeco-modal';
-  const dialog = () => deepQueryAll(DIALOG).find(visible);
-  // Campo da nota: textarea ou, em versões novas, um editor de texto rico.
-  const NOTE_FIELD = 'textarea, [contenteditable="true"], [role="textbox"]';
-  const noteField = () => {
-    const d = dialog();
-    return d && deepQueryAll(NOTE_FIELD, d).find(visible);
-  };
-
-  async function closeDialog() {
-    const d = dialog();
-    const close = d && (findClickable(d, CLOSE) ?? deepQueryAll("button[aria-label]", d)[0]);
-    close?.click();
-    await sleep(500);
-  }
-
-  /** Escreve no campo de forma que o LinkedIn reconheça (como se fosse digitado). */
-  function typeInto(field, text) {
-    field.focus();
-    if (field.isContentEditable) {
-      document.execCommand("selectAll", false);
-      document.execCommand("insertText", false, text);
-      // Dentro de shadow DOM o execCommand pode não chegar ao editor.
-      if (clean(field.innerText) !== clean(text)) {
-        field.textContent = text;
-        field.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: text }));
-      }
-      return;
-    }
-    field.select?.();
-    const ok = document.execCommand("insertText", false, text);
-    if (!ok || field.value !== text) {
-      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set;
-      setter.call(field, text);
-      field.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
-      field.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
-    }
-  }
-
-  async function openConnectDialog() {
-    const card = topCard();
-    let button = findClickable(card, CONNECT);
-    if (!button) {
-      const more = findClickable(card, MORE);
-      if (!more) return false;
-      more.click();
-      button = await waitFor(() => {
-        const menus = deepQueryAll('[role="menu"], .artdeco-dropdown__content, [data-test-dropdown]').filter(visible);
-        for (const menu of menus) {
-          const item = findClickable(menu, CONNECT);
-          if (item) return item;
-        }
-        return null;
-      }, 3000);
-      if (!button) {
-        document.body.click();
-        return false;
-      }
-    }
-    button.click();
-    return Boolean(await waitFor(dialog, 6000));
-  }
-
-  const enabled = (b) => b && !b.disabled && b.getAttribute("aria-disabled") !== "true";
-
-  /**
-   * `dialogOnly`: a página de convite já foi aberta pela extensão
-   * (linkedin.com/preload/custom-invite/…): só espera o diálogo.
-   */
-  async function connect({ note, allowNoNote, dryRun, dialogOnly = false }) {
-    if (dialogOnly) {
-      if (!(await waitFor(dialog, 10000))) return { status: "sem_botao" };
-    } else {
-      if (findClickable(topCard(), /^(pendente|pending)\b/i)) return { status: "pendente" };
-      if (!(await openConnectDialog())) return { status: "sem_botao" };
-    }
-
-    // Alguns perfis pedem o e-mail do candidato para convidar.
-    const current = dialog();
-    if (current && deepQueryAll('input[type="email"]', current).length) {
-      await closeDialog();
-      return { status: "exige_email" };
-    }
-
-    // Com nota: "Adicionar nota" abre o campo. Sem o botão (ex.: limite de
-    // notas da conta gratuita), só segue sem nota se o usuário permitir.
-    let field = noteField();
-    if (!field && note) {
-      const addNote = findClickable(dialog(), ADD_NOTE);
-      if (addNote) {
-        addNote.click();
-        field = await waitFor(noteField, 5000);
-      }
-    }
-    const withNote = Boolean(field && note);
-    if (note && !withNote && !allowNoNote) {
-      await closeDialog();
-      return { status: "sem_nota" };
-    }
-    if (withNote) {
-      const max = Number(field.getAttribute("maxlength")) || 300;
-      typeInto(field, note.slice(0, max));
-      await sleep(400);
-    }
-
-    const send = await waitFor(() => {
-      const d = dialog();
-      if (!d) return null;
-      const button = withNote ? findClickable(d, SEND) : findClickable(d, SEND_WITHOUT_NOTE) ?? findClickable(d, SEND);
-      return enabled(button) ? button : null;
-    }, 5000);
-    if (!send) {
-      await closeDialog();
-      return { status: "erro", detail: "Botão de envio não encontrado." };
-    }
-    if (dryRun) {
-      await closeDialog();
-      return { status: "simulado", withNote };
-    }
-
-    send.click();
-    const closed = await waitFor(() => !dialog(), 8000);
-    if (!closed) return { status: "erro", detail: "O LinkedIn não fechou o convite após o envio." };
-    const pending = dialogOnly ? null : await waitFor(() => findClickable(topCard(), /^(pendente|pending)\b/i), 4000);
-    return { status: "enviado", withNote, confirmed: Boolean(pending) };
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -377,7 +204,6 @@
       status: async () => status(),
       readSearch,
       readProfile,
-      connect: () => connect(message),
     }[message.cmd];
     if (!run) return false;
     Promise.resolve(run())

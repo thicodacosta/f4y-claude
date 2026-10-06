@@ -5,7 +5,7 @@ import { normalizeLayout } from "./cv/layout.js";
 import { FriendlyError } from "./errors.js";
 import { hasEmbeddedKeys, loadKeys } from "./keys.js";
 import { getTheme, initTheme, setTheme } from "./theme.js";
-import { DEFAULT_NOTE, loadLinkedInSettings, saveLinkedInSettings } from "./shortlist/settings.js";
+import { loadLinkedInSettings, saveLinkedInSettings } from "./shortlist/settings.js";
 import { LINKEDIN_PEOPLE_SEARCH, findLinkedInTab, linkedInStatus } from "./shortlist/runner.js";
 
 const $ = (id) => document.getElementById(id);
@@ -267,36 +267,13 @@ function renderLinkedInStatus(settings) {
   $("li-connect").textContent = settings.conectado ? "Verificar de novo" : "Conectar ao LinkedIn";
 }
 
-function renderNoteCount() {
-  $("li-modelo-count").textContent = $("li-modelo").value.length;
-}
-
 const liSettings = await loadLinkedInSettings();
-$("li-assinatura").value = liSettings.assinatura;
-$("li-incluir-nota").checked = liSettings.incluirNota;
-$("li-personalizar").checked = liSettings.personalizarNota;
-$("li-modelo").value = liSettings.modeloNota;
 $("li-aderencia").value = String(liSettings.aderenciaMinima);
-$("li-sem-nota").checked = liSettings.enviarSemNota;
-renderNoteCount();
 renderLinkedInStatus(liSettings);
-
-$("li-modelo").addEventListener("input", renderNoteCount);
-$("li-reset").addEventListener("click", () => {
-  $("li-modelo").value = DEFAULT_NOTE;
-  renderNoteCount();
-});
 
 $("li-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  await saveLinkedInSettings({
-    assinatura: $("li-assinatura").value.trim(),
-    incluirNota: $("li-incluir-nota").checked,
-    personalizarNota: $("li-personalizar").checked,
-    modeloNota: $("li-modelo").value.trim() || DEFAULT_NOTE,
-    aderenciaMinima: Number($("li-aderencia").value),
-    enviarSemNota: $("li-sem-nota").checked,
-  });
+  await saveLinkedInSettings({ aderenciaMinima: Number($("li-aderencia").value) });
   $("li-form-status").textContent = "Configurações do LinkedIn salvas.";
 });
 

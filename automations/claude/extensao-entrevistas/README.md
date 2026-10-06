@@ -273,38 +273,39 @@ preserva a transcrição para tentar de novo.
 
 ## Shortlist no LinkedIn (aba "Shortlist")
 
+Identifica e ranqueia candidatos a partir da JD. **Só lê o LinkedIn:** não
+clica em Conectar, não envia convites nem mensagens (o código de convite foi
+removido na v1.23.0, para não travar a aba nem arriscar restrição da conta).
+
 1. Ao abrir a aba, a extensão abre o LinkedIn (busca de pessoas), se ainda não
    houver uma aba dele.
-2. A recrutadora cola a JD. "Sugerir termos de busca" analisa a vaga e sugere
-   buscas (cargo + cidade) que abrem direto no LinkedIn.
-3. Ela faz a busca de pessoas manualmente, aplica filtros e deixa a página de
-   resultados aberta.
-4. Escolhe quantos convites (1 a 5; para mais, recomeça) e a aderência mínima,
-   e clica em **Iniciar Shortlist**.
-5. A extensão assume a aba do LinkedIn: lê os resultados (cada cartão é
-   identificado pelo seu único botão de ação, sem depender das classes do
-   LinkedIn), faz a triagem pelos cartões, abre os perfis mais promissores,
-   avalia cada um frente à JD (mesma regra de aderência do Comparativo, só com
-   requisitos verificáveis num perfil: formação, experiência, ferramentas,
-   certificações, idiomas e setor; nunca CNH, disponibilidade ou modelo de
-   trabalho) e, nos aderentes, clica em Conectar → Adicionar nota → Enviar
-   com uma **nota personalizada pela IA** (cita cargo, empresa ou experiência
-   da pessoa, até 200 caracteres). Pula quem já é conexão, já tem convite
-   pendente ou exige e-mail. O convite é aberto pela **página de convite do
-   LinkedIn**, o mesmo destino do botão "Conectar" do cartão da busca
-   (`/preload/search-custom-invite/?vanityName=…`, capturado da página de
-   resultados; sem ele, `/preload/custom-invite/?vanityName=…`). Se não abrir,
-   tenta o botão do perfil (inclusive dentro de "Mais"). A nota é escrita em
-   campo comum ou editor rico. O diálogo de convite do LinkedIn (2026) fica
-   dentro de um shadow DOM (`#interop-outlet`): o script procura dentro de
-   shadow roots abertos e fechados (`chrome.dom.openOrClosedShadowRoot`). Pausas de 25 a 45s entre convites; no máximo 20
-   perfis abertos e 5 páginas por execução. **Pausar busca** para no próximo
-   ponto seguro (antes de abrir um perfil, de avaliar ou de convidar) e libera
-   a aba do LinkedIn até **Retomar busca**; **Parar** encerra a qualquer momento.
-6. O painel lista os candidatos com a aderência mínima ou mais (padrão 70%).
-   Os demais ficam numa lista recolhida, **"Perfis abaixo de 70%"**, com a nota
-   e o que não aparece no perfil, para a recrutadora ajustar a busca. Ao
-   final, mostra o resumo e volta para a busca.
+2. A recrutadora cola a JD. "Sugerir termos de busca" sugere buscas (cargo +
+   cidade) que abrem direto no LinkedIn.
+3. Ela faz a busca de pessoas, aplica filtros e deixa a página de resultados
+   aberta.
+4. Escolhe quantos candidatos encontrar (1 a 10) e a compatibilidade mínima
+   (padrão 70%, ajustável em Configurações) e clica em **Iniciar Shortlist**.
+5. A extensão lê os resultados (cada cartão é identificado pelo seu único
+   botão de ação, sem depender das classes do LinkedIn), faz a triagem pelos
+   cartões e abre os perfis mais promissores **um a um**, avaliando cada um
+   até encontrar a quantidade pedida com a compatibilidade mínima. Limites: 4
+   perfis por candidato pedido (máx. 40) e 5 páginas da busca; pausa de 4 a
+   8s entre perfis. Perfil que não carrega é pulado, sem derrubar a busca. No
+   limite por minuto da Groq, espera e tenta de novo.
+6. **Pausar busca** para no próximo ponto seguro e libera a aba do LinkedIn
+   até **Retomar busca**; **Finalizar** encerra antes da quantidade escolhida
+   e mostra o ranking encontrado até ali.
+7. Resultado: ranking de 0 a 100% com o link de cada perfil, título, resumo e
+   a avaliação por requisito; os perfis abaixo do mínimo ficam numa lista
+   recolhida. **Copiar ranking** e **Baixar planilha** (.csv com ";", abre no
+   Excel).
+
+**Mesma análise do Comparativo.** Os dois usam `src/compare/method.js`:
+mesmos prompts, schemas e cálculo (`score.js`). Os requisitos de uma JD ficam
+guardados (`requisitosPorJd`, últimas 20 JDs, comparadas sem diferença de
+espaços e maiúsculas) e são reaproveitados pelas duas telas, e a avaliação
+roda com temperatura 0. Teste: o mesmo perfil de QA Engineer tirou 85% em 3
+execuções no Comparativo e 85% em 3 na Shortlist.
 
 **Leitura do perfil:** o LinkedIn só carrega Experiência, Formação e
 Competências ao rolar a página. O script rola o perfil até o fim, espera a
@@ -312,25 +313,10 @@ seção de experiência e envia à IA só o topo do perfil e as seções
 profissionais (Sobre, Experiência, Formação, Licenças e certificados,
 Competências, Idiomas, Projetos…), sem Atividade, Destaques, Interesses nem
 anúncios e sem o texto duplicado para leitores de tela. Sem a seção de
-experiência, recarrega o perfil uma vez antes de avaliar. Lendo só o topo, um
-QA Engineer aderente à vaga tirava 8%; com as seções, 92%.
-
-O modo **Simular** faz tudo, menos o clique final em Enviar: use-o para validar
-a busca e a nota antes do primeiro envio real. A IA roda na Groq
-(`src/shortlist/ai.js`); o script que age na página
-(`src/shortlist/linkedin-content.js`) se orienta por textos e rótulos de
-acessibilidade (português e inglês), não por classes internas do LinkedIn.
+experiência, recarrega o perfil uma vez antes de avaliar.
 
 **Configurações → Integração com o LinkedIn:** conectar (confirma o login na
-sessão do LinkedIn aberta no Chrome, porque não há API oficial para isso),
-assinatura, personalização da nota com IA (padrão ligado), modelo fixo da nota
-para quando a personalização estiver desligada ({nome}, {perfil}, {local},
-{assinatura}), aderência mínima padrão e envio sem nota quando o LinkedIn não
-permitir nota.
-
-**Risco:** automatizar ações vai contra os termos de uso do LinkedIn e pode
-levar à restrição da conta. Os limites acima reduzem esse risco, mas não o
-eliminam.
+sessão do LinkedIn aberta no Chrome) e a compatibilidade mínima padrão.
 
 ## O que existe aqui
 
