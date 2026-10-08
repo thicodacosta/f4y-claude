@@ -1,4 +1,4 @@
-# JourneyLab · ToolsKit (extensão Chrome)
+# Candydate · ToolsKit (extensão Chrome)
 
 Painel lateral do Chrome com oito ferramentas: registro de entrevistas,
 construtor de currículos padronizados, comparativo de candidatos, pesquisa
@@ -13,6 +13,11 @@ disponibilidade, expectativa salarial, pontos positivos, pontos de atenção e
 resumo final. Também aceita uma transcrição colada ou importada (.txt, .vtt,
 .srt, .md). O registro é apoio à documentação, nunca avaliação, nota ou
 decisão.
+
+Login (`src/auth/`), IA (`claude.js`, `groq.js`), PDF (`src/pdf/`), tema e o
+motor do Chat também são usados pela extensão JourneyLab · BP
+(`../extensao-bp/`), que importa direto daqui: mudanças nesses arquivos
+valem para as duas.
 
 Independente do Candydate (`matchwork/chrome-extension/`): não tem login nem
 backend. Chama as APIs direto do navegador com as chaves do próprio
@@ -239,16 +244,14 @@ uma Edge Function do Supabase que só responde a sessões válidas.
 
 ## Interface
 
-Segue o *CRM UI Kit for SaaS Dashboards* (Figma) do mesmo jeito que a
-plataforma JourneyLab: os tokens de `extension/styles.css` são os de
-`journeylab/app/globals.css` (azul muito escuro `#0B1F3A`, verde-água
-`#14B8A6`, texto em verde-água `#0B7A70`, ardósia `#526173`, fundo `#F6F8FA`;
-tema escuro com a ação principal em verde-água). Barra superior no padrão do
-menu lateral do kit (azul-marinho, logo da empresa sobre fundo branco), abas
-no formato de faixa com o item ativo preenchido, raios de 8/12/16px (itens,
-controles, cartões), elevação sutil com viés azulado e anel de foco
-verde-água nos campos. Mudou algo no kit ou na plataforma? Atualize os tokens
-nos dois lugares.
+Segue o design system **Candy Studio** (`design-system/candy-studio/`): índigo
+`#4F46E5` como única cor de ação, neutros na escala zinc, verde/âmbar/vermelho só
+para status, Geist nos títulos e Inter no corpo, bordas de 1px com sombras
+mínimas, raios de 8/12/16px, foco como anel de 4px e barra superior clara e
+translúcida. Tema escuro em zinc-950. Os tokens ficam em `extension/styles.css`
+(o BP copia este arquivo no build). Marca: logo Candydate
+(`extension/icons/candydate-logo.png` e ícones do monograma "C", gerados a
+partir de `design-system/assets/`).
 
 ## Provedores de IA e limites
 
@@ -270,14 +273,13 @@ preserva a transcrição para tentar de novo.
 
 ## Identidade, primeiro acesso, tema e idiomas
 
-- **Marca da plataforma:** JourneyLab. O ícone da extensão e o nome
-  "JourneyLab · ToolsKit" (barra e cabeçalho do Chrome) vêm do
-  manifest; as cores seguem o logo: azul-marinho `#082043`, verde-água
-  `#12C2B4` (em texto, `#087A70` para contraste AA) e cinza `#5F6470`. Arquivos
-  em `design-system/assets/journeylab-logo.png` e `journeylab-symbol.png`.
+- **Marca da plataforma:** Candydate. O ícone da extensão (monograma "C") e o
+  nome "Candydate · ToolsKit" vêm do manifest; cores e tipografia seguem o
+  design system Candy Studio (ver Interface). Arquivos em
+  `design-system/assets/candydate-*` (originais, wordmark limpo e ícones).
 - **Logo no topo do painel:** é o logo da empresa do usuário, escolhido em
   Configurações (Currículos padronizados), o mesmo usado nos currículos. Sem
-  logo, aparece o nome da empresa; sem nada configurado, o logo da JourneyLab.
+  logo, aparece o nome da empresa; sem nada configurado, o logo Candydate.
 - **Primeiro acesso:** na instalação, Configurações abre em modo de
   boas-vindas ("Configure sua empresa"). Enquanto a identidade não é salva, o
   painel mostra um aviso e abre Configurações uma vez por sessão. Ao salvar,

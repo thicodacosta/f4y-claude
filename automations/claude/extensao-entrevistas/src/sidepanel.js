@@ -68,11 +68,11 @@ function iconHint() {
   box.className = "icon-hint";
   const text = document.createElement("span");
   text.textContent =
-    "Falta um passo: com a aba da reunião aberta, clique no ícone do JourneyLab na barra do Chrome, " +
-    "ao lado do endereço. Se ele não aparecer, clique no quebra-cabeça e depois em JourneyLab. A gravação começa sozinha.";
+    "Falta um passo: com a aba da reunião aberta, clique no ícone do Candydate na barra do Chrome, " +
+    "ao lado do endereço. Se ele não aparecer, clique no quebra-cabeça e depois em Candydate. A gravação começa sozinha.";
   const img = document.createElement("img");
   img.src = "icons/toolbar-hint.png";
-  img.alt = "Ícone do JourneyLab e, ao lado, o ícone de quebra-cabeça das extensões, na barra do Chrome";
+  img.alt = "Ícone do Candydate e, ao lado, o ícone de quebra-cabeça das extensões, na barra do Chrome";
   img.className = "icon-hint__img";
   box.append(text, img);
   return box;

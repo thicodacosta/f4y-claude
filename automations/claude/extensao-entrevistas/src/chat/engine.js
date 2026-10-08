@@ -16,7 +16,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_DOC_BYTES = 20 * 1024 * 1024;
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 
-const BASE_PROMPT = `Você é o assistente da JourneyLab, usado por recrutadores e consultores de Recruitment & Executive Search. Ajuda em RH e também em perguntas gerais do dia a dia de trabalho.
+const BASE_PROMPT = `Você é o assistente da Candydate, usado por recrutadores e consultores de Recruitment & Executive Search. Ajuda em RH e também em perguntas gerais do dia a dia de trabalho.
 
 SEJA OBJETIVO
 - Responda com a informação em si, logo na primeira frase. Nunca responda só indicando onde a pessoa pode procurar.

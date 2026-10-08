@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Candydate · BP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@500;600;700&family=Geist+Mono:wght@500&display=swap" />
+    <link rel="stylesheet" href="dist/base.css" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="dist/theme-init.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <img id="header-logo" alt="" class="topbar__logo" hidden />
+      <span id="header-name" class="topbar__brand" hidden></span>
+      <div class="topbar__actions">
+        <span class="topbar__produto">BP</span>
+        <button type="button" id="theme-toggle" class="theme-toggle"></button>
+        <a href="options.html" target="_blank" class="topbar__link">Configurações</a>
+        <button type="button" id="sair" class="theme-toggle" aria-label="Sair" title="Sair" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        </button>
+      </div>
+    </header>
+    <nav id="abas" class="tabs tabs--bp" aria-label="Funcionalidades"></nav>
+    <main id="area">
+      <p id="estado" class="carregando" role="status">Carregando os dados da empresa…</p>
+    </main>
+    <script type="module" src="dist/sidepanel.js"></script>
+  </body>
+</html>

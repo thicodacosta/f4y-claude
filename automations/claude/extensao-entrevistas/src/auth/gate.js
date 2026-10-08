@@ -32,7 +32,7 @@ const PROVISIONAL = /^\d{6,10}$/;
 const hasOwnPassword = (user) => user?.user_metadata?.senhaPropria === true;
 
 // Nome do produto nas mensagens da tela (a mesma tela serve a outras extensões
-// JourneyLab, ex.: BP).
+// Candydate, ex.: BP).
 let produto = "ToolsKit";
 
 /** Mensagens claras para os erros do Supabase Auth. */
@@ -55,7 +55,7 @@ function buildScreen() {
   const card = el(
     "div",
     { class: "auth__card" },
-    el("img", { src: "icons/journeylab-logo.png", alt: "JourneyLab", class: "auth__logo" }),
+    el("img", { src: "icons/candydate-logo.png", alt: "Candydate", class: "auth__logo" }),
     el("p", { class: "eyebrow auth__eyebrow", text: produto }),
     box,
     status,

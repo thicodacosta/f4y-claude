@@ -113,7 +113,7 @@ async function start({ tabId, meta, force = false }) {
     throw Object.assign(
       new Error(
         `A aba escolhida não é uma reunião (“${tab.title || "sem título"}”). Abra a reunião numa aba do Chrome, ` +
-          "clique no ícone do JourneyLab nessa aba e inicie de novo. Se o Meet, o Teams ou o Zoom estiver aberto " +
+          "clique no ícone do Candydate nessa aba e inicie de novo. Se o Meet, o Teams ou o Zoom estiver aberto " +
           "como aplicativo (janela sem barra de endereço), use o menu ⋮ dessa janela → “Abrir no Chrome”.",
       ),
       { code: "not_meeting", tabId },

@@ -266,7 +266,7 @@ export async function buildCvDocx(cv, branding, { layout = DEFAULT_LAYOUT, cargo
   const subAlign = DOCX_ALIGN[layout.subtituloAlinhamento];
 
   const doc = new Document({
-    creator: branding.empresa || "JourneyLab",
+    creator: branding.empresa || "Candydate",
     title: documentTitle(cv, branding, cargo),
     styles: { default: { document: { run: { font: FONT, size: 19, color: hex(INK) } } } },
     sections: [

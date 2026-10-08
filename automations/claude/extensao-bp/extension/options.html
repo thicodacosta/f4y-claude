@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Configurações · Candydate BP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@500;600;700&family=Geist+Mono:wght@500&display=swap" />
+    <link rel="stylesheet" href="dist/base.css" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="dist/theme-init.js"></script>
+  </head>
+  <body class="page page--larga">
+    <header class="topbar">
+      <img src="dist/icons/candydate-logo.png" alt="Candydate" class="topbar__logo topbar__logo--marca" />
+      <div class="topbar__actions"><span class="topbar__produto">BP</span><button type="button" id="theme-toggle" class="theme-toggle"></button></div>
+    </header>
+    <main>
+      <p class="eyebrow">Candydate · BP</p>
+      <h1 class="title">Configurações</h1>
+
+      <section class="card">
+        <h2>Empresa e identidade</h2>
+        <p class="hint">Nome, logo e cor aparecem no topo do painel, nos PDFs e nos vídeos do Motion.</p>
+        <form id="identidade" novalidate>
+          <div class="field"><label for="empresa">Nome da empresa</label><input id="empresa" required /></div>
+          <div class="field">
+            <span class="label">Logo (PNG ou JPG, até 1 MB)</span>
+            <div class="logo-picker">
+              <div id="logo-previa" class="logo-preview"></div>
+              <div class="logo-picker__actions">
+                <button type="button" id="logo-btn" class="btn btn--ghost">Escolher imagem</button>
+                <button type="button" id="logo-remover" class="btn-link" hidden>Remover</button>
+                <input id="logo-arquivo" type="file" accept="image/png,image/jpeg" hidden />
+              </div>
+            </div>
+          </div>
+          <div class="field"><label for="cor">Cor de destaque dos PDFs</label><div class="color-row"><input id="cor" type="color" value="#4F46E5" /><span id="cor-valor" class="hint"></span></div></div>
+          <p id="identidade-status" class="hint" role="status"></p>
+          <button type="submit" class="btn btn--primary btn--auto">Salvar identidade</button>
+        </form>
+      </section>
+
+      <section class="card" id="colaboradores">
+        <h2>Colaboradores</h2>
+        <p class="hint">Base que alimenta todas as funcionalidades do BP. Cadastre um a um ou importe a planilha modelo.</p>
+        <div id="colaboradores-area"><p class="hint">Carregando…</p></div>
+      </section>
+
+      <section class="card">
+        <h2>Página pública das pesquisas</h2>
+        <p class="hint">Endereço onde a página <code>public-dist/index.html</code> (gerada pelo build) foi publicada. Os links do Pulso e das entrevistas de desligamento apontam para ele.</p>
+        <form id="publica" novalidate>
+          <div class="field"><label for="url-publica">Endereço (https://…)</label><input id="url-publica" type="url" placeholder="https://pesquisa.suaempresa.com.br" /></div>
+          <p id="publica-status" class="hint" role="status"></p>
+          <button type="submit" class="btn btn--primary btn--auto">Salvar endereço</button>
+        </form>
+      </section>
+
+      <section class="card" id="chaves" hidden>
+        <h2>Chaves de IA</h2>
+        <p class="hint">Usadas no Motion, na análise preditiva, nas sugestões de perguntas e no Chat. Ficam só neste navegador.</p>
+        <form id="chaves-form" novalidate>
+          <div class="field"><label for="apiKey">Anthropic (sk-ant-…)</label><input id="apiKey" type="password" autocomplete="off" /></div>
+          <div class="field"><label for="groqKey">Groq (gsk_…)</label><input id="groqKey" type="password" autocomplete="off" /></div>
+          <p id="chaves-status" class="hint" role="status"></p>
+          <button type="submit" class="btn btn--primary btn--auto">Salvar chaves</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Conta</h2>
+        <p id="conta-email" class="hint"></p>
+        <button type="button" id="conta-sair" class="btn btn--ghost">Sair</button>
+      </section>
+    </main>
+    <script type="module" src="dist/options.js"></script>
+  </body>
+</html>

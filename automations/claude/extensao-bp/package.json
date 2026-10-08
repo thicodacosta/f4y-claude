@@ -1,0 +1,14 @@
+{
+  "name": "extensao-bp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "JourneyLab · BP: extensão Chrome de gestão de pessoas (Onboarding, Produtividade, Cultura, Turnover, Pulso, Offboarding, Gestão e Chat).",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Motion · Candydate BP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@500;600;700&family=Geist+Mono:wght@500&display=swap" />
+    <link rel="stylesheet" href="dist/base.css" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="dist/theme-init.js"></script>
+  </head>
+  <body class="motion-pagina">
+    <header class="topbar">
+      <img src="dist/icons/candydate-logo.png" alt="Candydate" class="topbar__logo topbar__logo--marca" />
+      <div class="topbar__actions"><span class="topbar__produto">BP · Motion</span><button type="button" id="theme-toggle" class="theme-toggle"></button></div>
+    </header>
+    <main class="motion">
+      <p id="estado" class="carregando" role="status">Preparando a apresentação…</p>
+      <div id="palco" class="motion__grade" hidden>
+        <section class="motion__palco">
+          <div class="motion__cabecalho">
+            <div>
+              <p class="eyebrow">Motion</p>
+              <h1 id="titulo" class="title"></h1>
+              <p id="meta" class="hint"></p>
+              <p id="briefing" class="hint"></p>
+            </div>
+          </div>
+          <div class="motion__tela"><canvas id="canvas" aria-label="Apresentação animada"></canvas></div>
+          <div class="motion__controles">
+            <button type="button" id="play" class="btn btn--primary btn--auto">Pausar</button>
+            <button type="button" id="reiniciar" class="btn btn--ghost">Do início</button>
+            <input id="linha" type="range" min="0" max="1" step="0.001" value="0" aria-label="Posição na apresentação" />
+            <span id="tempo" class="motion__tempo">0:00</span>
+          </div>
+          <div class="motion__controles">
+            <label class="visually-hidden" for="formato">Formato</label>
+            <select id="formato">
+              <option value="16:9">Horizontal 16:9</option>
+              <option value="9:16">Vertical 9:16</option>
+              <option value="1:1">Quadrado 1:1</option>
+            </select>
+            <button type="button" id="tela-cheia" class="btn btn--ghost">Tela cheia</button>
+            <button type="button" id="baixar" class="btn btn--primary btn--auto">Baixar vídeo</button>
+          </div>
+          <p id="status" class="hint" role="status"></p>
+        </section>
+        <aside class="motion__cenas">
+          <div class="motion__cenas-topo">
+            <h2 class="subtitle">Cenas</h2>
+            <button type="button" id="salvar" class="btn btn--ghost btn--sm" disabled>Salvar alterações</button>
+          </div>
+          <p class="hint">Ajuste textos e duração; a prévia atualiza na hora.</p>
+          <ol id="cenas" class="motion__lista"></ol>
+        </aside>
+      </div>
+    </main>
+    <script type="module" src="dist/motion.js"></script>
+  </body>
+</html>
