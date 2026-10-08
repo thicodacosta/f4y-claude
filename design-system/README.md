@@ -16,6 +16,18 @@ React) que ainda não foi versionado neste repositório — a estrutura e os
 valores de base já são reais, só a fidelidade pixel-a-pixel de alguns detalhes
 depende desses arquivos serem adicionados.
 
+## Candy Studio (extensões Candydate)
+
+As extensões Chrome **Candydate · BP** e **Candydate · ToolsKit**
+(`automations/claude/extensao-bp/` e `extensao-entrevistas/`) seguem o design
+system **Candy Studio**, exportado do Claude Design e versionado em
+`candy-studio/` (tokens em `candy-studio/tokens/`, regras em
+`candy-studio/readme.md`, componentes e UI kits de referência). Marca dessas
+extensões: logo Candydate (`assets/candydate-logo-limpo.png`, wordmark limpo
+com fundo transparente; `assets/candydate-logo-web.png`, 960 px para web;
+`assets/candydate-icon-{16,48,128}.png`, ícones do monograma "C"). Os tokens
+abaixo (Find4You) continuam valendo para `website/`, marketing e Lovable.
+
 ## Tokens (arquivos na raiz)
 
 | Arquivo | Cobre |

@@ -1,0 +1,1 @@
+SaaS admin dashboard UI kit — Sidebar + top bar + StatCard grid + revenue chart + plan-mix bars + customer Table, all from Design System components. Tabs switch the reporting window (visual only).

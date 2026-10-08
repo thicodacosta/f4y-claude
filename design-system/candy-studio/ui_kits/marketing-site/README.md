@@ -1,0 +1,1 @@
+Marketing website UI kit — single scrolling landing page composed entirely from Design System components (Navbar, Hero, PricingCard, FAQItem, Testimonial, Footer, Button, Badge). Interactive bits: monthly/yearly pricing toggle, FAQ accordions.

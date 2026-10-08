@@ -1,0 +1,15 @@
+:root{
+--shadow-xs:0 1px 2px rgba(24,24,27,0.04);
+--shadow-sm:0 1px 3px rgba(24,24,27,0.06),0 1px 2px rgba(24,24,27,0.04);
+--shadow-md:0 4px 12px rgba(24,24,27,0.08),0 2px 4px rgba(24,24,27,0.04);
+--shadow-lg:0 12px 32px rgba(24,24,27,0.12),0 4px 8px rgba(24,24,27,0.04);
+--shadow-xl:0 24px 64px rgba(24,24,27,0.16);
+--shadow-glow-primary:0 0 0 4px rgba(79,70,229,0.12);
+--shadow-glow-error:0 0 0 4px rgba(239,68,68,0.12);
+--ease-out:cubic-bezier(0.16,1,0.3,1); /* @kind other */
+--ease-in-out:cubic-bezier(0.65,0,0.35,1); /* @kind other */
+--ease-spring:cubic-bezier(0.34,1.56,0.64,1); /* @kind other */
+--dur-fast:120ms; /* @kind other */
+--dur-base:200ms; /* @kind other */
+--dur-slow:360ms; /* @kind other */
+}

@@ -1,0 +1,1 @@
+CRM pipeline UI kit — kanban board of deal stages built from KanbanCard, with a stat header and sidebar shared with the SaaS dashboard.

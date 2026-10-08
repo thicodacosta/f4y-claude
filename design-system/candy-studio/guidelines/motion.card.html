@@ -1,0 +1,8 @@
+<!-- @dsCard group="Spacing" viewport="700x140" name="Movimento e Easing" subtitle="estilo Framer Motion — fade, slide, scale, ease-out" -->
+<html><head><link rel="stylesheet" href="../styles.css"><style>
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.m1{animation:fadeUp var(--dur-slow) var(--ease-out) infinite alternate}
+</style></head><body style="margin:0;padding:20px;font-family:var(--font-sans);display:flex;align-items:center;gap:24px;background:var(--bg)">
+<div class="m1" style="width:64px;height:64px;border-radius:16px;background:var(--gradient-primary)"></div>
+<div style="font-size:13px;color:var(--text-muted);line-height:1.6">Fade + slide-up na entrada<br>ease-out(0.16,1,0.3,1) · 200–360ms<br>Sem bounce em conteúdo; spring só para feedback lúdico de UI</div>
+</body></html>
