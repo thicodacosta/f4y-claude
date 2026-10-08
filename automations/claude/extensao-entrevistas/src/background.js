@@ -8,6 +8,7 @@
  * analyzing → (registro salvo em `result`) | error.
  */
 
+import { registrar } from "./atividades.js";
 import { loadKeys } from "./keys.js";
 
 const OFFSCREEN_URL = "offscreen.html";
@@ -198,10 +199,13 @@ async function handle(message) {
       return;
     case "LEVEL":
       await updateCapture((c) => {
-        const prev = c.levels?.[message.role] ?? { max: 0, blocks: 0 };
-        const level = { last: message.rms, max: Math.max(prev.max, message.rms), blocks: prev.blocks + 1 };
+        const prev = c.levels?.[message.role] ?? { max: 0 };
+        const level = { last: message.rms, max: Math.max(prev.max, message.rms), at: Date.now() };
         return { ...c, levels: { ...c.levels, [message.role]: level } };
       });
+      return;
+    case "WARNING_CLEAR":
+      await updateCapture((c) => ({ ...c, warnings: c.warnings.filter((w) => w !== message.message) }));
       return;
     case "WARNING":
       await updateCapture((c) =>
@@ -214,6 +218,13 @@ async function handle(message) {
     case "DONE": {
       const { capture } = await chrome.storage.session.get("capture");
       const meta = capture?.meta ?? {};
+      registrar("entrevista", {
+        candidato: meta.candidato?.trim() ?? "",
+        vaga: meta.vagaTitulo?.trim() ?? "",
+        origem: "gravacao",
+        duracaoMin: capture ? Math.round(((capture.pausedAt ?? Date.now()) - capture.startedAt - capture.pausedMs) / 6000) / 10 : null,
+        semCandidato: Boolean(message.aviso),
+      });
       await chrome.storage.session.set({
         result: {
           data: message.data,

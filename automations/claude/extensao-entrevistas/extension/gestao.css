@@ -1,0 +1,227 @@
+/*
+ * Aba Gestão e página do Motion. Arquivo próprio, sobre os tokens do design
+ * system Candy Studio definidos em styles.css (cores, raios, sombras, fontes).
+ */
+
+/* ---- Filtros ---- */
+.ges-filtros {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 10px;
+}
+
+.ges-filtros #ges-datas {
+  grid-column: 1 / -1;
+}
+
+/* ---- Indicadores ---- */
+.ges-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0 12px;
+}
+
+.ges-kpi {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.ges-kpi__valor {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--primary-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.ges-kpi__rotulo {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.ges-kpi__detalhe {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ---- Gráficos ---- */
+.ges-bloco .subtitle {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.ges-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.ges-chart__eixo {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.ges-chart__barra {
+  fill: var(--primary);
+}
+
+.ges-chart__rotulo {
+  fill: var(--muted);
+  font-size: 8px;
+  font-family: var(--font-body);
+}
+
+.ges-barras {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.ges-barras__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.ges-barras__rotulo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ges-barras__trilho {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+
+.ges-barras__valor {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand-gradient);
+}
+
+.ges-barras__num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+/* ---- Histórico ---- */
+.ges-historico {
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ges-evento {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.ges-evento__data {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ges-evento__tipo {
+  font-weight: 600;
+}
+
+.ges-evento__detalhe {
+  grid-column: 2;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* ---- Diálogo do Motion ---- */
+.ges-dialog {
+  width: min(520px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 24px 48px rgba(7, 17, 28, 0.25);
+}
+
+.ges-dialog::backdrop {
+  background: rgba(7, 17, 28, 0.45);
+}
+
+.ges-dialog .subtitle {
+  margin-top: 0;
+}
+
+/* ---- Página do Motion ---- */
+.motion-pagina .motion {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.motion__tela {
+  margin: 16px auto;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #07111c;
+  box-shadow: 0 12px 32px rgba(7, 17, 28, 0.18);
+}
+
+.motion__palco[data-formato="9:16"] .motion__tela {
+  max-width: 420px;
+}
+
+.motion__palco[data-formato="1:1"] .motion__tela {
+  max-width: 640px;
+}
+
+.motion__tela canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.motion__controles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.motion__controles .btn {
+  width: auto;
+}
+
+.motion__controles input[type="range"] {
+  flex: 1 1 200px;
+  accent-color: var(--primary);
+}
+
+.motion__tempo {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

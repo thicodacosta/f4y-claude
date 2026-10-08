@@ -5,7 +5,8 @@ import { initCvArea } from "./cv/panel.js";
 import { initPromptsArea } from "./prompts/panel.js";
 import { initSalaryArea } from "./salary/panel.js";
 import { initShortlistArea, onShortlistShown } from "./shortlist/panel.js";
-import { initTurnoverArea } from "./turnover/panel.js";
+import { initGestaoArea } from "./gestao/panel.js";
+import { registrar } from "./atividades.js";
 import { loadKeys as resolveKeys } from "./keys.js";
 import { initHeader } from "./header.js";
 import { initTheme } from "./theme.js";
@@ -283,6 +284,7 @@ async function analyzePasted(input) {
         },
       },
     });
+    registrar("entrevista", { candidato: input.candidato.trim(), vaga: input.vagaTitulo.trim(), origem: "colada" });
     // a exibição vem do listener de storage
   } catch (error) {
     console.error(error);
@@ -315,7 +317,7 @@ function elapsedMs(c) {
   return (c.pausedAt ?? Date.now()) - c.startedAt - c.pausedMs;
 }
 
-function healthLine(id, label, count, available, elapsed) {
+function healthLine(id, label, count, available, elapsed, liveLevel = 0) {
   const node = $(id);
   if (!available) {
     node.className = "warn";
@@ -323,6 +325,10 @@ function healthLine(id, label, count, available, elapsed) {
   } else if (count > 0) {
     node.className = "ok";
     node.textContent = `${label}: captando falas`;
+  } else if (liveLevel >= 0.0001) {
+    // Já há som chegando; a primeira transcrição sai a cada bloco de 20s.
+    node.className = "ok";
+    node.textContent = `${label}: recebendo som, transcrevendo…`;
   } else if (elapsed > SILENCE_WARNING_MS) {
     node.className = "warn";
     node.textContent = `${label}: nenhuma fala captada até agora`;
@@ -345,10 +351,10 @@ function renderRecording() {
   $("recording-label").textContent = paused ? "Pausado" : "Gravando";
   $("recording-timer").textContent = formatDuration(elapsed);
   $("pause-btn").textContent = paused ? "Retomar" : "Pausar";
-  healthLine("health-candidato", "Áudio da reunião", c.stats.candidato, true, elapsed);
-  healthLine("health-recrutador", "Seu microfone", c.stats.recrutador, c.hasMic, elapsed);
+  healthLine("health-candidato", "Áudio da reunião", c.stats.candidato, true, elapsed, c.levels?.candidato?.last);
+  healthLine("health-recrutador", "Seu microfone", c.stats.recrutador, c.hasMic, elapsed, c.levels?.recrutador?.last);
 
-  // Nível medido em cada bloco de 20s (0 = silêncio). Ajuda a diagnosticar
+  // Nível ao vivo, a cada 2s (0 = silêncio). Ajuda a diagnosticar a
   // captação: reunião em 0 = o som da chamada não está chegando à extensão.
   const levels = c.levels ?? {};
   const fmt = (l) => (l ? `${(l.last * 100).toFixed(2)} (máx. ${(l.max * 100).toFixed(2)})` : "medindo…");
@@ -470,6 +476,7 @@ async function changeLanguage(lang) {
     try {
       const translated = await translateRecord({ apiKey: keys.groqKey, data: current.data, lang });
       current = { ...current, traducoes: { ...current.traducoes, [lang]: translated } };
+      registrar("traducao", { candidato: current.meta?.candidato, idioma: lang });
     } catch (error) {
       console.error(error);
       $("lang-status").textContent =
@@ -528,6 +535,7 @@ $("download-pdf-btn").addEventListener("click", async (event) => {
     ]);
     const blob = await buildInterviewPdf(resultData(), current.meta, resultLang(), branding);
     download(blob, `${fileBaseName()}.pdf`, "application/pdf");
+    registrar("pdf_registro", { candidato: current.meta?.candidato, idioma: resultLang() });
     $("copy-status").textContent = branding.logoDataUrl
       ? ""
       : "PDF gerado sem logo: configure o logo da empresa em Configurações.";
@@ -596,7 +604,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // ---- Abas do painel -------------------------------------------------------
 
 const TABS = Object.fromEntries(
-  ["entrevistas", "curriculos", "comparativo", "salarios", "turnover", "prompts", "shortlist", "chat"].map((name) => [
+  ["entrevistas", "curriculos", "comparativo", "salarios", "gestao", "prompts", "shortlist", "chat"].map((name) => [
     name,
     $(`tab-${name}`),
   ]),
@@ -638,7 +646,7 @@ let user = null;
 
 async function init() {
   await initTheme();
-  // Nada do ToolsKit abre sem login (senha; no 1º acesso, criação da senha própria).
+  // Nada do Recruiter abre sem login (senha; no 1º acesso, criação da senha própria).
   user = await requireAuth();
   $("logout-btn").hidden = !user;
   $("logout-btn").addEventListener("click", logout);
@@ -651,7 +659,7 @@ async function init() {
   cvArea = await initCvArea({ apiKeyGetter, groqKeyGetter });
   await initCompareArea({ apiKeyGetter: groqKeyGetter });
   await initSalaryArea({ apiKeyGetter: groqKeyGetter });
-  initTurnoverArea();
+  await initGestaoArea({ keysGetter: () => keys });
   await initPromptsArea();
   initShortlistArea({ groqKeyGetter });
   await initChatArea({ keysGetter: () => keys });

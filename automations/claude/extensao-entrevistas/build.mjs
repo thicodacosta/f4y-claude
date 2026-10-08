@@ -27,6 +27,8 @@ const options = {
     options: "src/options.js",
     offscreen: "src/offscreen.js",
     permission: "src/permission.js",
+    // Página do Motion da Gestão (motor em ../extensao-bp/src/motion).
+    motion: "src/gestao/motion-page.js",
   },
   outdir: "extension/dist",
   bundle: true,

@@ -8,6 +8,7 @@
  */
 import { FriendlyError } from "../errors.js";
 import { normalizeLayout } from "./layout.js";
+import { registrar } from "../atividades.js";
 
 // Leitura de Word e geração de PDF/Word somam ~2,5 MB (bibliotecas e
 // fontes): só carregam quando a aba de currículos é usada.
@@ -155,7 +156,10 @@ function pump() {
     update(next.id, { status: "processando" });
     loadStructure()
       .then(({ structureCv }) => structureCv({ apiKey, groqKey, file: files.get(next.id), layout: cvModelo?.layout }))
-      .then((cv) => update(next.id, { status: "pronto", cv }))
+      .then((cv) => {
+        update(next.id, { status: "pronto", cv });
+        registrar("curriculo", { candidato: cv.nome, titulo: cv.tituloProfissional ?? null });
+      })
       .catch((error) => {
         console.error(`Falha ao padronizar ${next.fileName}`, error);
         update(next.id, {
@@ -202,6 +206,7 @@ function downloadAs(item, extension, buttonEl) {
     const blob =
       extension === "pdf" ? await buildCvPdf(item.cv, branding, options) : await buildCvDocx(item.cv, branding, options);
     saveBlob(blob, cvFileName(item.cv, branding, extension, options.cargo));
+    registrar("curriculo_download", { candidato: item.cv.nome, formato: extension, cargo: options.cargo || null });
   });
 }
 

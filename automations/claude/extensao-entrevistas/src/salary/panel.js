@@ -2,6 +2,7 @@
 import { FriendlyError } from "../errors.js";
 import { $, copyText, el, formatBRL, showError, startElapsed } from "../ui.js";
 import { researchSalary } from "./research.js";
+import { registrar } from "../atividades.js";
 
 let getApiKey = () => null;
 let abort = null;
@@ -144,6 +145,7 @@ async function submit(event) {
   try {
     result = await researchSalary({ apiKey, input, signal: abort.signal, onProgress: showProgress });
     await chrome.storage.session.set({ salarios: result });
+    registrar("salario", { cargo: input.cargo, senioridade: input.senioridade, local: input.localidade });
     renderResult(result);
     show("result");
   } catch (error) {

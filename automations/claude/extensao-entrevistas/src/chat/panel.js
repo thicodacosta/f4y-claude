@@ -6,6 +6,7 @@ import { stripCitations } from "../groq.js";
 import { getFavoritePrompts, onFavoritesChange } from "../prompts/favorites.js";
 import { $, el, normalize } from "../ui.js";
 import { prepareAttachment, sendChat } from "./engine.js";
+import { registrar } from "../atividades.js";
 
 const MAX_ATTACHMENTS = 5;
 
@@ -299,6 +300,7 @@ async function send() {
 
   abort = new AbortController();
   setBusy(true);
+  registrar("chat");
   try {
     const result = await sendChat({
       keys,

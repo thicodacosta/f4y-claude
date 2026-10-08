@@ -14,6 +14,7 @@ import {
   suggestSearch,
 } from "./runner.js";
 import { loadLinkedInSettings } from "./settings.js";
+import { registrar } from "../atividades.js";
 
 let getGroqKey = () => null;
 let abort = null;
@@ -221,6 +222,13 @@ function setPauseButton(paused) {
 
 function finish(result, quantidade) {
   lastResult = result;
+  registrar("shortlist", {
+    vaga: result.job?.vaga?.titulo ?? "",
+    pedidos: quantidade,
+    encontrados: result.candidates.filter(isCompatible).length,
+    analisados: result.candidates.filter((c) => c.compatibilidade != null).length,
+    finalizada: Boolean(result.finishedEarly),
+  });
   const compatible = result.candidates.filter(isCompatible).length;
   const parts = [
     `${result.finishedEarly ? "Shortlist finalizada por você" : "Shortlist concluída"}: ${compatible} de ${quantidade} candidatos com ${minScore}% ou mais.`,

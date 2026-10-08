@@ -2,6 +2,7 @@
 import { $, el, normalize } from "../ui.js";
 import { getFavoriteIds, onFavoritesChange, toggleFavorite } from "./favorites.js";
 import { CATEGORIES, PROMPTS } from "./library.js";
+import { registrar } from "../atividades.js";
 
 const ALL = "Todos";
 const FAVORITES = "Favoritos";
@@ -51,6 +52,7 @@ function promptItem(p) {
     try {
       await navigator.clipboard.writeText(p.prompt);
       status.textContent = "Copiado.";
+      registrar("prompt", { titulo: p.titulo });
     } catch {
       status.textContent = "Não foi possível copiar.";
     }

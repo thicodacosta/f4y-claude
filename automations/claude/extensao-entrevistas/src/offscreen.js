@@ -65,6 +65,12 @@ function watchLevels(role, rms) {
   if (rms >= DIGITAL_SILENCE_RMS) {
     levels.tabSilentChunks = 0;
     levels.tabHeard = true;
+    // O som voltou (ex.: o participante entrou ou ligou o microfone depois):
+    // o aviso sai do painel e volta a valer se o silêncio voltar.
+    if (levels.warned) {
+      levels.warned = false;
+      toBackground({ type: "WARNING_CLEAR", message: SILENT_TAB_WARNING });
+    }
     return;
   }
   levels.tabSilentChunks += 1;
@@ -77,8 +83,6 @@ function watchLevels(role, rms) {
 function handleChunk(role, { wav, startMs, rms }) {
   if (!rec) return;
   watchLevels(role, rms);
-  // Nível de cada bloco vai ao painel (diagnóstico da captação).
-  toBackground({ type: "LEVEL", role, rms });
   // Microfone: corta ruído de fundo. Reunião: só o silêncio digital, porque o
   // som da chamada pode chegar baixo e a Whisper já descarta trechos sem fala.
   if (rms < (role === "candidato" ? DIGITAL_SILENCE_RMS : SILENCE_RMS)) return;
@@ -145,7 +149,13 @@ async function start({ streamId, keys, meta }) {
   };
 
   const recorderFor = (role, stream) =>
-    createSegmentRecorder(stream, { chunkMs: CHUNK_MS, clock: clock.now, onChunk: (c) => handleChunk(role, c) });
+    createSegmentRecorder(stream, {
+      chunkMs: CHUNK_MS,
+      clock: clock.now,
+      onChunk: (c) => handleChunk(role, c),
+      // Nível ao vivo a cada 2s: o painel mostra na hora se o som chega.
+      onLevel: (rms) => toBackground({ type: "LEVEL", role, rms }),
+    });
   rec.recorders.push(recorderFor("candidato", tabStream));
   if (micStream) rec.recorders.push(recorderFor("recrutador", micStream));
 

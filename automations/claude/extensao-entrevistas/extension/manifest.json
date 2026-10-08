@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Candydate · ToolsKit",
-  "version": "1.24.2",
+  "name": "Candydate · Recruiter",
+  "version": "1.25.0",
   "description": "Entrevistas, currículos, comparativo, pesquisa salarial, turnover, prompts, Shortlist no LinkedIn e Chat com IA para RH.",
   "icons": {
     "16": "icons/icon-16.png",
@@ -9,7 +9,7 @@
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "Abrir Candydate · ToolsKit",
+    "default_title": "Abrir Candydate · Recruiter",
     "default_icon": {
       "16": "icons/icon-16.png",
       "48": "icons/icon-48.png",

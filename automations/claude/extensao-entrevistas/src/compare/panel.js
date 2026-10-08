@@ -1,6 +1,7 @@
 /** Aba "Comparativo": JD + 2 a 5 currículos → compatibilidade por candidato. */
 import { FriendlyError } from "../errors.js";
 import { $, copyText, el, saveBlob, showError, startElapsed } from "../ui.js";
+import { registrar } from "../atividades.js";
 
 // A leitura de Word (mammoth) só carrega quando a comparação é usada.
 const loadEvaluate = () => import("./evaluate.js");
@@ -196,6 +197,11 @@ async function submit(event) {
       signal: abort.signal,
     });
     await chrome.storage.session.set({ comparativo: result });
+    registrar("comparativo", {
+      vaga: result.vaga?.titulo ?? "",
+      candidatos: result.candidatos.length,
+      melhor: result.candidatos[0]?.compatibilidade ?? null,
+    });
     renderResult(result);
     show("result");
   } catch (error) {

@@ -1,8 +1,8 @@
-# Candydate · ToolsKit (extensão Chrome)
+# Candydate · Recruiter (extensão Chrome)
 
 Painel lateral do Chrome com oito ferramentas: registro de entrevistas,
 construtor de currículos padronizados, comparativo de candidatos, pesquisa
-salarial, custo de turnover, biblioteca de prompts, Shortlist no LinkedIn e
+salarial, painel de gestão, biblioteca de prompts, Shortlist no LinkedIn e
 Chat com IA.
 
 A aba "Entrevistas" grava e transcreve a entrevista feita no Google
@@ -74,6 +74,17 @@ aplicativo, alto-falante do Meet/Teams no padrão do sistema). Se a gravação
 terminar sem nenhuma fala do candidato, a transcrição registra que o áudio
 dele não estava disponível e o resultado mostra um alerta: o registro reflete
 só a fala do recrutador.
+
+**Tradução do registro:** só os textos vão para a IA, numerados e sem os
+nomes dos campos (`src/translate.js`); a estrutura é remontada na extensão.
+Antes, o JSON inteiro ia para tradução e o modelo traduzia também as chaves
+(ex.: `competenciasComportamentais` → `competenciasComportamentales` em
+espanhol), e a resposta era recusada. Também ficou mais rápido (~1,5s).
+
+**Nível ao vivo:** o nível de cada trilha é medido a cada 2s (não só a cada
+bloco de 20s); com som chegando, "Áudio da reunião" mostra "recebendo som,
+transcrevendo…" antes da primeira transcrição. O aviso de som em silêncio sai
+do painel quando o som volta.
 
 ## Construtor de currículos (aba "Currículos")
 
@@ -163,18 +174,34 @@ da segunda etapa. Leva de 40s a 1 min. **No plano gratuito da Groq**, o limite
 de 8.000 tokens por minuto do `gpt-oss-120b` faz a extensão esperar entre
 chamadas seguidas; o plano Dev Tier remove esse gargalo.
 
-## Calculadora de turnover (aba "Turnover")
+## Gestão (aba "Gestão")
 
-Custo de um desligamento, em cálculo local, sem IA (`src/turnover/calc.js`):
+Substituiu a calculadora de turnover (v1.25.0). Painel com tudo o que o
+recrutador fez na plataforma, com histórico:
 
-- **Custo de um desligamento CLT** (dispensa sem justa causa, aviso
-  indenizado, sem férias vencidas): aviso prévio (30 dias + 3 por ano, até
-  90), férias proporcionais + 1/3, 13º proporcional, multa de 40% do FGTS
-  sobre saldo estimado (8% × salário × meses) e FGTS sobre aviso e 13º.
-- **Custo PJ:** aviso contratual indenizado e multa contratual informados.
-- **Reposição (ambos):** recrutamento, treinamento, vaga em aberto e rampa
-  do substituto, com 50% de produtividade perdida sobre o custo mensal (CLT:
-  salário × 1,7).
+- **Registro das atividades** (`src/atividades.js`): cada funcionalidade
+  anota o que fez em `chrome.storage.local` (chave `atividades`, até 5.000
+  eventos, só metadados, nunca o conteúdo): entrevista transcrita (gravada ou
+  colada, com a duração), registro traduzido, registro em PDF, currículo
+  padronizado e baixado, comparativo (candidatos e melhor compatibilidade),
+  pesquisa salarial, Shortlist (pedidos, encontrados, perfis analisados),
+  pergunta no Chat e prompt copiado. Fica neste navegador.
+- **Painel** (`src/gestao/`): filtros de período (7, 30, 90 dias, 12 meses,
+  todo o histórico ou datas livres) e de funcionalidade; 8 indicadores;
+  gráfico de atividades por dia, semana ou mês (conforme o período) e por
+  funcionalidade; histórico com busca. Atualiza ao vivo.
+- **Baixar PDF** (`src/gestao/pdf.js`): período e filtros, indicadores,
+  destaques, gráficos e o histórico completo do período, com a identidade da
+  empresa (`src/pdf/branded.js`).
+- **Criar Motion**: apresentação animada do período. Reaproveita o motor e o
+  roteirista da extensão BP (`../extensao-bp/src/motion`: `engine.js`,
+  `roteiro.js`, `opcoes.js`), empacotados direto de lá pelo esbuild: a IA
+  (Claude; sem crédito, Groq; sem IA, roteiro-base) escreve o roteiro só com
+  os números do relatório (`src/gestao/dados.js`), e `motion.html` toca,
+  troca o formato (16:9, 9:16, 1:1), abre em tela cheia e exporta o vídeo
+  (MP4 ou WebM). Público, tom e duração escolhidos no diálogo.
+
+`src/turnover/calc.js` continua no repositório porque a extensão BP o usa.
 
 ## Biblioteca de prompts (aba "Prompts")
 
@@ -372,7 +399,8 @@ sessão do LinkedIn aberta no Chrome) e a compatibilidade mínima padrão.
 | `src/cv/` | Construtor de currículos: schema, leitura e padronização, geração de PDF/Word e a aba do painel |
 | `src/compare/` | Comparativo de candidatos: avaliação pelo Claude, cálculo da compatibilidade e a aba do painel |
 | `src/salary/` | Pesquisa salarial com busca web restrita às fontes e a aba do painel |
-| `src/turnover/` | Cálculos de taxa e custo de turnover e a aba do painel |
+| `src/turnover/calc.js` | Cálculos de custo de turnover (usados pela extensão BP) |
+| `src/atividades.js`, `src/gestao/` | Histórico de atividades e aba Gestão (painel, PDF, Motion) |
 | `src/prompts/` | Biblioteca de 50 prompts e a aba de busca |
 | `src/ui.js` | Utilitários de interface compartilhados |
 | `src/theme.js`, `extension/theme-init.js` | Tema claro/escuro/automático |

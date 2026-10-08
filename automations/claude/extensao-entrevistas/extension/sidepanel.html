@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Candydate · ToolsKit</title>
+    <title>Candydate · Recruiter</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -11,6 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@500;600;700&family=Geist+Mono:wght@500&display=swap"
     />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="gestao.css" />
     <script src="theme-init.js"></script>
   </head>
   <body>
@@ -31,7 +32,7 @@
       <button type="button" class="tabs__tab" id="tab-curriculos" aria-controls="area-curriculos" aria-selected="false">Currículos</button>
       <button type="button" class="tabs__tab" id="tab-comparativo" aria-controls="area-comparativo" aria-selected="false">Comparativo</button>
       <button type="button" class="tabs__tab" id="tab-salarios" aria-controls="area-salarios" aria-selected="false">Salários</button>
-      <button type="button" class="tabs__tab" id="tab-turnover" aria-controls="area-turnover" aria-selected="false">Turnover</button>
+      <button type="button" class="tabs__tab" id="tab-gestao" aria-controls="area-gestao" aria-selected="false">Gestão</button>
       <button type="button" class="tabs__tab" id="tab-prompts" aria-controls="area-prompts" aria-selected="false">Prompts</button>
       <button type="button" class="tabs__tab" id="tab-shortlist" aria-controls="area-shortlist" aria-selected="false">Shortlist</button>
       <button type="button" class="tabs__tab" id="tab-chat" aria-controls="area-chat" aria-selected="false">Chat</button>
@@ -349,57 +350,89 @@
         </div>
       </section>
 
-      <!-- Calculadora de turnover -->
-      <section id="area-turnover" hidden aria-labelledby="tov-title">
-        <p class="eyebrow">Calculadora de turnover</p>
-        <h1 id="tov-title" class="title">Custo do turnover</h1>
-        <p class="lead">Quanto custa um desligamento, em cálculo simplificado para CLT e PJ. Os valores se atualizam enquanto você digita.</p>
+      <!-- Gestão -->
+      <section id="area-gestao" hidden aria-labelledby="ges-title">
+        <p class="eyebrow">Gestão</p>
+        <h1 id="ges-title" class="title">Seu trabalho na plataforma</h1>
+        <p class="lead">Entrevistas, currículos, comparativos, Shortlists e tudo o que você fez no Recruiter, com histórico, PDF e uma apresentação animada.</p>
 
-        <section class="card calc" aria-labelledby="tov-cost-title">
-          <div class="calc__header">
-            <h2 id="tov-cost-title">Custo de um desligamento</h2>
-            <button type="button" id="tov-cost-clear" class="btn-link">Limpar</button>
+        <div class="ges-filtros">
+          <div class="field">
+            <label for="ges-periodo">Período</label>
+            <select id="ges-periodo"></select>
           </div>
-          <fieldset class="segmented">
-            <legend class="visually-hidden">Regime</legend>
-            <label class="segmented__option"><input type="radio" name="tov-regime" value="clt" checked /><span>CLT</span></label>
-            <label class="segmented__option"><input type="radio" name="tov-regime" value="pj" /><span>PJ</span></label>
-          </fieldset>
-
-          <div id="tov-clt">
-            <div class="field"><label for="tov-salario">Salário mensal (R$)</label><input id="tov-salario" type="number" min="0" step="0.01" inputmode="decimal" /></div>
-            <div class="field-grid">
-              <div class="field"><label for="tov-admissao">Admissão</label><input id="tov-admissao" type="date" /></div>
-              <div class="field"><label for="tov-deslig">Desligamento</label><input id="tov-deslig" type="date" /></div>
+          <div class="field">
+            <label for="ges-tipo">Funcionalidade</label>
+            <select id="ges-tipo"></select>
+          </div>
+          <div id="ges-datas" class="field-grid" hidden>
+            <div class="field">
+              <label for="ges-de">De</label>
+              <input id="ges-de" type="date" />
             </div>
-            <p class="hint">Dispensa sem justa causa, aviso prévio indenizado e sem férias vencidas.</p>
-          </div>
-
-          <div id="tov-pj" hidden>
-            <div class="field"><label for="tov-valor-pj">Valor mensal do contrato (R$)</label><input id="tov-valor-pj" type="number" min="0" step="0.01" inputmode="decimal" /></div>
-            <div class="field-grid">
-              <div class="field"><label for="tov-aviso-pj">Aviso contratual (dias)</label><input id="tov-aviso-pj" type="number" min="0" value="30" inputmode="numeric" /></div>
-              <div class="field"><label for="tov-multa-pj">Multa contratual (R$)</label><input id="tov-multa-pj" type="number" min="0" step="0.01" value="0" inputmode="decimal" /></div>
+            <div class="field">
+              <label for="ges-ate">Até</label>
+              <input id="ges-ate" type="date" />
             </div>
-            <label class="consent"><input type="checkbox" id="tov-aviso-indenizado" checked /><span>Aviso indenizado (sem cumprimento)</span></label>
           </div>
+        </div>
 
-          <h3 class="calc__subtitle">Custos de reposição</h3>
-          <div class="field-grid">
-            <div class="field"><label for="tov-recrut">Recrutamento e seleção (R$)</label><input id="tov-recrut" type="number" min="0" step="0.01" value="0" inputmode="decimal" /></div>
-            <div class="field"><label for="tov-trein">Integração e treinamento (R$)</label><input id="tov-trein" type="number" min="0" step="0.01" value="0" inputmode="decimal" /></div>
-            <div class="field"><label for="tov-vaga">Vaga em aberto (dias)</label><input id="tov-vaga" type="number" min="0" value="30" inputmode="numeric" /></div>
-            <div class="field"><label for="tov-rampa">Rampa do substituto (meses)</label><input id="tov-rampa" type="number" min="0" step="0.5" value="3" inputmode="decimal" /></div>
-          </div>
-          <p id="tov-assumption" class="hint"></p>
+        <div class="actions">
+          <button type="button" id="ges-pdf" class="btn btn--primary">Baixar PDF</button>
+          <button type="button" id="ges-motion-abrir" class="btn btn--ghost">Criar Motion</button>
+        </div>
+        <p id="ges-erro" class="error" role="alert" hidden></p>
 
-          <div id="tov-cost-out" aria-live="polite"></div>
-          <div class="actions">
-            <button type="button" id="tov-copy" class="btn btn--ghost">Copiar resumo</button>
-          </div>
-          <p id="tov-copy-status" class="hint" role="status"></p>
-        </section>
-        <p class="disclaimer">Estimativa simplificada para apoio à decisão. Não substitui o cálculo trabalhista, contábil ou a análise do contrato.</p>
+        <div id="ges-vazio" class="banner" role="status" hidden>
+          Ainda não há atividades registradas. A partir de agora, cada entrevista, currículo, comparativo, Shortlist e pesquisa entra aqui automaticamente.
+        </div>
+
+        <div id="ges-conteudo" hidden>
+          <div id="ges-kpis" class="ges-kpis" aria-label="Indicadores do período"></div>
+
+          <section class="card ges-bloco" aria-labelledby="ges-serie-titulo">
+            <h2 id="ges-serie-titulo" class="subtitle">Atividades ao longo do período</h2>
+            <div id="ges-serie"></div>
+          </section>
+
+          <section class="card ges-bloco" aria-labelledby="ges-tipos-titulo">
+            <h2 id="ges-tipos-titulo" class="subtitle">Por funcionalidade</h2>
+            <div id="ges-tipos"></div>
+          </section>
+
+          <section class="ges-bloco" aria-labelledby="ges-historico-titulo">
+            <h2 id="ges-historico-titulo" class="subtitle">Histórico</h2>
+            <div class="field">
+              <label for="ges-busca" class="visually-hidden">Buscar no histórico</label>
+              <input id="ges-busca" type="search" placeholder="Buscar por candidato, vaga ou atividade" />
+            </div>
+            <ul id="ges-historico" class="ges-historico"></ul>
+            <button type="button" id="ges-mais" class="btn-link" hidden>Mostrar mais</button>
+          </section>
+          <p class="disclaimer">O histórico fica neste navegador e guarda só o que foi feito (data, tipo e identificação), nunca o conteúdo de entrevistas, currículos ou perfis.</p>
+        </div>
+
+        <dialog id="ges-motion" class="ges-dialog" aria-labelledby="ges-motion-titulo">
+          <form id="ges-motion-form" novalidate>
+            <h2 id="ges-motion-titulo" class="subtitle">Criar Motion</h2>
+            <p class="hint">Uma apresentação animada com os números do período e dos filtros escolhidos. Os números vêm sempre do seu histórico.</p>
+            <div class="field">
+              <label for="ges-motion-briefing">O que você quer apresentar?</label>
+              <textarea id="ges-motion-briefing" rows="3" placeholder="Ex.: Resultado do mês para a diretoria, destacando entrevistas e candidatos encontrados."></textarea>
+            </div>
+            <div class="field-grid">
+              <div class="field"><label for="ges-motion-publico">Público</label><select id="ges-motion-publico"></select></div>
+              <div class="field"><label for="ges-motion-tom">Tom</label><select id="ges-motion-tom"></select></div>
+              <div class="field"><label for="ges-motion-duracao">Duração</label><select id="ges-motion-duracao"></select></div>
+              <div class="field"><label for="ges-motion-formato">Formato</label><select id="ges-motion-formato"></select></div>
+            </div>
+            <p id="ges-motion-status" class="hint" role="status"></p>
+            <div class="actions">
+              <button type="submit" id="ges-motion-enviar" class="btn btn--primary">Criar apresentação</button>
+              <button type="button" id="ges-motion-fechar" class="btn btn--ghost">Cancelar</button>
+            </div>
+          </form>
+        </dialog>
       </section>
 
       <!-- Biblioteca de prompts -->

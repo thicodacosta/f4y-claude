@@ -33,7 +33,7 @@ const hasOwnPassword = (user) => user?.user_metadata?.senhaPropria === true;
 
 // Nome do produto nas mensagens da tela (a mesma tela serve a outras extensões
 // Candydate, ex.: BP).
-let produto = "ToolsKit";
+let produto = "Recruiter";
 
 /** Mensagens claras para os erros do Supabase Auth. */
 function friendly(error) {

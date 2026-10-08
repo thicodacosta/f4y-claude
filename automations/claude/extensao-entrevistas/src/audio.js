@@ -89,7 +89,7 @@ export function downsample(samples, fromRate, toRate) {
  * gravação ativa no momento da primeira amostra do bloco, para ordenar as
  * falas das duas trilhas depois.
  */
-export function createSegmentRecorder(stream, { chunkMs, clock, onChunk }) {
+export function createSegmentRecorder(stream, { chunkMs, clock, onChunk, onLevel, levelMs = 2000 }) {
   const audioCtx = new AudioContext();
   audioCtx.resume().catch(() => {});
   const source = audioCtx.createMediaStreamSource(stream);
@@ -105,6 +105,10 @@ export function createSegmentRecorder(stream, { chunkMs, clock, onChunk }) {
   let chunkStartMs = null;
   let paused = false;
   let stopped = false;
+  // Nível ao vivo (RMS da janela de `levelMs`), para o painel acompanhar.
+  let levelSum = 0;
+  let levelCount = 0;
+  let levelAt = performance.now();
 
   processor.onaudioprocess = (event) => {
     if (paused || stopped) return;
@@ -112,6 +116,16 @@ export function createSegmentRecorder(stream, { chunkMs, clock, onChunk }) {
     const data = event.inputBuffer.getChannelData(0);
     buffers.push(new Float32Array(data)); // cópia: o navegador recicla o buffer original
     sampleCount += data.length;
+    if (onLevel) {
+      for (const s of data) levelSum += s * s;
+      levelCount += data.length;
+      if (performance.now() - levelAt >= levelMs) {
+        onLevel(Math.sqrt(levelSum / levelCount));
+        levelSum = 0;
+        levelCount = 0;
+        levelAt = performance.now();
+      }
+    }
   };
 
   source.connect(processor);
