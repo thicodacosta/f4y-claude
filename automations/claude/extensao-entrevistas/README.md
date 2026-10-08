@@ -244,12 +244,14 @@ uma Edge Function do Supabase que só responde a sessões válidas.
 
 ## Interface
 
-Segue o design system **Candy Studio** (`design-system/candy-studio/`): índigo
-`#4F46E5` como única cor de ação, neutros na escala zinc, verde/âmbar/vermelho só
-para status, Geist nos títulos e Inter no corpo, bordas de 1px com sombras
-mínimas, raios de 8/12/16px, foco como anel de 4px e barra superior clara e
-translúcida. Tema escuro em zinc-950. Os tokens ficam em `extension/styles.css`
-(o BP copia este arquivo no build). Marca: logo Candydate
+Segue a estrutura do design system **Candy Studio** (`design-system/candy-studio/`)
+com o azul e os neutros da marca Candydate (candydate-vert.vercel.app): azul
+`#28AAF0` nos destaques sem texto, `#0E7AB8` nos botões com texto branco e
+`#166F9F` em textos e links (contraste AA), fundo `#F6F8FA`, texto `#383A47`,
+verde/âmbar/vermelho só para status, Geist nos títulos e Inter no corpo,
+bordas de 1px com sombras mínimas, botões em pílula, raios de 8/12/16px, foco
+como anel de 4px e barra superior clara e translúcida. Tokens em
+`extension/styles.css` (o BP copia este arquivo no build). Marca: logo Candydate
 (`extension/icons/candydate-logo.png` e ícones do monograma "C", gerados a
 partir de `design-system/assets/`).
 

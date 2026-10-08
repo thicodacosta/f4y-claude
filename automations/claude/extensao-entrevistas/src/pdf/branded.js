@@ -12,7 +12,7 @@ pdfMake.addVirtualFileSystem(pdfFonts);
 export const INK = "#2B2E3A";
 export const MUTED = "#6B6F7B";
 export const RULE = "#D9DCE1";
-export const DEFAULT_ACCENT = "#4F46E5";
+export const DEFAULT_ACCENT = "#0E7AB8";
 // Largura útil da página A4 com as margens abaixo, em pontos.
 const CONTENT_WIDTH = 499;
 // Área máxima do logo no cabeçalho, em pontos.

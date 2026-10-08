@@ -4,19 +4,20 @@
  * captureStream). Formatos 16:9, 9:16 e 1:1, com tudo proporcional ao lado
  * menor (unidade `u`).
  *
- * Linguagem visual Candy Studio: fundo zinc-950 com um mesh suave de luzes
- * índigo/violeta/ciano em movimento lento, tipografia Geist (títulos) e Inter
- * (texto), entradas em fade + slide-up com ease-out, contadores, barras e
- * linhas que se desenham, e transição por cortina índigo entre as cenas.
+ * Linguagem visual Candydate (estrutura Candy Studio): fundo azul-noite com
+ * um mesh suave de luzes no azul da marca e no índigo em movimento lento,
+ * tipografia Geist (títulos) e Inter (texto), entradas em fade + slide-up com
+ * ease-out, contadores, barras e linhas que se desenham, e transição por
+ * cortina azul entre as cenas.
  */
 
 const COR = {
-  fundo0: "#09090B", // zinc-950
-  fundo1: "#18181B", // zinc-900
-  acento: "#6366F1", // indigo-500
-  acento2: "#A5B4FC", // indigo-300 (destaques e projeções)
-  texto: "#FAFAFA",
-  suave: "#A1A1AA", // zinc-400
+  fundo0: "#07111C",
+  fundo1: "#0F2133",
+  acento: "#28AAF0", // azul Candydate
+  acento2: "#9ED8F9", // azul claro (destaques e projeções)
+  texto: "#F4F8FB",
+  suave: "#A8B6C4",
   linha: "rgba(255,255,255,0.10)",
   cartao: "rgba(255,255,255,0.055)",
 };
@@ -189,7 +190,7 @@ const CENAS = {
       const ini = -Math.PI / 2 + t * (0.25 + i * 0.12) * (i % 2 ? -1 : 1);
       ctx.beginPath();
       ctx.arc(cx, cy, r, ini, ini + Math.PI * 2 * p(t, 0.1 + i * 0.15, 1.6, easeInOut) * (0.55 + i * 0.15));
-      ctx.strokeStyle = i === 0 ? COR.acento : `rgba(165,180,252,${0.35 - i * 0.1})`;
+      ctx.strokeStyle = i === 0 ? COR.acento : `rgba(158,216,249,${0.35 - i * 0.1})`;
       ctx.lineWidth = (i === 0 ? 10 : 4) * u;
       ctx.lineCap = "round";
       ctx.stroke();
@@ -270,8 +271,8 @@ const CENAS = {
       const w = Math.max(bh, (it.valor / max) * wb * q);
       retangulo(ctx, xb, by, w, bh, bh / 2);
       const grad = ctx.createLinearGradient(xb, 0, xb + w, 0);
-      grad.addColorStop(0, it.destaque ? COR.acento2 : "rgba(99,102,241,0.65)");
-      grad.addColorStop(1, it.destaque ? "#C7D2FE" : COR.acento);
+      grad.addColorStop(0, it.destaque ? COR.acento2 : "rgba(40,170,240,0.65)");
+      grad.addColorStop(1, it.destaque ? "#D3EEFD" : COR.acento);
       ctx.fillStyle = grad;
       ctx.fill();
       fonte(ctx, 36 * u, 800, DISPLAY);
@@ -331,7 +332,7 @@ const CENAS = {
     const primeiroProj = pts.findIndex((pt) => pt.destaque);
     if (primeiroProj > 0) {
       const xp = X(primeiroProj - 1);
-      ctx.fillStyle = "rgba(165,180,252,0.06)";
+      ctx.fillStyle = "rgba(158,216,249,0.06)";
       ctx.fillRect(xp, y0, x1 - xp + 10 * u, y1 - y0);
       fonte(ctx, 22 * u, 700);
       ctx.fillStyle = COR.acento2;
@@ -361,8 +362,8 @@ const CENAS = {
     ctx.save();
     ctx.globalAlpha = 0.9 * q;
     const area = ctx.createLinearGradient(0, y0, 0, y1);
-    area.addColorStop(0, "rgba(99,102,241,0.30)");
-    area.addColorStop(1, "rgba(99,102,241,0)");
+    area.addColorStop(0, "rgba(40,170,240,0.30)");
+    area.addColorStop(1, "rgba(40,170,240,0)");
     ctx.beginPath();
     ctx.moveTo(X(0), y1);
     for (let i = 0; i <= Math.min(real, Math.floor(alcance)); i++) ctx.lineTo(X(i), Y(pts[i].valor));
@@ -375,7 +376,7 @@ const CENAS = {
     ctx.save();
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    ctx.shadowColor = "rgba(99,102,241,0.6)";
+    ctx.shadowColor = "rgba(40,170,240,0.6)";
     ctx.shadowBlur = 24 * u;
     ctx.strokeStyle = COR.acento;
     ctx.lineWidth = 8 * u;
@@ -458,7 +459,7 @@ const CENAS = {
       if (q <= 0) continue;
       ctx.beginPath();
       ctx.arc(cx, cy, (220 + 420 * easeOut(q)) * u, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(99,102,241,${0.45 * (1 - q)})`;
+      ctx.strokeStyle = `rgba(40,170,240,${0.45 * (1 - q)})`;
       ctx.lineWidth = 4 * u;
       ctx.stroke();
     }
@@ -568,7 +569,7 @@ const CENAS = {
     if (L.vertical || L.quadrado) {
       const passo = (L.H - y - L.base) / n;
       ctx.save();
-      ctx.strokeStyle = "rgba(99,102,241,0.5)";
+      ctx.strokeStyle = "rgba(40,170,240,0.5)";
       ctx.lineWidth = 4 * u;
       ctx.beginPath();
       ctx.moveTo(M + 28 * u, y + 28 * u);
@@ -599,7 +600,7 @@ const CENAS = {
     const x1 = W - M - 40 * u;
     const X = (i) => (n === 1 ? (x0 + x1) / 2 : x0 + (i / (n - 1)) * (x1 - x0));
     ctx.save();
-    ctx.strokeStyle = "rgba(99,102,241,0.5)";
+    ctx.strokeStyle = "rgba(40,170,240,0.5)";
     ctx.lineWidth = 4 * u;
     ctx.beginPath();
     ctx.moveTo(x0, cy);
@@ -664,8 +665,8 @@ function fundo(ctx, T, L) {
   ctx.fillRect(0, 0, W, H);
   // Luzes em movimento lento.
   const luzes = [
-    [0.15, 0.15, 0.55, "rgba(79,70,229,0.28)", 0.11], // indigo
-    [0.85, 0.85, 0.6, "rgba(124,58,237,0.22)", 0.08], // violet
+    [0.15, 0.15, 0.55, "rgba(40,170,240,0.30)", 0.11], // azul Candydate
+    [0.85, 0.85, 0.6, "rgba(88,96,169,0.30)", 0.08], // índigo Candydate
     [0.75, 0.2, 0.35, "rgba(6,182,212,0.10)", 0.15], // cyan
   ];
   for (const [px, py, r, cor, vel] of luzes) {
@@ -796,7 +797,7 @@ export class MotionPlayer {
       this.desenharCena(i, t);
       ctx.restore();
       const grad = ctx.createLinearGradient(xCorte - 90 * L.u, 0, xCorte + 10 * L.u, 0);
-      grad.addColorStop(0, "rgba(99,102,241,0)");
+      grad.addColorStop(0, "rgba(40,170,240,0)");
       grad.addColorStop(1, COR.acento);
       ctx.fillStyle = grad;
       ctx.fillRect(xCorte - 90 * L.u, 0, 100 * L.u, L.H);
@@ -807,7 +808,7 @@ export class MotionPlayer {
     // Saída final em fade.
     const fim = clamp((T - (total - 0.8)) / 0.8);
     if (fim > 0) {
-      ctx.fillStyle = `rgba(9,9,11,${fim})`;
+      ctx.fillStyle = `rgba(7,17,28,${fim})`;
       ctx.fillRect(0, 0, L.W, L.H);
     }
     ctx.restore();

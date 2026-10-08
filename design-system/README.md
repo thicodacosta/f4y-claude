@@ -21,7 +21,9 @@ depende desses arquivos serem adicionados.
 As extensões Chrome **Candydate · BP** e **Candydate · ToolsKit**
 (`automations/claude/extensao-bp/` e `extensao-entrevistas/`) seguem o design
 system **Candy Studio**, exportado do Claude Design e versionado em
-`candy-studio/` (tokens em `candy-studio/tokens/`, regras em
+`candy-studio/`, com a cor de ação trocada pelo azul da marca Candydate
+(`#28AAF0` em destaques, `#0E7AB8` em botões com texto branco, `#166F9F` em
+texto, por contraste AA) e os neutros do site Candydate (tokens em `candy-studio/tokens/`, regras em
 `candy-studio/readme.md`, componentes e UI kits de referência). Marca dessas
 extensões: logo Candydate (`assets/candydate-logo-limpo.png`, wordmark limpo
 com fundo transparente; `assets/candydate-logo-web.png`, 960 px para web;

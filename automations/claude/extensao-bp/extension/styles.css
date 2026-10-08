@@ -2,38 +2,38 @@
    ToolsKit, copiados no build). Mesmos tokens; aqui só o que é do BP. */
 
 :root {
-  /* Séries dos gráficos: índigo e ciano do Candy Studio (validadas: faixa de
-     luminosidade, croma, daltonismo e contraste, nos dois temas). */
-  --serie-1: #4f46e5;
-  --serie-2: #0891b2;
-  --g-trilho: #f4f4f5;
-  --g-grade: #e4e4e7;
-  --perigo-soft: #fef2f2;
-  --info: #4338ca;
-  --info-soft: #eef2ff;
-  --sucesso-soft: #f0fdf4;
+  /* Séries dos gráficos: azul Candydate e laranja de contraste (validadas:
+     faixa de luminosidade, croma, daltonismo e contraste, nos dois temas). */
+  --serie-1: #1690d2;
+  --serie-2: #c2410c;
+  --g-trilho: #eef1f4;
+  --g-grade: #e2e6eb;
+  --perigo-soft: #fdeceb;
+  --info: #166f9f;
+  --info-soft: #eaf6fe;
+  --sucesso-soft: #e3f5ec;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --serie-1: #7477f0;
-    --serie-2: #0c9ab3;
-    --g-trilho: #27272a;
-    --g-grade: #27272a;
-    --perigo-soft: rgba(239, 68, 68, 0.14);
-    --info: #a5b4fc;
-    --info-soft: rgba(99, 102, 241, 0.16);
-    --sucesso-soft: rgba(34, 197, 94, 0.14);
+    --serie-1: #2a9bdb;
+    --serie-2: #d07035;
+    --g-trilho: #262c36;
+    --g-grade: #262c36;
+    --perigo-soft: rgba(255, 122, 126, 0.14);
+    --info: #5cc0f5;
+    --info-soft: rgba(40, 170, 240, 0.14);
+    --sucesso-soft: rgba(21, 166, 107, 0.16);
   }
 }
 :root[data-theme="dark"] {
-  --serie-1: #7477f0;
-  --serie-2: #0c9ab3;
-  --g-trilho: #27272a;
-  --g-grade: #27272a;
-  --perigo-soft: rgba(239, 68, 68, 0.14);
-  --info: #a5b4fc;
-  --info-soft: rgba(99, 102, 241, 0.16);
-  --sucesso-soft: rgba(34, 197, 94, 0.14);
+  --serie-1: #2a9bdb;
+  --serie-2: #d07035;
+  --g-trilho: #262c36;
+  --g-grade: #262c36;
+  --perigo-soft: rgba(255, 122, 126, 0.14);
+  --info: #5cc0f5;
+  --info-soft: rgba(40, 170, 240, 0.14);
+  --sucesso-soft: rgba(21, 166, 107, 0.16);
 }
 
 input:not([type]),
@@ -690,9 +690,9 @@ select:focus-visible {
 /* Escala divergente 1–5: dois polos e meio neutro. */
 .distribuicao__seg--1 { background: #c2410c; }
 .distribuicao__seg--2 { background: #e8915a; }
-.distribuicao__seg--3 { background: #a1a1aa; }
-.distribuicao__seg--4 { background: #818cf8; }
-.distribuicao__seg--5 { background: #4f46e5; }
+.distribuicao__seg--3 { background: #9297a0; }
+.distribuicao__seg--4 { background: #5fbdf3; }
+.distribuicao__seg--5 { background: #1690d2; }
 
 /* Gestão */
 .analise__resumo {
@@ -754,7 +754,7 @@ select:focus-visible {
   width: min(720px, calc(100vw - 16px));
 }
 .modal::backdrop {
-  background: rgba(9, 9, 11, 0.5);
+  background: rgba(13, 17, 23, 0.5);
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
@@ -785,9 +785,9 @@ select:focus-visible {
   z-index: 50;
   padding: 10px 14px;
   border-radius: var(--radius-md);
-  background: #18181b;
-  border: 1px solid #27272a;
-  color: #fafafa;
+  background: #383a47;
+  border: 1px solid #4a4d5c;
+  color: #ffffff;
   font-size: 13px;
   opacity: 0;
   transform: translateY(8px);
@@ -818,7 +818,7 @@ select:focus-visible {
   place-items: center;
   padding: 12px;
   border-radius: var(--radius-xl, 24px);
-  background: #09090b;
+  background: #0b1520;
 }
 .motion__tela canvas {
   display: block;
@@ -966,4 +966,41 @@ select:focus-visible {
   .kpis--4 {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* Mais azul Candydate: faixa azul nos indicadores, selos e itens ativos. */
+.kpi {
+  position: relative;
+  overflow: hidden;
+}
+.kpi::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--primary);
+}
+.kpi--perigo::before {
+  background: var(--danger);
+}
+.topbar__produto {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--primary-ink);
+}
+.secao {
+  color: var(--primary-ink);
+}
+.linha-item:hover {
+  background: var(--accent-soft);
+}
+.timeline__item::before {
+  background: var(--primary);
+}
+.tipo:hover,
+.cena.is-atual {
+  border-color: var(--primary);
+}
+.card--suave {
+  background: var(--accent-soft);
 }

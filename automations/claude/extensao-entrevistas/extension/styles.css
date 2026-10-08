@@ -1,45 +1,46 @@
-/* Tokens do design system Candy Studio (design-system/candy-studio/tokens):
-   índigo #4F46E5 como única cor de ação, escala zinc nos neutros, verde/âmbar/
-   vermelho só para status, Geist nos títulos e Inter no corpo, bordas de 1px
-   fazendo a separação e sombras mínimas. Usado pela ToolsKit e pelo BP
-   (o BP copia este arquivo no build). Os nomes das variáveis são os antigos,
-   para não mexer nos componentes. */
+/* Tokens: estrutura do design system Candy Studio (design-system/candy-studio)
+   com o azul e os neutros da marca Candydate (candydate-vert.vercel.app).
+   Azul #28AAF0 nos destaques sem texto; #0E7AB8 nos botões com texto branco
+   e #166F9F em textos e links (contraste AA). Verde/âmbar/vermelho só para
+   status. Geist nos títulos, Inter no corpo, bordas de 1px, sombras mínimas.
+   Usado pela ToolsKit e pelo BP (o BP copia este arquivo no build). Os nomes
+   das variáveis são os antigos, para não mexer nos componentes. */
 :root {
-  --navy: #18181b; /* zinc-900 */
-  --teal: #6366f1; /* indigo-500, acento não textual */
-  --primary: #4f46e5; /* indigo-600: abas, indicadores, barras */
-  --primary-ink: #4f46e5; /* texto e links (AA sobre branco) */
-  --secondary: #52525b; /* zinc-600 */
-  --cta: #4f46e5; /* ação principal */
-  --cta-hover: #4338ca;
+  --navy: #383a47;
+  --teal: #28aaf0; /* azul Candydate, acento não textual */
+  --primary: #28aaf0; /* abas, indicadores, barras, realces */
+  --primary-ink: #166f9f; /* texto e links em azul (AA) */
+  --secondary: #6b6e76;
+  --cta: #0e7ab8; /* ação principal (texto branco, AA) */
+  --cta-hover: #0b6699;
   --on-cta: #ffffff;
-  --focus: #4f46e5;
-  --ring: rgba(79, 70, 229, 0.18); /* anel de brilho de 4px */
-  --accent-soft: #eef2ff; /* indigo-50 */
-  --brand-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-  --bg: #fafafa; /* zinc-50 */
+  --focus: #0e7ab8;
+  --ring: rgba(40, 170, 240, 0.28); /* anel de brilho de 4px */
+  --accent-soft: #eaf6fe;
+  --brand-gradient: linear-gradient(135deg, #28aaf0 0%, #5860a9 100%);
+  --bg: #f6f8fa;
   --surface: #ffffff;
-  --ink: #18181b; /* zinc-900 */
-  --muted: #71717a; /* zinc-500 */
-  --border: #e4e4e7; /* zinc-200 */
-  --border-strong: #d4d4d8; /* zinc-300 */
-  --success: #16a34a;
-  --warning-bg: #fffbeb;
-  --warning-ink: #92400e;
-  --danger: #dc2626;
+  --ink: #383a47;
+  --muted: #6b6e76;
+  --border: #e2e6eb;
+  --border-strong: #d5dae1;
+  --success: #15a66b;
+  --warning-bg: #fef6e7;
+  --warning-ink: #4a3208;
+  --danger: #d93a3f;
   /* Sombras mínimas: a borda faz a separação. */
-  --shadow: 0 1px 2px rgba(24, 24, 27, 0.04);
-  --shadow-hover: 0 4px 12px rgba(24, 24, 27, 0.08), 0 2px 4px rgba(24, 24, 27, 0.04);
+  --shadow: 0 1px 2px rgba(56, 58, 71, 0.04);
+  --shadow-hover: 0 4px 12px rgba(40, 170, 240, 0.12), 0 2px 4px rgba(56, 58, 71, 0.04);
   /* Raios: 8 (controles pequenos), 12 (inputs, tags), 16 (cartões). */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius: 16px;
-  /* Barra superior: branca translúcida com desfoque, como a navbar do kit. */
+  /* Barra superior: branca translúcida com desfoque, como a navbar do site. */
   --header-bg: rgba(255, 255, 255, 0.85);
-  --header-fg: #3f3f46;
-  --header-accent: #4f46e5;
-  --header-border: #e4e4e7;
-  --header-hover: #f4f4f5;
+  --header-fg: #383a47;
+  --header-accent: #0e7ab8;
+  --header-border: #e2e6eb;
+  --header-hover: #eaf6fe;
   --font-body: "Inter", "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-display: "Geist", "Inter", system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -51,63 +52,63 @@
    (data-theme="dark" | "light" no <html>, ver theme-init.js). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --navy: #fafafa;
-    --primary-ink: #a5b4fc; /* indigo-300 */
-    --secondary: #a1a1aa;
-    --cta: #4f46e5;
-    --cta-hover: #6366f1;
+    --navy: #f4f6f8;
+    --primary-ink: #5cc0f5;
+    --secondary: #a1a6ae;
+    --cta: #0e7ab8;
+    --cta-hover: #1690d2;
     --on-cta: #ffffff;
-    --focus: #818cf8;
-    --ring: rgba(129, 140, 248, 0.28);
-    --accent-soft: rgba(99, 102, 241, 0.16);
-    --bg: #09090b; /* zinc-950 */
-    --surface: #18181b; /* zinc-900 */
-    --ink: #fafafa;
-    --muted: #a1a1aa; /* zinc-400 */
-    --border: #27272a; /* zinc-800 */
-    --border-strong: #3f3f46;
-    --success: #4ade80;
-    --warning-bg: rgba(245, 158, 11, 0.14);
-    --warning-ink: #fcd34d;
-    --danger: #f87171;
+    --focus: #28aaf0;
+    --ring: rgba(40, 170, 240, 0.32);
+    --accent-soft: rgba(40, 170, 240, 0.14);
+    --bg: #0d1117;
+    --surface: #161b22;
+    --ink: #f4f6f8;
+    --muted: #a1a6ae;
+    --border: #262c36;
+    --border-strong: #343b47;
+    --success: #3ccf8e;
+    --warning-bg: rgba(245, 166, 35, 0.14);
+    --warning-ink: #ffc163;
+    --danger: #ff7a7e;
     --shadow: none;
     --shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.45);
-    --header-bg: rgba(9, 9, 11, 0.85);
-    --header-fg: #d4d4d8;
-    --header-accent: #a5b4fc;
-    --header-border: #27272a;
-    --header-hover: #27272a;
+    --header-bg: rgba(13, 17, 23, 0.85);
+    --header-fg: #d6dae0;
+    --header-accent: #5cc0f5;
+    --header-border: #262c36;
+    --header-hover: rgba(40, 170, 240, 0.14);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --navy: #fafafa;
-  --primary-ink: #a5b4fc;
-  --secondary: #a1a1aa;
-  --cta: #4f46e5;
-  --cta-hover: #6366f1;
+  --navy: #f4f6f8;
+  --primary-ink: #5cc0f5;
+  --secondary: #a1a6ae;
+  --cta: #0e7ab8;
+  --cta-hover: #1690d2;
   --on-cta: #ffffff;
-  --focus: #818cf8;
-  --ring: rgba(129, 140, 248, 0.28);
-  --accent-soft: rgba(99, 102, 241, 0.16);
-  --bg: #09090b;
-  --surface: #18181b;
-  --ink: #fafafa;
-  --muted: #a1a1aa;
-  --border: #27272a;
-  --border-strong: #3f3f46;
-  --success: #4ade80;
-  --warning-bg: rgba(245, 158, 11, 0.14);
-  --warning-ink: #fcd34d;
-  --danger: #f87171;
+  --focus: #28aaf0;
+  --ring: rgba(40, 170, 240, 0.32);
+  --accent-soft: rgba(40, 170, 240, 0.14);
+  --bg: #0d1117;
+  --surface: #161b22;
+  --ink: #f4f6f8;
+  --muted: #a1a6ae;
+  --border: #262c36;
+  --border-strong: #343b47;
+  --success: #3ccf8e;
+  --warning-bg: rgba(245, 166, 35, 0.14);
+  --warning-ink: #ffc163;
+  --danger: #ff7a7e;
   --shadow: none;
   --shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.45);
-  --header-bg: rgba(9, 9, 11, 0.85);
-  --header-fg: #d4d4d8;
-  --header-accent: #a5b4fc;
-  --header-border: #27272a;
-  --header-hover: #27272a;
+  --header-bg: rgba(13, 17, 23, 0.85);
+  --header-fg: #d6dae0;
+  --header-accent: #5cc0f5;
+  --header-border: #262c36;
+  --header-hover: rgba(40, 170, 240, 0.14);
   color-scheme: dark;
 }
 
@@ -1982,7 +1983,7 @@ ol.cv-list {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
-  box-shadow: 0 8px 24px rgba(24, 24, 27, 0.12);
+  box-shadow: 0 8px 24px rgba(56, 58, 71, 0.12);
 }
 
 .chat-menu {
@@ -2152,4 +2153,17 @@ html.is-locked body > :not(.auth) {
   background: color-mix(in srgb, var(--danger) 10%, transparent);
   color: var(--danger);
   font-size: 13px;
+}
+
+/* Marca Candydate: botões em pílula e realces em azul, como no site. */
+.btn {
+  border-radius: 999px;
+}
+.btn--ghost:hover {
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  background: var(--accent-soft);
+}
+.eyebrow {
+  color: var(--primary-ink);
 }

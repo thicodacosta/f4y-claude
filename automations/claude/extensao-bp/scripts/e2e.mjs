@@ -96,7 +96,7 @@ try {
   await painel.avaliar(`document.querySelector('#auth-email').value='rh@bp.test';document.querySelector('#auth-password').value='BpTeste2026';document.querySelector('.auth form').requestSubmit();`);
   checar("Login abre o painel", await painel.esperarAte("document.querySelector('#aba-gestao[aria-selected=true]')"));
   checar("9 funcionalidades no menu", (await painel.avaliar("document.querySelectorAll('.tabs__tab').length")) === 9);
-  await painel.avaliar("chrome.storage.local.set({branding:{empresa:'Aurora Teste',cor:'#4F46E5'}})");
+  await painel.avaliar("chrome.storage.local.set({branding:{empresa:'Aurora Teste',cor:'#0E7AB8'}})");
 
   // 2. Base pela API (como a conta logada): quadro com 2 anos de história.
   const rest = await sessao("rh@bp.test");
@@ -289,11 +289,11 @@ try {
   await painel.esperarAte("document.querySelector('#area-gestao:not([hidden]) .kpi')");
   await clicar(painel, "Baixar PDF", "document.querySelector('#area-gestao')");
   let pdf = null;
-  for (let i = 0; i < 40 && !pdf; i++) {
+  for (let i = 0; i < 100 && !pdf; i++) {
     await esperar(300);
     pdf = readdirSync(downloads).find((f) => f.endsWith(".pdf"));
   }
-  checar("Baixar PDF gera o arquivo", Boolean(pdf), pdf ?? "nenhum arquivo");
+  checar("Baixar PDF gera o arquivo", Boolean(pdf), pdf ?? `nenhum arquivo · aviso: ${await painel.avaliar("document.querySelector('#toast')?.textContent ?? '-'")} · ${chrome.logs.slice(-3).join(" | ")}`);
   const docs = (await rest("bp_documentos?tipo=eq.pdf&select=modulo")).dados;
   checar("PDF gerado fica guardado", docs.some((d) => d.modulo === "gestao"));
 

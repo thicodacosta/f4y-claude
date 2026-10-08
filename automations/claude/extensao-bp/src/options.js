@@ -12,7 +12,7 @@ $("conta-sair").addEventListener("click", logout);
 
 // ─── Identidade ────────────────────────────────────────────────────────────
 
-let branding = (await chrome.storage.local.get("branding")).branding ?? { cor: "#4F46E5" };
+let branding = (await chrome.storage.local.get("branding")).branding ?? { cor: "#0E7AB8" };
 const empresaId = user ? await iniciarEmpresa(branding.empresa).catch(() => null) : null;
 
 // ─── Colaboradores ─────────────────────────────────────────────────────────
@@ -38,7 +38,7 @@ function previa() {
   $("logo-remover").hidden = !branding.logoDataUrl;
 }
 $("empresa").value = branding.empresa ?? "";
-$("cor").value = branding.cor ?? "#4F46E5";
+$("cor").value = branding.cor ?? "#0E7AB8";
 $("cor-valor").textContent = $("cor").value.toUpperCase();
 previa();
 
