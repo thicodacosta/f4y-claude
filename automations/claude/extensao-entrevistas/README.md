@@ -43,6 +43,17 @@ A gravação continua com o painel fechado ou em outra aba. Durante a
 gravação o painel mostra só o tempo, pausa e se cada trilha está captando
 fala, não o texto. A transcrição completa aparece junto do registro.
 
+**Aba que não é reunião:** a gravação só começa numa aba do Meet, Teams,
+Zoom, Webex, Whereby, Jitsi, 8x8, Skype ou Discord (pelo endereço, liberado
+pelo clique no ícone). Em outra aba, o painel explica o motivo e oferece
+"gravar esta aba mesmo assim", para outras plataformas. Caso real
+(08/10/2026): o Meet estava aberto como aplicativo (PWA, janela sem barra de
+endereço, onde o ícone da extensão não aparece); o clique no ícone foi na
+janela comum, na aba da Agenda, e a extensão gravou o silêncio dessa aba. O
+teste em laboratório (Chrome 154 neste Mac) confirmou que a captura funciona em
+áudio por elemento, Web Audio, WebRTC e saída em dispositivo específico
+(`setSinkId`), e que o ToolsKit capta a fala de uma aba normalmente.
+
 **Som da reunião em silêncio:** o painel mostra o título da aba gravada.
 Se a trilha da reunião entregar silêncio digital (RMS < 0,0001) por 2 blocos
 seguidos (40s) enquanto o microfone capta fala, o painel avisa na hora, com o

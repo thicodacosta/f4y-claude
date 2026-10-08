@@ -210,6 +210,28 @@ $("form").addEventListener("submit", async (event) => {
   else await analyzePasted(input);
 });
 
+/**
+ * A aba escolhida não é de reunião (ex.: Agenda, com o Meet aberto como
+ * aplicativo). Explica e permite gravar mesmo assim (outra plataforma).
+ */
+function notMeetingHint(message, tabId, meta) {
+  const box = document.createElement("span");
+  box.className = "icon-hint";
+  const text = document.createElement("span");
+  text.textContent = message;
+  const force = document.createElement("button");
+  force.type = "button";
+  force.className = "btn-link";
+  force.textContent = "É uma reunião em outra plataforma: gravar esta aba mesmo assim";
+  force.addEventListener("click", async () => {
+    force.disabled = true;
+    const response = await toBackground({ type: "START", tabId, meta, force: true });
+    if (!response?.ok) showFormError(response?.error ?? "Não foi possível iniciar a gravação.");
+  });
+  box.append(text, force);
+  return box;
+}
+
 async function startRecording(input) {
   // O aviso de permissão do microfone só aparece de forma confiável numa aba
   // comum. Se o usuário já negou, a gravação segue só com o áudio da reunião.
@@ -231,6 +253,8 @@ async function startRecording(input) {
       // extensão nela; o background inicia a gravação nesse clique.
       await chrome.storage.session.set({ pendingStart: { meta, at: Date.now() } });
       showFormError(iconHint());
+    } else if (response?.code === "not_meeting") {
+      showFormError(notMeetingHint(response.error, response.tabId, meta));
     } else if (!response?.ok) showFormError(response?.error ?? "Não foi possível iniciar a gravação.");
   } finally {
     submit.disabled = false;
@@ -541,7 +565,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && ("apiKey" in changes || "groqKey" in changes)) loadKeys();
   if (area !== "session") return;
   if (changes.startError?.newValue) {
-    showFormError(changes.startError.newValue);
+    const e = changes.startError.newValue;
+    showFormError(
+      typeof e === "string" ? e : e.code === "not_meeting" ? notMeetingHint(e.message, e.tabId, e.meta) : e.message,
+    );
     chrome.storage.session.remove("startError");
   }
   if (changes.capture?.newValue && !changes.capture.oldValue) showFormError(null);

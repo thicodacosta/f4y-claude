@@ -101,8 +101,8 @@ async function attachmentText(a) {
   return null;
 }
 
-async function groqMessages(history, vision) {
-  const out = [{ role: "system", content: systemPrompt() }];
+async function groqMessages(history, vision, system) {
+  const out = [{ role: "system", content: system }];
   for (const m of history) {
     if (m.role === "assistant") {
       out.push({ role: "assistant", content: m.text });
@@ -127,9 +127,10 @@ async function groqMessages(history, vision) {
 
 /**
  * Responde à conversa (`history` termina na mensagem do usuário).
- * `onProvider("claude" | "groq")` avisa quem está respondendo.
+ * `onProvider("claude" | "groq")` avisa quem está respondendo. `system`
+ * substitui o prompt padrão (ex.: Chat do BP, com os dados da empresa).
  */
-export async function sendChat({ keys, history, signal, onText, onProvider }) {
+export async function sendChat({ keys, history, signal, onText, onProvider, system = systemPrompt() }) {
   const recent = history.slice(-HISTORY_LIMIT);
 
   if (keys.apiKey) {
@@ -137,7 +138,7 @@ export async function sendChat({ keys, history, signal, onText, onProvider }) {
       onProvider?.("claude");
       const result = await claudeChatStream({
         apiKey: keys.apiKey,
-        system: systemPrompt(),
+        system,
         messages: recent.map((m) => ({ role: m.role, content: claudeContent(m) })),
         webSearch: true,
         signal,
@@ -158,7 +159,7 @@ export async function sendChat({ keys, history, signal, onText, onProvider }) {
   const request = {
     apiKey: keys.groqKey,
     model: vision ? GROQ_VISION_MODEL : GROQ_MODEL,
-    messages: await groqMessages(recent, vision),
+    messages: await groqMessages(recent, vision, system),
     webSearch: !vision,
     signal,
     onText,

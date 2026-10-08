@@ -34,7 +34,23 @@ async function startPending(tabId) {
   try {
     await start({ tabId, meta: pendingStart.meta });
   } catch (error) {
-    await chrome.storage.session.set({ startError: error.message });
+    await chrome.storage.session.set({
+      startError: { message: error.message, code: error.code ?? null, tabId, meta: pendingStart.meta },
+    });
+  }
+}
+
+// Plataformas de reunião no navegador. Gravar outra aba (ex.: Agenda) só
+// capta silêncio: acontece quando a reunião está aberta como aplicativo
+// (janela sem barra de endereço), onde o ícone da extensão não aparece.
+const MEETING_HOST =
+  /(^|\.)(meet\.google\.com|teams\.microsoft\.com|teams\.live\.com|teams\.cloud\.microsoft|zoom\.us|zoom\.com|zoomgov\.com|webex\.com|whereby\.com|meet\.jit\.si|8x8\.vc|skype\.com|discord\.com)$/i;
+
+function isMeetingTab(tab) {
+  try {
+    return MEETING_HOST.test(new URL(tab.url).hostname);
+  } catch {
+    return true; // sem URL (aba não liberada): a checagem fica para depois
   }
 }
 
@@ -82,7 +98,7 @@ async function closeOffscreen() {
   if (existing.length > 0) await chrome.offscreen.closeDocument().catch(() => {});
 }
 
-async function start({ tabId, meta }) {
+async function start({ tabId, meta, force = false }) {
   const { capture } = await chrome.storage.session.get("capture");
   if (capture && capture.phase !== "error") throw new Error("Já existe uma gravação em andamento.");
 
@@ -90,6 +106,19 @@ async function start({ tabId, meta }) {
   // A Groq transcreve (obrigatória); o registro sai pelo Claude ou pela Groq.
   if (!groqKey) throw new Error("Cadastre a chave da Groq em Configurações antes de gravar.");
   if (tabId === undefined) throw new Error("Não foi possível identificar a aba da reunião.");
+
+  // Título e endereço da aba (liberados pelo clique no ícone, activeTab).
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (!force && tab?.url && !isMeetingTab(tab)) {
+    throw Object.assign(
+      new Error(
+        `A aba escolhida não é uma reunião (“${tab.title || "sem título"}”). Abra a reunião numa aba do Chrome, ` +
+          "clique no ícone do JourneyLab nessa aba e inicie de novo. Se o Meet, o Teams ou o Zoom estiver aberto " +
+          "como aplicativo (janela sem barra de endereço), use o menu ⋮ dessa janela → “Abrir no Chrome”.",
+      ),
+      { code: "not_meeting", tabId },
+    );
+  }
 
   let streamId;
   try {
@@ -113,9 +142,6 @@ async function start({ tabId, meta }) {
     await closeOffscreen();
     throw new Error(response?.error ?? "Não foi possível iniciar a gravação.");
   }
-
-  // Título da aba gravada: o painel mostra, para conferir que é a reunião.
-  const tab = await chrome.tabs.get(tabId).catch(() => null);
 
   await chrome.storage.session.remove(["result", "pendingStart", "startError"]);
   await chrome.storage.session.set({
@@ -210,7 +236,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.target !== "background") return false;
   handle(message).then(
     () => sendResponse({ ok: true }),
-    (error) => sendResponse({ ok: false, error: error.message, code: error.code }),
+    (error) => sendResponse({ ok: false, error: error.message, code: error.code, tabId: error.tabId }),
   );
   return true;
 });

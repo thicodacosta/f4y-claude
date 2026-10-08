@@ -31,13 +31,17 @@ const PROVISIONAL = /^\d{6,10}$/;
 
 const hasOwnPassword = (user) => user?.user_metadata?.senhaPropria === true;
 
+// Nome do produto nas mensagens da tela (a mesma tela serve a outras extensões
+// JourneyLab, ex.: BP).
+let produto = "ToolsKit";
+
 /** Mensagens claras para os erros do Supabase Auth. */
 function friendly(error) {
   const msg = `${error?.message ?? ""} ${error?.code ?? ""}`.toLowerCase();
   if (/invalid login credentials|invalid_credentials/.test(msg)) return "E-mail ou senha incorretos.";
   if (/token has expired|otp_expired|invalid.*otp|token.*invalid/.test(msg)) return "Senha provisória inválida ou expirada. Peça uma nova em \"Esqueci a senha\".";
   if (/rate limit|too many|over_email_send_rate_limit|security purposes/.test(msg)) return "Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo.";
-  if (/signups not allowed|user not found/.test(msg)) return "Este e-mail não tem acesso ao ToolsKit. Fale com o administrador.";
+  if (/signups not allowed|user not found/.test(msg)) return `Este e-mail não tem acesso ao ${produto}. Fale com o administrador.`;
   if (/same_password|should be different/.test(msg)) return "A nova senha precisa ser diferente da senha atual.";
   if (/password should be|weak_password/.test(msg)) return "A nova senha precisa ter pelo menos 8 caracteres, com letras e números.";
   if (/reauthentication/.test(msg)) return "Por segurança, saia e entre de novo antes de trocar a senha.";
@@ -52,11 +56,11 @@ function buildScreen() {
     "div",
     { class: "auth__card" },
     el("img", { src: "icons/journeylab-logo.png", alt: "JourneyLab", class: "auth__logo" }),
-    el("p", { class: "eyebrow auth__eyebrow", text: "ToolsKit" }),
+    el("p", { class: "eyebrow auth__eyebrow", text: produto }),
     box,
     status,
   );
-  const screen = el("div", { class: "auth", role: "dialog", "aria-modal": "true", "aria-label": "Acesso ao ToolsKit" }, card);
+  const screen = el("div", { class: "auth", role: "dialog", "aria-modal": "true", "aria-label": `Acesso ao ${produto}` }, card);
   return { screen, box, status };
 }
 
@@ -64,7 +68,8 @@ function buildScreen() {
  * Bloqueia a página até haver sessão válida com senha própria. Devolve o
  * usuário. `onLogin` é chamado quando o acesso é liberado nesta tela.
  */
-export async function requireAuth({ onLogin } = {}) {
+export async function requireAuth({ onLogin, nomeProduto } = {}) {
+  if (nomeProduto) produto = nomeProduto;
   if (!authConfigured) return null; // pacote de desenvolvimento sem login configurado
   const existing = await currentUser();
   if (existing && hasOwnPassword(existing)) {
@@ -182,7 +187,7 @@ function runFlow(ui, done, pendingUser) {
     const leave = el("button", { type: "button", class: "btn-link", text: "Sair" });
     const lead =
       reason === "first"
-        ? "Bem-vindo ao ToolsKit. Antes de continuar, crie a sua senha pessoal. A senha recebida do administrador deixa de valer."
+        ? `Bem-vindo ao ${produto}. Antes de continuar, crie a sua senha pessoal. A senha recebida do administrador deixa de valer.`
         : "Crie uma nova senha. A senha provisória deixa de valer.";
     const form = el(
       "form",
