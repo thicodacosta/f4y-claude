@@ -77,13 +77,18 @@ function watchLevels(role, rms) {
 function handleChunk(role, { wav, startMs, rms }) {
   if (!rec) return;
   watchLevels(role, rms);
-  if (rms < SILENCE_RMS) return;
+  // Nível de cada bloco vai ao painel (diagnóstico da captação).
+  toBackground({ type: "LEVEL", role, rms });
+  // Microfone: corta ruído de fundo. Reunião: só o silêncio digital, porque o
+  // som da chamada pode chegar baixo e a Whisper já descarta trechos sem fala.
+  if (rms < (role === "candidato" ? DIGITAL_SILENCE_RMS : SILENCE_RMS)) return;
   const { keys, abort } = rec;
   const current = rec;
 
   const job = transcribeChunk(keys.groq, wav, { signal: abort.signal })
     .then((segments) => {
       for (const s of segments) current.segments.push({ role, t: startMs + s.start * 1000, text: s.text });
+      console.info(`Trecho ${role}: RMS ${rms.toFixed(4)}, ${segments.length} fala(s) transcrita(s)`);
       toBackground({ type: "CHUNK", role, ok: true, speech: segments.length > 0 });
     })
     .catch((error) => {

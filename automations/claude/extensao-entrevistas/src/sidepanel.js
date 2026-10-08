@@ -348,6 +348,13 @@ function renderRecording() {
   healthLine("health-candidato", "Áudio da reunião", c.stats.candidato, true, elapsed);
   healthLine("health-recrutador", "Seu microfone", c.stats.recrutador, c.hasMic, elapsed);
 
+  // Nível medido em cada bloco de 20s (0 = silêncio). Ajuda a diagnosticar
+  // captação: reunião em 0 = o som da chamada não está chegando à extensão.
+  const levels = c.levels ?? {};
+  const fmt = (l) => (l ? `${(l.last * 100).toFixed(2)} (máx. ${(l.max * 100).toFixed(2)})` : "medindo…");
+  $("health-levels").hidden = !levels.candidato && !levels.recrutador;
+  $("health-levels").textContent = `Nível do áudio · reunião: ${fmt(levels.candidato)} · microfone: ${fmt(levels.recrutador)}`;
+
   const warnings = [...c.warnings];
   if (c.stats.falhas > 0) {
     warnings.push(`${c.stats.falhas} trecho(s) de áudio não puderam ser transcritos e ficarão marcados no registro.`);
