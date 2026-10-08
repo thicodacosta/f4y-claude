@@ -314,6 +314,9 @@ function renderRecording() {
   const paused = c.phase === "paused";
   $("recording-title").textContent = c.meta.candidato?.trim() || "Candidato não informado";
   $("recording-meta").textContent = c.meta.vagaTitulo?.trim() ?? "";
+  // Aba gravada: se não for a da reunião, a recrutadora percebe na hora.
+  $("recording-tab").hidden = !c.tabTitle;
+  $("recording-tab").textContent = c.tabTitle ? `Gravando o áudio da aba: ${c.tabTitle}` : "";
   $("recording-status").classList.toggle("is-paused", paused);
   $("recording-label").textContent = paused ? "Pausado" : "Gravando";
   $("recording-timer").textContent = formatDuration(elapsed);
@@ -414,6 +417,8 @@ function showResult(result) {
   $("result-meta").textContent = [meta.vagaTitulo, meta.data].filter(Boolean).join(" · ");
   $("copy-status").textContent = "";
   for (const radio of document.querySelectorAll('input[name="idioma"]')) radio.checked = radio.value === resultLang();
+  $("result-warning").hidden = !result.aviso;
+  $("result-warning").textContent = result.aviso ?? "";
   renderAnalysis($("result"), resultData(), resultLang());
   $("transcript-details").hidden = !result.transcricao;
   $("transcript-details").open = false;

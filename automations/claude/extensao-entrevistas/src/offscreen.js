@@ -22,6 +22,16 @@ const CHUNK_MS = 20_000;
 // chamada (e evita alucinação da Whisper). Baixo de propósito, porque o
 // microfone sem processamento capta fala real com RMS perto de 0,01.
 const SILENCE_RMS = 0.0015;
+// Silêncio digital: a aba entrega zeros (nada tocando nela). Numa chamada
+// ativa sempre há algum ruído; dois blocos seguidos assim (40s), com o
+// microfone captando, indicam que o som da reunião não está chegando.
+const DIGITAL_SILENCE_RMS = 0.0001;
+const SILENT_TAB_CHUNKS = 2;
+const SILENT_TAB_WARNING =
+  "O som da reunião não está chegando à extensão: só a sua voz está sendo gravada. Confira: (1) a gravação foi " +
+  "iniciada na aba da reunião; (2) a reunião está no Chrome, não no aplicativo do Meet, Teams ou Zoom; (3) no " +
+  "Meet/Teams, em Configurações → Áudio → Alto-falante, use o padrão do sistema. Se precisar, descarte e inicie " +
+  "a gravação de novo na aba da reunião.";
 
 let rec = null;
 
@@ -45,8 +55,29 @@ function createClock() {
   };
 }
 
+/** Acompanha o nível de cada trilha e avisa se o som da reunião não chega. */
+function watchLevels(role, rms) {
+  const levels = rec.levels;
+  if (role === "recrutador") {
+    if (rms >= SILENCE_RMS) levels.micHeard = true;
+    return;
+  }
+  if (rms >= DIGITAL_SILENCE_RMS) {
+    levels.tabSilentChunks = 0;
+    levels.tabHeard = true;
+    return;
+  }
+  levels.tabSilentChunks += 1;
+  if (levels.tabSilentChunks >= SILENT_TAB_CHUNKS && levels.micHeard && !levels.warned) {
+    levels.warned = true;
+    toBackground({ type: "WARNING", message: SILENT_TAB_WARNING });
+  }
+}
+
 function handleChunk(role, { wav, startMs, rms }) {
-  if (!rec || rms < SILENCE_RMS) return;
+  if (!rec) return;
+  watchLevels(role, rms);
+  if (rms < SILENCE_RMS) return;
   const { keys, abort } = rec;
   const current = rec;
 
@@ -105,6 +136,7 @@ async function start({ streamId, keys, meta }) {
     recorders: [],
     finishing: false,
     authWarned: false,
+    levels: { tabSilentChunks: 0, tabHeard: false, micHeard: false, warned: false },
   };
 
   const recorderFor = (role, stream) =>
@@ -141,9 +173,14 @@ async function finish() {
 
   if (rec !== current) return; // cancelado enquanto finalizava
 
-  const transcricao = buildTranscript(current.segments, {
-    unavailableRoles: current.micStream ? [] : ["recrutador"],
-  });
+  // Sem nenhuma fala da trilha da reunião, o registro não pode parecer
+  // completo: a transcrição e o resultado avisam que o candidato não foi ouvido.
+  const candidateHeard = current.segments.some((s) => s.role === "candidato" && s.text);
+  const unavailableRoles = [...(current.micStream ? [] : ["recrutador"]), ...(candidateHeard ? [] : ["candidato"])];
+  const transcricao = buildTranscript(current.segments, { unavailableRoles });
+  const aviso = candidateHeard
+    ? null
+    : "O áudio da reunião não foi captado nesta gravação: o registro foi gerado só com a fala do recrutador e não reflete as respostas do candidato.";
   if (!current.segments.some((s) => s.text)) {
     toBackground({
       type: "FAILED",
@@ -164,7 +201,7 @@ async function finish() {
       signal: current.abort.signal,
     });
     if (rec !== current) return;
-    toBackground({ type: "DONE", data, transcricao });
+    toBackground({ type: "DONE", data, transcricao, aviso });
   } catch (error) {
     if (rec !== current) return;
     console.error("Falha ao gerar o registro", error);

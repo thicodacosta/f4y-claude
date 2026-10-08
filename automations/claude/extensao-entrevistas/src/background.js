@@ -114,11 +114,15 @@ async function start({ tabId, meta }) {
     throw new Error(response?.error ?? "Não foi possível iniciar a gravação.");
   }
 
+  // Título da aba gravada: o painel mostra, para conferir que é a reunião.
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+
   await chrome.storage.session.remove(["result", "pendingStart", "startError"]);
   await chrome.storage.session.set({
     capture: {
       phase: "recording",
       meta,
+      tabTitle: tab?.title ?? null,
       startedAt: Date.now(),
       pausedAt: null,
       pausedMs: 0,
@@ -181,6 +185,7 @@ async function handle(message) {
         result: {
           data: message.data,
           transcricao: message.transcricao,
+          aviso: message.aviso ?? null,
           meta: {
             candidato: meta.candidato?.trim() ?? "",
             vagaTitulo: meta.vagaTitulo?.trim() ?? "",

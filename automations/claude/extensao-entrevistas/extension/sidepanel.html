@@ -88,6 +88,7 @@
               <li>Na aba da reunião (Meet, Teams ou Zoom no navegador), clique no ícone do JourneyLab na barra do Chrome. Sem esse clique, o Chrome não libera o áudio da aba.
                 <img src="icons/toolbar-hint.png" class="icon-hint__img" alt="Ícone do JourneyLab e, ao lado, o ícone de quebra-cabeça das extensões, na barra do Chrome" /></li>
               <li>Use fones de ouvido: assim sua fala e a do candidato ficam em trilhas separadas.</li>
+              <li>A reunião precisa estar no Chrome (não no aplicativo do Meet, Teams ou Zoom). No Meet/Teams, deixe o alto-falante no padrão do sistema (Configurações → Áudio). Durante a gravação, confira se "Áudio da reunião" passa para "captando falas" no primeiro minuto.</li>
               <li>Depois de iniciar, pode trocar de aba ou fechar este painel; a gravação continua.</li>
             </ul>
           </div>
@@ -118,6 +119,7 @@
         <p class="eyebrow">Registro de entrevista</p>
         <h1 id="recording-title" class="title"></h1>
         <p id="recording-meta" class="lead"></p>
+        <p id="recording-tab" class="hint" hidden></p>
 
         <div class="recorder card">
           <p id="recording-status" class="recorder__status"><span class="dot" aria-hidden="true"></span><span id="recording-label">Gravando</span></p>
@@ -168,6 +170,7 @@
         </fieldset>
         <p id="lang-status" class="hint" role="status"></p>
 
+        <p id="result-warning" class="banner" role="alert" hidden></p>
         <div id="result"></div>
 
         <details id="transcript-details" class="card transcript">

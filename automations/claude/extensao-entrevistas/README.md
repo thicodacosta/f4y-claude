@@ -43,6 +43,15 @@ A gravação continua com o painel fechado ou em outra aba. Durante a
 gravação o painel mostra só o tempo, pausa e se cada trilha está captando
 fala, não o texto. A transcrição completa aparece junto do registro.
 
+**Som da reunião em silêncio:** o painel mostra o título da aba gravada.
+Se a trilha da reunião entregar silêncio digital (RMS < 0,0001) por 2 blocos
+seguidos (40s) enquanto o microfone capta fala, o painel avisa na hora, com o
+que conferir (gravação iniciada na aba da reunião, reunião no Chrome e não no
+aplicativo, alto-falante do Meet/Teams no padrão do sistema). Se a gravação
+terminar sem nenhuma fala do candidato, a transcrição registra que o áudio
+dele não estava disponível e o resultado mostra um alerta: o registro reflete
+só a fala do recrutador.
+
 ## Construtor de currículos (aba "Currículos")
 
 O recrutador configura uma vez, em Configurações, o logo (PNG/JPG até
