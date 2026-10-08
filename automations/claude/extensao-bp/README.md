@@ -16,15 +16,15 @@ Studio** (`design-system/candy-studio/`) com o logo Candydate
 | **Offboarding** | Registro do desligamento (fotografia do vínculo, custo), checklist de saída e entrevista de desligamento por link de uso único | Offboarding |
 | **Gestão** | Cenário de agora, histórico de 12 meses e projeção de 6 meses; análise preditiva com IA guardada no histórico | People Analytics |
 | **Chat** | Chat com IA (motor da ToolsKit) que lê os dados da empresa, com foco opcional em uma pessoa; conversas guardadas | Chat da ToolsKit |
-| **Pessoas** | Base de colaboradores (cadastro, importação CSV) e a ficha de cada um com a **linha do tempo completa** | Colaboradores |
+| *Ficha do colaborador* | Fora do menu: abre ao clicar no nome de uma pessoa em qualquer funcionalidade, com a **linha do tempo completa**, e volta para a tela de origem. O cadastro da base fica em **Configurações › Colaboradores** | Colaboradores |
 
-Em **toda** funcionalidade (e na ficha de cada pessoa) há **Baixar PDF** e
-**Gerar Motion**.
+O menu tem 8 funcionalidades em 2 linhas de 4. Em **toda** funcionalidade (e na
+ficha de cada pessoa) há **Baixar PDF** e **Gerar Motion**.
 
 ## Configurações › Colaboradores
 
-A base de pessoas é alimentada nas **Configurações** (e também pela aba
-Pessoas):
+A base de pessoas é alimentada nas **Configurações** (enquanto ela estiver
+vazia, o painel mostra um aviso com o link):
 
 - **Um a um:** Nome (obrigatório), Cargo, Gestor, E-mail e Telefone, com
   "Salvar e cadastrar outro" para lançar vários em sequência.

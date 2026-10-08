@@ -1,5 +1,5 @@
 /**
- * Importação em massa de colaboradores (Configurações e aba Pessoas).
+ * Importação em massa de colaboradores (Configurações).
  * Modelo: Nome, Cargo, Gestor, E-mail, Telefone. Colunas extras reconhecidas
  * quando existirem: Área, Admissão, Salário, Vínculo.
  *

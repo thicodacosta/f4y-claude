@@ -4,7 +4,7 @@
  * mostra a funcionalidade escolhida. Cada funcionalidade se redesenha quando
  * a base muda (aoMudar) e ao ser aberta.
  */
-import { aoMudar, carregar, iniciarEmpresa } from "./core/db.js";
+import { aoMudar, carregar, iniciarEmpresa, store } from "./core/db.js";
 import { initHeader, initTheme, logout, requireAuth, FriendlyError, authConfigured } from "./core/toolskit.js";
 import { $, h } from "./core/ui.js";
 import { criarAvaliacao } from "./modulos/avaliacao.js";
@@ -25,10 +25,14 @@ const ABAS = [
   ["offboarding", "Offboarding"],
   ["gestao", "Gestão"],
   ["chat", "Chat"],
-  ["pessoas", "Pessoas"],
 ];
+// A ficha do colaborador (histórico) não fica no menu: abre ao clicar no nome
+// de uma pessoa em qualquer funcionalidade. O cadastro fica em Configurações.
+const OCULTOS = ["pessoas"];
+const TODOS = [...ABAS.map(([id]) => id), ...OCULTOS];
 
 let atual = null;
+let anterior = "gestao";
 const modulos = {};
 
 const app = {
@@ -40,8 +44,13 @@ const app = {
     if (nome === "offboarding") modulos.offboarding.registrarPara(colaboradorId);
   },
   async abrirPessoa(id) {
+    if (atual !== "pessoas") anterior = atual ?? "gestao";
     await selecionar("pessoas", { semRender: true });
     modulos.pessoas.abrir(id);
+  },
+  /** Fecha a ficha e volta para a funcionalidade de onde ela foi aberta. */
+  voltar() {
+    selecionar(anterior);
   },
 };
 
@@ -56,12 +65,12 @@ async function desenhar(nome) {
 
 async function selecionar(nome, { semRender = false } = {}) {
   atual = nome;
-  for (const [id] of ABAS) {
+  for (const id of TODOS) {
     const ativo = id === nome;
-    $(`aba-${id}`).setAttribute("aria-selected", String(ativo));
+    $(`aba-${id}`)?.setAttribute("aria-selected", String(ativo));
     modulos[id].raiz.hidden = !ativo;
   }
-  chrome.storage.session.set({ bpAba: nome });
+  if (!OCULTOS.includes(nome)) chrome.storage.session.set({ bpAba: nome });
   window.scrollTo(0, 0);
   if (!semRender) await desenhar(nome);
 }
@@ -80,6 +89,8 @@ function montarAbas() {
   modulos.pessoas = criarPessoas(app);
   for (const [id, rotulo] of ABAS) {
     nav.append(h("button", { type: "button", class: "tabs__tab", id: `aba-${id}`, "aria-selected": "false", onclick: () => { modulos[id].voltar?.(); selecionar(id); } }, rotulo));
+  }
+  for (const id of TODOS) {
     modulos[id].raiz.hidden = true;
     modulos[id].raiz.id = `area-${id}`;
     area.append(modulos[id].raiz);
@@ -107,7 +118,10 @@ async function init() {
   }
   $("estado").hidden = true;
   montarAbas();
+  const avisoBase = () => ($("aviso-colaboradores").hidden = store.colaboradores.length > 0);
+  avisoBase();
   aoMudar(() => {
+    avisoBase();
     // Chat mantém a conversa; as demais telas refletem a base nova.
     if (atual && atual !== "chat") desenhar(atual);
   });

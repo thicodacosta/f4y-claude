@@ -95,7 +95,9 @@ try {
   await painel.esperarAte("document.querySelector('#auth-email')");
   await painel.avaliar(`document.querySelector('#auth-email').value='rh@bp.test';document.querySelector('#auth-password').value='BpTeste2026';document.querySelector('.auth form').requestSubmit();`);
   checar("Login abre o painel", await painel.esperarAte("document.querySelector('#aba-gestao[aria-selected=true]')"));
-  checar("9 funcionalidades no menu", (await painel.avaliar("document.querySelectorAll('.tabs__tab').length")) === 9);
+  checar("8 funcionalidades no menu, em 2 linhas de 4", (await painel.avaliar("document.querySelectorAll('.tabs__tab').length")) === 8 && (await painel.avaliar("getComputedStyle(document.querySelector('#abas')).gridTemplateColumns.split(' ').length")) === 4);
+  checar("Logo Candydate carrega no topo", await painel.esperarAte("document.querySelector('#header-logo')?.naturalWidth > 0"));
+  checar("Aviso para cadastrar colaboradores na base vazia", await painel.avaliar("!document.querySelector('#aviso-colaboradores').hidden"));
   await painel.avaliar("chrome.storage.local.set({branding:{empresa:'Aurora Teste',cor:'#0E7AB8'}})");
 
   // 2. Base pela API (como a conta logada): quadro com 2 anos de história.
@@ -131,7 +133,7 @@ try {
     }
   });
   const ra = await rest("bp_avaliacoes", { method: "POST", body: JSON.stringify(avals) });
-  checar("Avaliações históricas inseridas", ra.status === 201, String(ra.status));
+  checar("Avaliações históricas inseridas", ra.status === 201, `${ra.status} ${JSON.stringify(ra.dados).slice(0, 300)}`);
   // Saídas no passado (mês a mês).
   const saidas = colabs.slice(14, 20).map((c, k) => ({ empresa_id: empresa, colaborador_id: c.id, data: dia(20 + k * 50), tipo: k % 2 ? "dispensa_sem_justa_causa" : "pedido_demissao", voluntario: k % 2 === 0, motivo: ["remuneracao", "crescimento", "lideranca", "proposta", "carga", "reestruturacao"][k], custo: 18000 + k * 2500 }));
   const rs = await rest("bp_desligamentos", { method: "POST", body: JSON.stringify(saidas) });
@@ -145,19 +147,17 @@ try {
   checar("Gestão mostra histórico e projeção", /Histórico e projeção/i.test(gestaoTexto) && /Projeção/i.test(gestaoTexto) && (await painel.avaliar("document.querySelectorAll('#area-gestao svg.g').length")) >= 3);
   await foto(painel, "01-gestao", { inteira: true });
 
-  // 4. Pessoas: novo colaborador pela interface.
-  await clicar(painel, "Pessoas", "document.querySelector('#abas')");
-  await painel.esperarAte("document.querySelector('#area-pessoas:not([hidden]) .lista')");
-  await clicar(painel, "Novo colaborador");
-  await painel.esperarAte(js.modal);
-  await naModal(painel, `${preencher("form input:not([type])", "Zélia Martins")} m.querySelectorAll('input:not([type])')[1].value='Gerente de Projetos'; m.querySelectorAll('input:not([type])')[2].value='Tecnologia'; m.querySelector('input[type=email]').value='zelia@aurora.test'; m.querySelector('input[type=number]').value='12000'; m.querySelector('input[type=date]').value='${dia(10)}'; m.querySelector('form').requestSubmit();`);
-  checar("Colaborador criado pela interface abre a ficha", await painel.esperarAte("document.querySelector('#area-pessoas h1')?.textContent==='Zélia Martins'"));
-  const zelia = (await rest("bp_colaboradores?email=eq.zelia@aurora.test&select=id")).dados[0].id;
+  // 4. Nova pessoa na base (o cadastro pela interface fica em Configurações, testado no passo 16).
+  const zelia = (await rest("bp_colaboradores", { method: "POST", body: JSON.stringify({ empresa_id: empresa, nome: "Zélia Martins", cargo: "Gerente de Projetos", area: "Tecnologia", email: "zelia@aurora.test", salario: 12000, admissao: dia(10) }) })).dados[0].id;
+  await painel.ir(chrome.url("sidepanel.html"));
+  await painel.esperarAte("document.querySelector('#area-gestao .kpi')");
 
   // 5. Onboarding pela interface.
-  await clicar(painel, "Iniciar onboarding");
+  await painel.avaliar("document.querySelector('#aba-onboarding').click()");
+  await painel.esperarAte("document.querySelector('#area-onboarding:not([hidden]) .kpis')");
+  await clicar(painel, "Iniciar onboarding", "document.querySelector('#area-onboarding')");
   await painel.esperarAte(js.modal);
-  await naModal(painel, "m.querySelector('form').requestSubmit();");
+  await naModal(painel, `const s=m.querySelector('select');s.value='${zelia}';s.dispatchEvent(new Event('change'));m.querySelector('form').requestSubmit();`);
   checar("Onboarding iniciado com 3 fases", await painel.esperarAte("document.querySelectorAll('#area-onboarding .fase').length===3"));
   await painel.avaliar("document.querySelectorAll('#area-onboarding .tarefas input')[0].click()");
   await painel.avaliar("document.querySelectorAll('#area-onboarding .tarefas input')[1].click()");
@@ -278,11 +278,16 @@ try {
   checar("Histórico registra cadastro, onboarding, produtividade, cultura e pulso", ["pessoas", "onboarding", "produtividade", "cultura", "pulso"].every((m) => modulos.has(m)), [...modulos].join(", "));
   const histAlvo = (await rest(`bp_historico?colaborador_id=eq.${alvo.id}&select=modulo,evento`)).dados;
   checar("Histórico registra desligamento e entrevista", histAlvo.some((x) => x.evento === "desligamento") && histAlvo.some((x) => x.evento === "entrevista"));
-  await painel.avaliar(`document.querySelector('#aba-pessoas').click()`);
-  await painel.esperarAte("document.querySelector('#area-pessoas .lista')");
-  await painel.avaliar(js.clicar("Zélia Martins", "document.querySelector('#area-pessoas')"));
-  checar("Ficha mostra a linha do tempo", await painel.esperarAte("document.querySelectorAll('#area-pessoas .timeline__item').length>=5"));
+  // A ficha abre pelo nome da pessoa (aqui, a partir do onboarding) e volta para a tela de origem.
+  await painel.avaliar(`document.querySelector('#aba-onboarding').click()`);
+  await painel.esperarAte("document.querySelector('#area-onboarding:not([hidden]) .lista')");
+  await painel.avaliar(js.clicar("Zélia Martins", "document.querySelector('#area-onboarding')"));
+  await painel.esperarAte("document.querySelector('#area-onboarding .fase')");
+  await clicar(painel, "Ver ficha e histórico");
+  checar("Ficha mostra a linha do tempo", await painel.esperarAte("document.querySelectorAll('#area-pessoas:not([hidden]) .timeline__item').length>=5"));
   await foto(painel, "10-ficha", { inteira: true });
+  await clicar(painel, "← Voltar");
+  checar("Voltar da ficha retorna à funcionalidade de origem", await painel.esperarAte("!document.querySelector('#area-onboarding').hidden && document.querySelector('#aba-onboarding').getAttribute('aria-selected')==='true'"));
 
   // 13. PDF.
   await painel.avaliar(`document.querySelector('#aba-gestao').click()`);
@@ -294,7 +299,11 @@ try {
     pdf = readdirSync(downloads).find((f) => f.endsWith(".pdf"));
   }
   checar("Baixar PDF gera o arquivo", Boolean(pdf), pdf ?? `nenhum arquivo · aviso: ${await painel.avaliar("document.querySelector('#toast')?.textContent ?? '-'")} · ${chrome.logs.slice(-3).join(" | ")}`);
-  const docs = (await rest("bp_documentos?tipo=eq.pdf&select=modulo")).dados;
+  let docs = [];
+  for (let i = 0; i < 20 && !docs.some((d) => d.modulo === "gestao"); i++) {
+    await esperar(500);
+    docs = (await rest("bp_documentos?tipo=eq.pdf&select=modulo")).dados;
+  }
   checar("PDF gerado fica guardado", docs.some((d) => d.modulo === "gestao"));
 
   // 14. Motion (roteiro-base, sem IA).

@@ -71,7 +71,15 @@ select:focus-visible {
   letter-spacing: 0.08em;
 }
 .tabs--bp {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
+}
+.tabs--bp .tabs__tab {
+  padding: 0 2px;
+  font-size: 12px;
+}
+.banner--info {
+  background: var(--accent-soft);
+  color: var(--ink);
 }
 .carregando {
   padding: 40px 0;

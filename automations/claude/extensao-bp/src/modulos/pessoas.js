@@ -221,7 +221,7 @@ export function criarPessoas(app) {
     return h(
       "div",
       {},
-      h("button", { type: "button", class: "btn-link voltar", onclick: () => { aberta = null; render(); } }, "← Colaboradores"),
+      h("button", { type: "button", class: "btn-link voltar", onclick: () => { aberta = null; if (app.voltar) app.voltar(); else render(); } }, "← Voltar"),
       h("header", { class: "modulo__topo" }, h("p", { class: "eyebrow", text: "Ficha do colaborador" }), h("h1", { class: "title", text: c.nome }), h("p", { class: "lead", text: rel.subtitulo || "—" }), barraAcoes(() => relatorioPessoa(c, eventos))),
       h("div", { class: "kpis" }, rel.kpis.map((k) => kpi(k.rotulo, k.valor, k.detalhe))),
       rel.destaques.length ? h("div", { class: "card" }, h("h2", { text: "Sinais de atenção" }), h("ul", { class: "list" }, rel.destaques.map((d) => h("li", { text: d }))), h("p", { class: "hint", text: "Indicativo, para priorizar conversas e ações. Nunca use para decidir sobre a pessoa." })) : null,

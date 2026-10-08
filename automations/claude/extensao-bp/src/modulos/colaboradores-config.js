@@ -1,7 +1,7 @@
 /**
  * Cadastro da base de colaboradores (Configurações): um a um ou em massa pela
  * planilha modelo, com prévia antes de gravar, e a lista para editar/excluir.
- * O importador também é usado na aba Pessoas.
+ * O cadastro de pessoas fica só aqui (o painel não tem mais a aba Pessoas).
  */
 import { atualizar, excluir, inserir, store } from "../core/db.js";
 import { aplicar, baixarModelo, exportarBase, formatarTelefone, normalizarTelefone, planejar } from "../core/importacao.js";

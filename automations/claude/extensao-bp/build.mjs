@@ -67,13 +67,17 @@ console.log(
     `página pública ${env.BP_PUBLIC_URL || "não configurada"}`,
 );
 
-/** Estilos, tema e ícones base da ToolsKit, copiados para dist/. */
+/**
+ * Estilos e tema base da ToolsKit, copiados para dist/; ícones e logo para
+ * extension/icons/ (mesmo caminho da ToolsKit: o login e o topo do painel,
+ * compartilhados, procuram o logo lá).
+ */
 function copyShared() {
-  mkdirSync(`${outdir}/icons`, { recursive: true });
+  mkdirSync("extension/icons", { recursive: true });
   copyFileSync(`${TOOLSKIT}/extension/styles.css`, `${outdir}/base.css`);
   copyFileSync(`${TOOLSKIT}/extension/theme-init.js`, `${outdir}/theme-init.js`);
   for (const icon of ["icon-16.png", "icon-48.png", "icon-128.png", "candydate-logo.png", "toolbar-hint.png"]) {
-    copyFileSync(`${TOOLSKIT}/extension/icons/${icon}`, `${outdir}/icons/${icon}`);
+    copyFileSync(`${TOOLSKIT}/extension/icons/${icon}`, `extension/icons/${icon}`);
   }
   copyFileSync(`${TOOLSKIT}/node_modules/pdfjs-dist/build/pdf.worker.min.mjs`, `${outdir}/pdf.worker.mjs`);
 }
