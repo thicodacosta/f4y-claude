@@ -43,6 +43,13 @@ A gravação continua com o painel fechado ou em outra aba. Durante a
 gravação o painel mostra só o tempo, pausa e se cada trilha está captando
 fala, não o texto. A transcrição completa aparece junto do registro.
 
+**Diagnóstico de nível:** durante a gravação, o painel mostra o nível medido
+em cada bloco de 20s ("Nível do áudio · reunião: … · microfone: …", RMS × 100;
+0 = silêncio). Na trilha da reunião, só o silêncio digital é descartado antes
+da Whisper (o som da chamada pode chegar baixo); no microfone, o corte de
+ruído continua em RMS 0,0015. O console do offscreen registra o RMS e as falas
+transcritas de cada trecho.
+
 **Aba que não é reunião:** a gravação só começa numa aba do Meet, Teams,
 Zoom, Webex, Whereby, Jitsi, 8x8, Skype ou Discord (pelo endereço, liberado
 pelo clique no ícone). Em outra aba, o painel explica o motivo e oferece

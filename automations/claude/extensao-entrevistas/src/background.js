@@ -196,6 +196,13 @@ async function handle(message) {
         return { ...c, stats };
       });
       return;
+    case "LEVEL":
+      await updateCapture((c) => {
+        const prev = c.levels?.[message.role] ?? { max: 0, blocks: 0 };
+        const level = { last: message.rms, max: Math.max(prev.max, message.rms), blocks: prev.blocks + 1 };
+        return { ...c, levels: { ...c.levels, [message.role]: level } };
+      });
+      return;
     case "WARNING":
       await updateCapture((c) =>
         c.warnings.includes(message.message) ? c : { ...c, warnings: [...c.warnings, message.message] },
