@@ -394,6 +394,35 @@ PY`);
   checar("Banco alimentado: novos e atualização por e-mail", importados.length === 3 && importados.find((x) => x.email === "yara@aurora.test")?.cargo === "Coordenadora de RH" && importados.find((x) => x.email === "wagner@aurora.test")?.telefone === "21987654321" && importados.find((x) => x.email === "xenia@aurora.test")?.telefone === "+351912345678", JSON.stringify(importados));
   checar("Lista atualiza com os importados", await cfg.esperarAte("document.querySelector('.tabela--colaboradores').innerText.includes('Wagner Pires')"));
   await foto(cfg, "15-config-colaboradores", { inteira: true });
+  // Planilha no formato do Numbers/Google (XML com prefixo "x:" e caminhos absolutos).
+  const numbers = join(tmp, "numbers.xlsx");
+  execSync(`python3 - <<'PY'
+import zipfile
+ns='xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+def c(ref,v,t="str"): return f'<x:c r="{ref}" t="{t}"><x:v>{v}</x:v></x:c>' if t=="str" else f'<x:c r="{ref}" t="inlineStr"><x:is><x:t>{v}</x:t></x:is></x:c>'
+linhas=[["Nome","Cargo","Gestor","E-mail","Telefone"],["Ricardo Numbers","Diretor Geral","Conselho","ricardo@numbers.test","(11) 98888-7777"],["Mariana Numbers","Gerente de RH","Ricardo Numbers","mariana@numbers.test","11977776666"]]
+rows="".join(f'<x:row r="{i+1}">'+"".join(c(f"{chr(65+j)}{i+1}",v,"inline" if i==0 else "str") for j,v in enumerate(l))+'</x:row>' for i,l in enumerate(linhas))
+z=zipfile.ZipFile("${numbers}","w",zipfile.ZIP_DEFLATED)
+z.writestr("[Content_Types].xml",'<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
+z.writestr("_rels/.rels",'<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>')
+z.writestr("xl/workbook.xml",f'<?xml version="1.0" encoding="utf-8"?><x:workbook {ns}><x:sheets><x:sheet name="Colaboradores" sheetId="1" r:id="R0abc" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/></x:sheets></x:workbook>')
+z.writestr("xl/_rels/workbook.xml.rels",'\ufeff<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="/xl/worksheets/sheet1.xml" Id="R0abc"/></Relationships>')
+z.writestr("xl/worksheets/sheet1.xml",f'<?xml version="1.0" encoding="utf-8"?><x:worksheet {ns}><x:sheetData>{rows}</x:sheetData></x:worksheet>')
+z.close()
+PY`);
+  await cfg.enviarArquivo('.importador input[type="file"]', numbers);
+  await cfg.esperarAte("document.querySelector('.importador').innerText.includes('numbers.xlsx')");
+  const prevNumbers = await cfg.avaliar("[...document.querySelectorAll('.importador .kpi')].map(k=>k.querySelector('.kpi__rotulo').textContent+':'+k.querySelector('.kpi__valor').textContent).join(' ')");
+  checar("Lê planilha exportada pelo Numbers/Google (XML com prefixo)", prevNumbers.startsWith("Novos:2"), prevNumbers);
+  if (process.env.PLANILHA_EXTRA) {
+    await clicar(cfg, "Cancelar", "document.querySelector('.importador')");
+    await cfg.enviarArquivo('.importador input[type="file"]', process.env.PLANILHA_EXTRA);
+    await cfg.esperarAte("document.querySelector('.importador').innerText.includes('Prévia')");
+    console.log("Planilha extra (só prévia):", await cfg.avaliar("[...document.querySelectorAll('.importador .kpi')].map(k=>k.querySelector('.kpi__rotulo').textContent+':'+k.querySelector('.kpi__valor').textContent).join(' ')"), "·", await cfg.avaliar("document.querySelector('.previa__grupo')?.innerText.slice(0,300)"));
+    await foto(cfg, "16-planilha-extra", { inteira: true });
+  }
+  await clicar(cfg, "Cancelar", "document.querySelector('.importador')");
+
   // Edição pela lista.
   await cfg.avaliar("[...document.querySelectorAll('.tabela--colaboradores tr')].find(t=>t.innerText.includes('Wagner Pires')).querySelector('button').click()");
   await cfg.avaliar(`(()=>{const f=document.querySelector('.form-colaborador');f.querySelectorAll('input')[1].value='Gerente Comercial';f.querySelector('button[value=salvar]').click();})()`);

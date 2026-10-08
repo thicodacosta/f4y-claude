@@ -157,25 +157,29 @@ export function gerarXlsx(abas) {
 /** Primeira aba de um .xlsx como matriz de textos. */
 async function lerXlsx(buffer) {
   const arquivos = await unzip(buffer);
+  // Busca pelo nome local, com ou sem prefixo de namespace: o Numbers e o
+  // Google Planilhas gravam <x:row>, <x:c>…; o Excel grava <row>, <c>.
+  const tags = (no, nome) => [...no.getElementsByTagNameNS("*", nome)];
   const xml = (nome) => (arquivos.has(nome) ? new DOMParser().parseFromString(arquivos.get(nome), "application/xml") : null);
-  const textoDe = (no) => [...no.getElementsByTagName("t")].map((t) => t.textContent).join("");
-  const compartilhadas = [...(xml("xl/sharedStrings.xml")?.getElementsByTagName("si") ?? [])].map(textoDe);
+  const textoDe = (no) => tags(no, "t").map((t) => t.textContent).join("");
+  const compartilhadas = (() => { const ss = xml("xl/sharedStrings.xml"); return ss ? tags(ss, "si").map(textoDe) : []; })();
   // Primeira aba pela ordem do workbook.
   const wb = xml("xl/workbook.xml");
   const rels = xml("xl/_rels/workbook.xml.rels");
-  const rid = wb?.getElementsByTagName("sheet")[0]?.getAttribute("r:id");
-  const alvo = [...(rels?.getElementsByTagName("Relationship") ?? [])].find((r) => r.getAttribute("Id") === rid)?.getAttribute("Target") ?? "worksheets/sheet1.xml";
+  const primeira = wb ? tags(wb, "sheet")[0] : null;
+  const rid = primeira?.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id") ?? primeira?.getAttribute("r:id");
+  const alvo = (rels ? tags(rels, "Relationship") : []).find((r) => r.getAttribute("Id") === rid)?.getAttribute("Target") ?? "worksheets/sheet1.xml";
   const caminho = alvo.startsWith("/") ? alvo.slice(1) : `xl/${alvo.replace(/^\.\//, "")}`;
   const folha = xml(caminho);
   if (!folha) throw new Error("planilha sem abas");
   const linhas = [];
-  for (const row of folha.getElementsByTagName("row")) {
+  for (const row of tags(folha, "row")) {
     const linha = [];
-    for (const c of row.getElementsByTagName("c")) {
+    for (const c of tags(row, "c")) {
       const ref = c.getAttribute("r") ?? "";
       const col = [...ref.replace(/\d+/g, "")].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
       const tipo = c.getAttribute("t");
-      const v = c.getElementsByTagName("v")[0]?.textContent ?? "";
+      const v = tags(c, "v")[0]?.textContent ?? "";
       let valor = tipo === "s" ? compartilhadas[Number(v)] ?? "" : tipo === "inlineStr" ? textoDe(c) : v;
       // Número inteiro grande (telefone digitado como número): sem notação científica.
       if (!tipo && /e\+?\d+$/i.test(valor)) valor = BigInt(Math.round(Number(valor))).toString();
