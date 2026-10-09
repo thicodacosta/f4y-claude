@@ -90,13 +90,24 @@ da pessoa.
 3. A apresentação abre em `motion.html`: motor próprio em canvas
    (`src/motion/engine.js`) com 10 tipos de cena (abertura, números com
    contador, barras, evolução com projeção pontilhada, tópicos, destaque,
-   citação, comparativo, etapas, encerramento), transição em cortina, logo e
-   cores da empresa.
+   citação, comparativo, etapas, encerramento) e transição em cortina. Usa o
+   logo da empresa (ou, sem ele, o Candydate) e uma paleta derivada da **cor
+   da marca** escolhida em Configurações (sem ela, da cor predominante do
+   logo): fundo, destaques, barras e luzes acompanham a marca
+   (`src/core/marca.js`). Ao enviar o logo em Configurações, a cor da marca é
+   sugerida a partir dele.
 4. Ajuste títulos e duração de cada cena com prévia ao vivo, troque o formato
    e **Baixar vídeo** (MP4 quando o Chrome oferece; senão WebM). A gravação é
    em tempo real: mantenha a aba visível.
 
 O roteiro fica guardado (`bp_documentos`) e pode ser reaberto.
+
+## PDFs
+
+Todo PDF sai com logo no cabeçalho: o da empresa (Configurações) ou, sem ele,
+o Candydate, e com a cor da marca nos títulos e gráficos. A regra fica na base
+de PDFs compartilhada com o Recruiter (`../extensao-entrevistas/src/pdf/branded.js`).
+Na Gestão, "Limpar análise" apaga as análises preditivas guardadas.
 
 ## Gestão: presente, passado e projeção
 

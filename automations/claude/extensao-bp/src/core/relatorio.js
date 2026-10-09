@@ -50,7 +50,7 @@ function graficoPdf(g, cor) {
   const rotulos = [];
   itens.forEach((i, k) => {
     const h = Math.max(1, (i.valor / max) * (altura - 14));
-    canvas.push({ type: "rect", x: k * slot + (slot - larg) / 2, y: altura - h, w: larg, h, r: 2, color: i.projetado ? "#A9DCD6" : cor });
+    canvas.push({ type: "rect", x: k * slot + (slot - larg) / 2, y: altura - h, w: larg, h, r: 2, color: i.projetado ? "#A8D8F5" : cor });
     rotulos.push({ text: `${fmt(i.valor, g.casas ?? 1)}${g.sufixo ?? ""}\n${i.rotulo}${i.projetado ? "*" : ""}`, fontSize: 6.5, alignment: "center", color: i.projetado ? MUTED : "#2B2E3A" });
   });
   const temProj = itens.some((i) => i.projetado);

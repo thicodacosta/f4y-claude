@@ -5,12 +5,12 @@
  * cada análise fica guardada (bp_documentos) para comparar no tempo.
  */
 import { cabecalhoModulo } from "../core/acoes.js";
-import { documentos, respostas, salvarDocumento, store } from "../core/db.js";
+import { documentos, excluirDocumentos, respostas, salvarDocumento, store } from "../core/db.js";
 import * as I from "../core/indicadores.js";
 import { colunas, linha } from "../core/graficos.js";
 import { relatorioTexto } from "../core/texto.js";
 import { FriendlyError, groqStructured, isClaudeUnavailable, loadKeys, requestStructured } from "../core/toolskit.js";
-import { h, icone, kpi, ocupado, selo, toast, encher } from "../core/ui.js";
+import { confirmar, h, icone, kpi, ocupado, selo, toast, encher } from "../core/ui.js";
 import { favorabilidadeRecente, indicadoresTurnover } from "./turnover.js";
 
 const PROJ = 6;
@@ -194,6 +194,20 @@ export function criarGestao() {
     const rel = relatorioGestao(x, analise?.conteudo);
     const botaoIa = h("button", { type: "button", class: "btn btn--primary" }, icone("ia"), analise ? "Atualizar análise preditiva com IA" : "Gerar análise preditiva com IA");
     const statusIa = h("p", { class: "hint", role: "status" });
+    const botaoLimpar = analise ? h("button", { type: "button", class: "btn btn--ghost btn--danger" }, "Limpar análise") : null;
+    botaoLimpar?.addEventListener("click", async () => {
+      if (!(await confirmar("Apagar a análise preditiva? As análises anteriores da Gestão também são removidas. Os dados e indicadores não mudam.", "Limpar análise"))) return;
+      await ocupado(botaoLimpar, "Limpando…", async () => {
+        try {
+          await excluirDocumentos({ tipo: "analise", modulo: "gestao" });
+          analise = null;
+          toast("Análise preditiva removida.");
+          render();
+        } catch (e) {
+          statusIa.textContent = e instanceof FriendlyError ? e.message : "Não foi possível limpar a análise.";
+        }
+      });
+    });
     botaoIa.addEventListener("click", () =>
       ocupado(botaoIa, "Analisando os dados…", async () => {
         statusIa.textContent = "A IA está lendo o cenário, o histórico e a projeção (20 a 60 s).";
@@ -228,7 +242,7 @@ export function criarGestao() {
       h("h2", { class: "secao", text: "Projeção" }),
       h("div", { class: "kpis kpis--3" }, rel.kpis.slice(7).map((k) => kpi(k.rotulo, k.valor, k.detalhe)), kpi(`Headcount em ${x.futuros.at(-1)}`, String(Math.round(x.proj.hcRisco.at(-1))), "projeção indicativa")),
       h("div", { class: "note" }, h("ul", { class: "list" }, rel.destaques.map((d) => h("li", { text: d })))),
-      botaoIa,
+      h("div", { class: "acoes-ia" }, botaoIa, botaoLimpar),
       statusIa,
       analise ? cartaoAnalise(analise) : null,
     );

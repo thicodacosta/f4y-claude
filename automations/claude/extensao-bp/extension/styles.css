@@ -1040,3 +1040,12 @@ select:focus-visible {
   font-size: clamp(17px, 5.2vw, 21px);
   line-height: 1.25;
 }
+
+/* Gestão: gerar/atualizar e limpar a análise preditiva lado a lado. */
+.acoes-ia {
+  display: flex;
+  gap: 8px;
+}
+.acoes-ia .btn--primary {
+  flex: 1;
+}

@@ -5,6 +5,7 @@ import { secaoColaboradores } from "./modulos/colaboradores-config.js";
 import { secaoDemo } from "./modulos/demo-config.js";
 import { hasEmbeddedKeys, initTheme, logout, requireAuth } from "./core/toolskit.js";
 import { $ } from "./core/ui.js";
+import { corDoLogo } from "./core/marca.js";
 
 await initTheme();
 const user = await requireAuth({ nomeProduto: "BP" });
@@ -66,7 +67,13 @@ $("logo-arquivo").addEventListener("change", async (e) => {
   const { width, height } = await tamanho(logoDataUrl);
   branding = { ...branding, logoDataUrl, logoType: file.type === "image/png" ? "png" : "jpg", logoWidth: width, logoHeight: height };
   previa();
-  $("identidade-status").textContent = "Clique em Salvar para aplicar.";
+  // Cor da marca sugerida a partir do logo (pode ser trocada antes de salvar).
+  const sugerida = await corDoLogo(logoDataUrl);
+  if (sugerida) {
+    $("cor").value = sugerida;
+    $("cor-valor").textContent = sugerida.toUpperCase();
+  }
+  $("identidade-status").textContent = sugerida ? "Cor da marca sugerida a partir do logo. Clique em Salvar para aplicar." : "Clique em Salvar para aplicar.";
 });
 $("logo-remover").addEventListener("click", () => {
   const { logoDataUrl, logoType, logoWidth, logoHeight, ...resto } = branding;

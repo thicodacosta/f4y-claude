@@ -6,6 +6,7 @@ import { initTheme, requireAuth, saveBlob, supabase } from "../core/toolskit.js"
 import { h, $ } from "../core/ui.js";
 import { FORMATOS, MotionPlayer } from "./engine.js";
 import { OPCOES } from "./roteiro.js";
+import { COR_PADRAO, LOGO_PADRAO, corDoLogo, paletaDe } from "../core/marca.js";
 
 const id = new URLSearchParams(location.search).get("id");
 let doc = null;
@@ -109,7 +110,12 @@ async function init() {
   }
   const roteiro = doc.conteudo.roteiro;
   const branding = (await chrome.storage.local.get("branding")).branding ?? {};
-  const logo = await carregarImagem(branding.logoDataUrl);
+  // Logo da empresa (ou, sem ele, o Candydate) e cores da marca: a cor
+  // escolhida em Configurações ou, sem ela, a predominante do logo.
+  const logoSrc = branding.logoDataUrl || LOGO_PADRAO;
+  const logo = await carregarImagem(logoSrc);
+  const corMarca = branding.cor || (await corDoLogo(logoSrc)) || COR_PADRAO;
+  const tema = paletaDe(corMarca);
   await document.fonts.load('700 40px "Geist"').catch(() => {});
   await document.fonts.load('600 40px "Inter"').catch(() => {});
 
@@ -121,7 +127,7 @@ async function init() {
   $("palco").hidden = false;
 
   const formato = roteiro.opcoes?.formato in FORMATOS ? roteiro.opcoes.formato : "16:9";
-  player = new MotionPlayer($("canvas"), roteiro, { logo, empresa: branding.empresa || doc.conteudo.empresa || "Candydate", kicker: doc.conteudo.kicker ?? "", formato });
+  player = new MotionPlayer($("canvas"), roteiro, { logo, empresa: branding.empresa || doc.conteudo.empresa || "Candydate", kicker: doc.conteudo.kicker ?? "", formato, tema });
   $("palco").dataset.formato = formato;
   $("formato").value = formato;
   player.aoAtualizar = atualizarTempo;

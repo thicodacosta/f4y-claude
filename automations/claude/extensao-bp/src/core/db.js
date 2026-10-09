@@ -169,6 +169,12 @@ export async function documentos({ tipo, modulo, colaboradorId, limite = 30 } = 
   return q(c, "carregar os documentos");
 }
 
+/** Apaga documentos gerados de um tipo e funcionalidade (ex.: análises da Gestão). */
+export async function excluirDocumentos({ tipo, modulo }) {
+  await q(supabase.from("bp_documentos").delete().eq("empresa_id", store.empresaId).eq("tipo", tipo).eq("modulo", modulo), "limpar os documentos");
+  sinalizarMudanca();
+}
+
 export async function documento(id) {
   return q(supabase.from("bp_documentos").select("*").eq("id", id).single(), "abrir o documento");
 }

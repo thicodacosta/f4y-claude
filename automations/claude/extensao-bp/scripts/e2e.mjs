@@ -298,6 +298,13 @@ try {
     await esperar(300);
     pdf = readdirSync(downloads).find((f) => f.endsWith(".pdf"));
   }
+  if (pdf) {
+    // Sem logo da empresa cadastrado, o cabeçalho usa o logo Candydate.
+    await esperar(500);
+    const bytes = readFileSync(join(downloads, pdf)).toString("latin1");
+    checar("PDF tem logo no cabeçalho", /\/Subtype\s*\/Image/.test(bytes));
+    if (FOTOS) execSync(`sips -s format png "${join(downloads, pdf)}" --out "${join(FOTOS, "pdf-pagina1.png")}"`, { stdio: "ignore" });
+  }
   checar("Baixar PDF gera o arquivo", Boolean(pdf), pdf ?? `nenhum arquivo · aviso: ${await painel.avaliar("document.querySelector('#toast')?.textContent ?? '-'")} · ${chrome.logs.slice(-3).join(" | ")}`);
   let docs = [];
   for (let i = 0; i < 20 && !docs.some((d) => d.modulo === "gestao"); i++) {
@@ -324,6 +331,20 @@ try {
   }
   const pixels = await motion.avaliar("(()=>{const c=document.querySelector('canvas');const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let n=0;for(let i=0;i<d.length;i+=4000)if(d[i]+d[i+1]+d[i+2]>200)n++;return n})()");
   checar("Canvas do Motion desenhado", pixels > 20, `${pixels} amostras claras`);
+  // Cor da barra de progresso (acento da paleta da marca).
+  const acento = () => motion.avaliar("(()=>{const c=document.querySelector('canvas');const u=Math.min(c.width,c.height)/1080;const y=Math.round(c.height-54*u);const d=c.getContext('2d').getImageData(Math.round(150*u),y,4,1).data;return [d[0],d[1],d[2]]})()");
+  const azul = await acento();
+  checar("Motion usa a cor da marca salva (azul)", azul[2] > 150 && azul[2] > azul[0] + 60, JSON.stringify(azul));
+  await motion.avaliar("chrome.storage.local.get('branding').then(({branding})=>chrome.storage.local.set({branding:{...branding,cor:'#D62839'}}))");
+  await motion.ir(chrome.url(`motion.html?id=${motionDoc.id}`));
+  await motion.esperarAte("document.querySelector('#palco:not([hidden])')");
+  await motion.avaliar("document.querySelector('#play').click()");
+  await motion.avaliar(`(()=>{const r=document.querySelector('#linha');r.value='0.3';r.dispatchEvent(new Event('input'));})()`);
+  await esperar(300);
+  const vermelho = await acento();
+  checar("Motion acompanha a cor da marca escolhida (vermelho)", vermelho[0] > 150 && vermelho[0] > vermelho[2] + 60, JSON.stringify(vermelho));
+  await foto(motion, "11-motion-marca-vermelha");
+  await motion.avaliar("chrome.storage.local.get('branding').then(({branding})=>chrome.storage.local.set({branding:{...branding,cor:'#0E7AB8'}}))");
   await motion.avaliar("document.querySelector('#formato').value='9:16';document.querySelector('#formato').dispatchEvent(new Event('change'))");
   checar("Motion troca para vertical 9:16", (await motion.avaliar("document.querySelector('canvas').height")) === 1920);
   await foto(motion, "12-motion-vertical");
@@ -427,6 +448,12 @@ PY`);
     await foto(cfg, "16-planilha-extra", { inteira: true });
   }
   await clicar(cfg, "Cancelar", "document.querySelector('.importador')");
+
+  // Logo enviado em Configurações sugere a cor da marca (logo vermelho → cor avermelhada).
+  const logoVermelho = join(tmp, "logo-vermelho.png");
+  execSync(`python3 -c "from PIL import Image, ImageDraw; i=Image.new('RGBA',(400,120),(0,0,0,0)); ImageDraw.Draw(i).rounded_rectangle((10,10,390,110),30,fill=(214,40,57,255)); i.save('${logoVermelho}')"`);
+  await cfg.enviarArquivo("#logo-arquivo", logoVermelho);
+  checar("Logo enviado sugere a cor da marca", await cfg.esperarAte("(()=>{const v=document.querySelector('#cor').value;const r=parseInt(v.slice(1,3),16),g=parseInt(v.slice(3,5),16),b=parseInt(v.slice(5,7),16);return r>150&&g<90&&b<110})()"), await cfg.avaliar("document.querySelector('#cor').value"));
 
   // Edição pela lista.
   await cfg.avaliar("[...document.querySelectorAll('.tabela--colaboradores tr')].find(t=>t.innerText.includes('Wagner Pires')).querySelector('button').click()");

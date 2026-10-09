@@ -100,6 +100,19 @@ try {
   checar("Pulso com 2 pesquisas respondidas", /Respostas recebidas\s*\d{2,}/.test(textos.pulso), textos.pulso.match(/Respostas recebidas\s*\d+/)?.[0]);
   checar("Offboarding com entrevistas respondidas", /Entrevistas respondidas\s*100%/.test(textos.offboarding), textos.offboarding.match(/Entrevistas respondidas\s*[^\n]+/)?.[0]);
 
+  // Análise preditiva guardada: aparece com "Limpar análise", que apaga da tela e do banco.
+  const analise = { resumo: "Resumo de teste da análise.", cenarioAtual: "Agora.", historico: "Antes.", projecao: "Depois.", riscos: ["Risco A"], oportunidades: ["Oportunidade A"], recomendacoes: [{ acao: "Conversas de permanência no Comercial", prazo: "30 dias", impacto: "alto" }], confianca: "média", origem: "Teste" };
+  await rest("bp_documentos", { method: "POST", body: JSON.stringify({ empresa_id: empresa, tipo: "analise", modulo: "gestao", titulo: "Análise de teste", conteudo: analise }) });
+  await painel.ir(chrome.url("sidepanel.html"));
+  await painel.avaliar("document.querySelector('#aba-gestao').click()");
+  checar("Análise guardada aparece com o botão Limpar", await painel.esperarAte("document.querySelector('#area-gestao .analise') && [...document.querySelectorAll('#area-gestao button')].some(b=>b.textContent==='Limpar análise')"));
+  await painel.avaliar("[...document.querySelectorAll('#area-gestao button')].find(b=>b.textContent==='Limpar análise').click()");
+  await painel.esperarAte("document.querySelector('dialog[open]')");
+  await painel.avaliar("[...document.querySelectorAll('dialog[open] button')].find(b=>b.textContent==='Limpar análise').click()");
+  checar("Limpar análise remove da tela", await painel.esperarAte("!document.querySelector('#area-gestao .analise') && [...document.querySelectorAll('#area-gestao button')].some(b=>b.textContent.includes('Gerar análise preditiva'))"));
+  checar("Limpar análise remove do banco", (await contar("bp_documentos", "&tipo=eq.analise")) === 0);
+  await foto(painel, "demo-gestao-limpa", { inteira: true });
+
   // Remover devolve tudo como era.
   await cfg.avaliar("[...document.querySelectorAll('#demo-area button')].find(b=>b.textContent.includes('Remover cenário')).click()");
   await cfg.esperarAte("document.querySelector('dialog[open]')");

@@ -48,11 +48,30 @@ export function section(title, items, branding, heading = sectionHeading(title, 
 
 const PDF_ALIGN = { esquerda: "left", centro: "center", direita: "right" };
 
+/** Logo Candydate empacotado na extensão, para PDFs sem logo da empresa. */
+async function logoPadrao() {
+  try {
+    const blob = await (await fetch(chrome.runtime.getURL("icons/candydate-logo.png"))).blob();
+    const logoDataUrl = await new Promise((resolve, reject) => {
+      const leitor = new FileReader();
+      leitor.onload = () => resolve(leitor.result);
+      leitor.onerror = reject;
+      leitor.readAsDataURL(blob);
+    });
+    const { width, height } = await createImageBitmap(blob);
+    return { logoDataUrl, logoWidth: width, logoHeight: height };
+  } catch {
+    return {};
+  }
+}
+
 /**
- * Monta e gera o PDF (Blob) com cabeçalho e rodapé da marca. `header`
+ * Monta e gera o PDF (Blob) com cabeçalho e rodapé da marca. Todo PDF sai com
+ * logo no cabeçalho: o da empresa ou, sem ele, o Candydate. `header`
  * ajusta o cabeçalho ao modelo de currículo: posição do logo e linha abaixo.
  */
-export function renderBrandedPdf({ branding, title, footer, content, styles = {}, header = {} }) {
+export async function renderBrandedPdf({ branding: marca, title, footer, content, styles = {}, header = {} }) {
+  const branding = marca.logoDataUrl ? marca : { ...marca, ...(await logoPadrao()) };
   const accent = accentOf(branding);
   const { logoPosicao = "esquerda", linha = true } = header;
   const logo = branding.logoDataUrl
