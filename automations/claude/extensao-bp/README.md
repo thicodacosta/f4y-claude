@@ -89,10 +89,24 @@ só; a situação de cada assinatura fica em `assinaturas`. Teste:
 Para consultar: `select * from public.assinaturas;` e
 `select * from public.asaas_eventos order by recebido_em desc;`.
 
+## Páginas públicas (endereço Candydate)
+
+Publicadas no GitHub Pages, repositório `thicodacosta/candydate-acesso`:
+
+| Página | Endereço | Origem |
+|---|---|---|
+| Assinatura (checkout com cupom) | `https://thicodacosta.github.io/candydate-acesso/assinar/` | `public-dist/assinar.html` → `assinar/index.html` |
+| Resposta das pesquisas | `https://thicodacosta.github.io/candydate-acesso/pesquisa/?t=…` | `public-dist/index.html` → `pesquisa/index.html` |
+
+O logo (`candydate-logo.png`) vai em cada pasta. O endereço antigo
+(`thicodacosta.github.io/journeylab-pesquisa/`) continua respondendo as
+pesquisas já enviadas, e o `assinar.html` de lá redireciona para o novo.
+`BP_PUBLIC_URL` (`.env.local`) aponta para `/candydate-acesso/pesquisa/`.
+
 ## Checkout e cupons
 
 Página de assinatura única para todos os canais (site, extensões, campanhas):
-`https://thicodacosta.github.io/journeylab-pesquisa/assinar.html`
+`https://thicodacosta.github.io/candydate-acesso/assinar/`
 (`public/assinar.html`). Parâmetros: `?plano=bp|recruiter&cupom=CODIGO`.
 
 - **Sem cupom:** a Edge Function `checkout` devolve o link de pagamento do
@@ -110,7 +124,10 @@ todo lugar. A liberação de acesso é a mesma do webhook
 (`supabase/functions/_shared/acesso.ts`).
 
 **CANDYFREE:** acesso gratuito e sem prazo ao Business Partner ou ao Recruiter,
-uma vez por pessoa (e-mail) em cada plano. Administração no SQL Editor:
+uma vez por pessoa (e-mail) em cada plano, até 100 usos, válido até
+31/12/2026. Proteção contra uso em série: no máximo 3 usos do mesmo cupom pela
+mesma conexão (IP) em 24 h (segredo `CUPOM_USOS_POR_IP_24H`; o IP é guardado
+só como resumo/hash). Administração no SQL Editor:
 
 ```sql
 update public.cupons set ativo = false where codigo = 'CANDYFREE';                 -- desativar

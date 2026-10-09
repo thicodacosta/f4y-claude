@@ -38,6 +38,17 @@ async function validar(codigo: string, plano: string): Promise<{ ok: true; cupom
 
 const DESCRICAO: Record<string, string> = { gratuito: "Acesso gratuito, sem cobrança e sem prazo." };
 
+// Proteção contra uso em série do mesmo cupom (ex.: vários e-mails inventados).
+const USOS_POR_IP_24H = Number(Deno.env.get("CUPOM_USOS_POR_IP_24H") ?? 3);
+
+/** Resumo do IP (o IP em si não é guardado). */
+async function hashIp(req: Request) {
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "desconhecido";
+  const dados = new TextEncoder().encode(`candydate:${ip}`);
+  const hash = await crypto.subtle.digest("SHA-256", dados);
+  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   try {
@@ -48,7 +59,8 @@ Deno.serve(async (req) => {
       if (!PLANOS[plano]) return json({ ok: false, motivo: "Plano inválido." }, 400);
       if (!codigo) return json({ ok: true, plano: { id: plano, ...PLANOS[plano] } });
       const v = await validar(codigo, plano);
-      return json(v.ok ? { ok: true, cupom: v.cupom.codigo, tipo: v.cupom.tipo, descricao: DESCRICAO[v.cupom.tipo] } : v, v.ok ? 200 : 404);
+      const validade = v.ok && v.cupom.valido_ate ? ` Use até ${v.cupom.valido_ate.split("-").reverse().join("/")}.` : "";
+      return json(v.ok ? { ok: true, cupom: v.cupom.codigo, tipo: v.cupom.tipo, descricao: `${DESCRICAO[v.cupom.tipo]}${validade}` } : v, v.ok ? 200 : 404);
     }
     if (req.method !== "POST") return json({ ok: false, motivo: "Método não permitido." }, 405);
 
@@ -67,8 +79,13 @@ Deno.serve(async (req) => {
     if (!v.ok) return json(v, 422);
     if (await temProduto(email, plano)) return json({ ok: false, motivo: `Este e-mail já tem acesso ao ${PLANOS[plano].nome}. É só entrar na extensão.` }, 409);
 
+    const ip = await hashIp(req);
+    const desde = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const { count: recentes } = await admin.from("cupom_usos").select("id", { count: "exact", head: true }).eq("cupom", v.cupom.codigo).eq("ip_hash", ip).gte("criado_em", desde);
+    if ((recentes ?? 0) >= USOS_POR_IP_24H) return json({ ok: false, motivo: "Limite de usos deste cupom atingido nesta conexão. Tente novamente amanhã ou fale com a Candydate." }, 429);
+
     // Uma vez por pessoa em cada produto (a restrição única do banco garante).
-    const { error: uso } = await admin.from("cupom_usos").insert({ cupom: v.cupom.codigo, email, nome, produto: plano });
+    const { error: uso } = await admin.from("cupom_usos").insert({ cupom: v.cupom.codigo, email, nome, produto: plano, ip_hash: ip });
     if (uso) {
       if (uso.code === "23505") return json({ ok: false, motivo: "Este e-mail já usou este cupom neste plano." }, 409);
       throw uso;

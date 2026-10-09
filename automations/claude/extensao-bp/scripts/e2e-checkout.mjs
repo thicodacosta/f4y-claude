@@ -48,7 +48,7 @@ const chrome = await abrirChrome({ extensao: join(RAIZ, "extension") });
 const NOVO = "cupom.novo@cliente.test";
 
 try {
-  sql(`delete from public.cupom_usos; delete from public.assinaturas; delete from auth.users where email like '%@cliente.test'; update public.cupons set ativo = true where codigo = 'CANDYFREE';`);
+  sql(`delete from public.cupom_usos; delete from public.assinaturas; delete from auth.users where email like '%@cliente.test'; update public.cupons set ativo = true, limite_total = 100, valido_ate = '2026-12-31' where codigo = 'CANDYFREE';`);
   await fetch(`${MAILPIT}/api/v1/messages`, { method: "DELETE" }).catch(() => {});
   let pronta = false;
   for (let i = 0; i < 60 && !pronta; i++) {
@@ -98,6 +98,20 @@ try {
   r = await post({ plano: "bp", nome: "Outra", email: "outra.pessoa@cliente.test", cupom: "CANDYFREE" });
   checar("Cupom desativado deixa de valer", !r.ok && produtosDe("outra.pessoa@cliente.test") === "", r.motivo);
   sql(`update public.cupons set ativo = true where codigo = 'CANDYFREE'`);
+
+  // Limite por conexão: 3 usos do mesmo cupom pelo mesmo IP em 24 h (os testes já usaram 2).
+  r = await post({ plano: "bp", nome: "Terceira", email: "terceira@cliente.test", cupom: "CANDYFREE" });
+  checar("3º uso pela mesma conexão é aceito", r.ok, r.motivo ?? "");
+  r = await post({ plano: "bp", nome: "Quarta", email: "quarta@cliente.test", cupom: "CANDYFREE" });
+  checar("4º uso pela mesma conexão em 24 h é recusado", !r.ok && /Limite de usos/.test(r.motivo) && produtosDe("quarta@cliente.test") === "", r.motivo);
+  // Limite total e validade do cupom.
+  sql(`update public.cupons set limite_total = 3 where codigo = 'CANDYFREE'`);
+  r = await (await fetch(`${CHECKOUT}?plano=recruiter&cupom=CANDYFREE`)).json();
+  checar("Cupom com o limite total atingido deixa de valer", !r.ok && /limite/.test(r.motivo), r.motivo);
+  sql(`update public.cupons set limite_total = 100, valido_ate = current_date - 1 where codigo = 'CANDYFREE'`);
+  r = await (await fetch(`${CHECKOUT}?plano=recruiter&cupom=CANDYFREE`)).json();
+  checar("Cupom vencido deixa de valer", !r.ok && /expirou/.test(r.motivo), r.motivo);
+  sql(`update public.cupons set valido_ate = '2026-12-31' where codigo = 'CANDYFREE'`);
 
   // Página: cupom inválido.
   await p.ir(`http://127.0.0.1:${PORTA}/assinar.html?plano=recruiter`);
