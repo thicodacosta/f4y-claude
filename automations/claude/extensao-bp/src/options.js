@@ -2,6 +2,7 @@
 import { urlPublicaEmbutida } from "./core/config.js";
 import { aoMudar, carregar, iniciarEmpresa, renomearEmpresa } from "./core/db.js";
 import { secaoColaboradores } from "./modulos/colaboradores-config.js";
+import { secaoDemo } from "./modulos/demo-config.js";
 import { hasEmbeddedKeys, initTheme, logout, requireAuth } from "./core/toolskit.js";
 import { $ } from "./core/ui.js";
 
@@ -23,6 +24,7 @@ if (empresaId) {
     const secao = secaoColaboradores();
     $("colaboradores-area").replaceChildren(secao.raiz);
     aoMudar(secao.desenharLista);
+    $("demo-area").replaceChildren(secaoDemo().raiz);
     if (location.hash === "#colaboradores") $("colaboradores").scrollIntoView();
   } catch (e) {
     console.error(e);

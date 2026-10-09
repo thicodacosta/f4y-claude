@@ -100,7 +100,7 @@ export function relatorioGestao(x, analise = null) {
       { titulo: "Saídas por mês (12 meses + esperadas)", tipo: "colunas", casas: 1, itens: [...x.serie.map((m, i) => ({ rotulo: x.meses[i], valor: m.saidas })), ...x.proj.saidasProj.map((v, i) => ({ rotulo: x.futuros[i], valor: v, projetado: true }))] },
       { titulo: "Produtividade média (e tendência)", tipo: "linha", max: 5, itens: [...x.serie.map((m, i) => ({ rotulo: x.meses[i], valor: m.produtividade })), ...(x.proj.prodProj ?? []).map((v, i) => ({ rotulo: x.futuros[i], valor: v, projetado: true }))] },
       { titulo: "Cultura média (e tendência)", tipo: "linha", max: 5, itens: [...x.serie.map((m, i) => ({ rotulo: x.meses[i], valor: m.cultura })), ...(x.proj.cultProj ?? []).map((v, i) => ({ rotulo: x.futuros[i], valor: v, projetado: true }))] },
-      { titulo: "eNPS por pesquisa", tipo: "colunas", casas: 0, itens: x.enpsPesquisas.map(({ p, r }) => ({ rotulo: I.fmtData(p.criado_em).slice(3), valor: r.enps })) },
+      { titulo: "eNPS por pesquisa", tipo: "linha", casas: 0, itens: x.enpsPesquisas.map(({ p, r }) => ({ rotulo: I.fmtData(p.criado_em).slice(3), valor: r.enps })) },
     ],
     tabelas: [{ titulo: "Série mensal", colunas: ["Mês", "Headcount", "Admissões", "Saídas", "Turnover", "Produtividade", "Cultura"], linhas: x.serie.map((m, i) => [x.meses[i], String(m.headcount), String(m.admissoes), String(m.saidas), I.pct(m.turnover, 1), I.umaCasa(m.produtividade), I.umaCasa(m.cultura)]) }],
     textos: analise
@@ -223,7 +223,8 @@ export function criarGestao() {
       prod.valores.some((v) => v != null) || cult.valores.some((v) => v != null)
         ? h("div", { class: "card" }, h("h2", { text: "Produtividade e Cultura" }), linha([{ nome: "Produtividade", ...prod }, { nome: "Cultura", ...cult }], x.meses, { rotulosProjecao: x.futuros, min: 1, max: 5, rotulo: "Médias mensais de Produtividade e Cultura com tendência" }))
         : null,
-      g[4].itens.length > 1 ? h("div", { class: "card" }, h("h2", { text: "eNPS por pesquisa" }), colunas(g[4].itens.map((i) => i.valor), g[4].itens.map((i) => i.rotulo), { casas: 0, nome: "eNPS", rotulo: "eNPS por pesquisa" })) : null,
+      // Linha (e não colunas): o eNPS vai de −100 a 100.
+      g[4].itens.length > 1 ? h("div", { class: "card" }, h("h2", { text: "eNPS por pesquisa" }), linha([{ nome: "eNPS", valores: g[4].itens.map((i) => i.valor) }], g[4].itens.map((i) => i.rotulo), { casas: 0, rotulo: "eNPS por pesquisa" })) : null,
       h("h2", { class: "secao", text: "Projeção" }),
       h("div", { class: "kpis kpis--3" }, rel.kpis.slice(7).map((k) => kpi(k.rotulo, k.valor, k.detalhe)), kpi(`Headcount em ${x.futuros.at(-1)}`, String(Math.round(x.proj.hcRisco.at(-1))), "projeção indicativa")),
       h("div", { class: "note" }, h("ul", { class: "list" }, rel.destaques.map((d) => h("li", { text: d })))),

@@ -167,7 +167,6 @@ select:focus-visible {
 .kpi__valor {
   font: 700 21px/28px var(--font-display);
   letter-spacing: -0.02em;
-  overflow-wrap: anywhere;
 }
 .kpi__detalhe {
   color: var(--muted);
@@ -1011,4 +1010,33 @@ select:focus-visible {
 }
 .card--suave {
   background: var(--accent-soft);
+}
+
+/* Cartões de indicador: todos do mesmo tamanho em todas as funcionalidades,
+   alinhados no topo, sem quebrar palavras no meio. O espaçamento entre blocos
+   (.modulo > div > * + *) não vale dentro das grades. */
+.kpis,
+.medidores {
+  grid-auto-rows: 1fr;
+  align-items: stretch;
+}
+.kpis > *,
+.medidores > * {
+  margin-top: 0 !important;
+}
+.kpi {
+  justify-content: flex-start;
+  min-height: 118px;
+  min-width: 0;
+}
+.kpi__rotulo,
+.kpi__valor,
+.kpi__detalhe {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+.kpi__valor {
+  font-size: clamp(17px, 5.2vw, 21px);
+  line-height: 1.25;
 }

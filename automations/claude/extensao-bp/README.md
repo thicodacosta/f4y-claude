@@ -40,6 +40,28 @@ Planilhas são lidas e geradas sem bibliotecas externas (`src/core/planilha.js`)
 regras de importação em `src/core/importacao.js`. Telefone é guardado só com
 dígitos (com `+` quando há DDI) e aparece na ficha com link para o WhatsApp.
 
+## Cenário de demonstração
+
+Em **Configurações › Cenário de demonstração**, "Gerar cenário fictício" cria,
+sobre a base real (`src/core/demo.js`), 12 meses de dados para testar tudo:
+
+- completa área, admissão e remuneração só de quem não tem;
+- avaliações trimestrais de Produtividade e Cultura com enredo por área
+  (Comercial em queda, Tecnologia forte com dois talentos em queda, Operações
+  em recuperação);
+- onboardings de quem chegou nos últimos 100 dias (um com fase atrasada);
+- 6 ex-colaboradores fictícios com desligamento, custo e entrevista
+  respondida (3 saídas voluntárias do mesmo gestor no Comercial);
+- 2 pesquisas de Pulso respondidas (Engajamento há 3 meses, Clima no mês
+  passado).
+
+A base ativa continua com as pessoas reais. "Remover cenário" apaga tudo o
+que foi criado (inclusive os eventos do histórico) e devolve os cadastros
+exatamente como eram: o banco marca as linhas com `demo` e guarda os campos
+originais em `demo_original` (migração `20261009150000_bp_demo.sql`). O sorteio
+usa semente fixa por empresa: o cenário sai igual a cada geração. Teste:
+`node scripts/e2e-demo.mjs`.
+
 ## Pulso: 5 tipos de pesquisa
 
 | Tipo | Perguntas | Foco |
