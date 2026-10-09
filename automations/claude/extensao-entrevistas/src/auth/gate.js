@@ -39,6 +39,11 @@ let produto = "Recruiter";
 function friendly(error) {
   const msg = `${error?.message ?? ""} ${error?.code ?? ""}`.toLowerCase();
   if (/invalid login credentials|invalid_credentials/.test(msg)) return "E-mail ou senha incorretos.";
+  // Conta criada sem "Auto Confirm User": o Supabase recusa o login.
+  if (/email not confirmed|email_not_confirmed/.test(msg)) {
+    return `Seu acesso ao ${produto} ainda não foi confirmado. Peça ao administrador para confirmar o seu e-mail.`;
+  }
+  if (/banned|user_banned/.test(msg)) return `Seu acesso ao ${produto} está suspenso. Fale com o administrador.`;
   if (/token has expired|otp_expired|invalid.*otp|token.*invalid/.test(msg)) return "Senha provisória inválida ou expirada. Peça uma nova em \"Esqueci a senha\".";
   if (/rate limit|too many|over_email_send_rate_limit|security purposes/.test(msg)) return "Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo.";
   if (/signups not allowed|user not found/.test(msg)) return `Este e-mail não tem acesso ao ${produto}. Fale com o administrador.`;
@@ -46,7 +51,9 @@ function friendly(error) {
   if (/password should be|weak_password/.test(msg)) return "A nova senha precisa ter pelo menos 8 caracteres, com letras e números.";
   if (/reauthentication/.test(msg)) return "Por segurança, saia e entre de novo antes de trocar a senha.";
   if (/failed to fetch|network/.test(msg)) return "Sem conexão com o servidor. Verifique sua internet.";
-  return "Não foi possível concluir agora. Tente novamente.";
+  // Código do erro na mensagem, para o administrador identificar a causa.
+  const code = error?.code || error?.status || error?.name;
+  return `Não foi possível concluir agora. Tente novamente.${code ? ` (código: ${code})` : ""}`;
 }
 
 function buildScreen() {
