@@ -245,7 +245,9 @@ export function custoDesligamento(c, desl, calc) {
 
 // ─── Quadro e turnover ─────────────────────────────────────────────────────
 
-const ativoEm = (c, dia) => c.admissao && c.admissao <= dia && (!c.desligamento || c.desligamento > dia);
+// Sem data de admissão (ex.: base importada só com nome e cargo), a pessoa
+// conta como ativa desde sempre, até a data de desligamento.
+const ativoEm = (c, dia) => (!c.admissao || c.admissao <= dia) && (!c.desligamento || c.desligamento > dia);
 export const headcountEm = (colabs, dia) => colabs.reduce((n, c) => n + (ativoEm(c, dia) ? 1 : 0), 0);
 
 /** Turnover de um período: saídas ÷ headcount médio × 100. */

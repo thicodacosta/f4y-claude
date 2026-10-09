@@ -21,6 +21,21 @@ export const store = {
   carregadoEm: null,
 };
 
+// Avisa as outras páginas da extensão (painel lateral, Configurações, Motion)
+// que a base mudou: elas recarregam sozinhas. `origem` evita que a página que
+// gravou recarregue de novo.
+const ORIGEM = Math.random().toString(36).slice(2);
+export function sinalizarMudanca() {
+  chrome.storage.local.set({ bpAtualizado: { em: Date.now(), origem: ORIGEM } }).catch(() => {});
+}
+let recarga = null;
+chrome.storage.onChanged.addListener((mudancas, area) => {
+  const v = area === "local" && mudancas.bpAtualizado?.newValue;
+  if (!v || v.origem === ORIGEM || !store.empresaId) return;
+  clearTimeout(recarga);
+  recarga = setTimeout(() => carregar().catch((e) => console.warn(e)), 250);
+});
+
 const ouvintes = new Set();
 export const aoMudar = (fn) => (ouvintes.add(fn), () => ouvintes.delete(fn));
 const avisar = () => ouvintes.forEach((fn) => fn(store));
@@ -99,24 +114,28 @@ const comEmpresa = (linha) => ({ ...linha, empresa_id: store.empresaId });
 
 export async function inserir(tabela, linha, contexto = "salvar") {
   const data = await q(supabase.from(tabela).insert(comEmpresa(linha)).select().single(), contexto);
+  sinalizarMudanca();
   await carregar();
   return data;
 }
 
 export async function inserirVarios(tabela, linhas, contexto = "salvar") {
   const data = await q(supabase.from(tabela).insert(linhas.map(comEmpresa)).select(), contexto);
+  sinalizarMudanca();
   await carregar();
   return data;
 }
 
 export async function atualizar(tabela, id, campos, contexto = "salvar", { recarregar = true } = {}) {
   const data = await q(supabase.from(tabela).update(campos).eq("id", id).select().single(), contexto);
+  sinalizarMudanca();
   if (recarregar) await carregar();
   return data;
 }
 
 export async function excluir(tabela, id, contexto = "excluir") {
   await q(supabase.from(tabela).delete().eq("id", id), contexto);
+  sinalizarMudanca();
   await carregar();
 }
 

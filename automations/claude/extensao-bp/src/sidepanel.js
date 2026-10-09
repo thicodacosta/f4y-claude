@@ -125,6 +125,10 @@ async function init() {
     // Chat mantém a conversa; as demais telas refletem a base nova.
     if (atual && atual !== "chat") desenhar(atual);
   });
+  // Rede de segurança: ao voltar a ficar visível, recarrega se faz mais de 1 min.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && Date.now() - store.carregadoEm > 60_000) carregar().catch(() => {});
+  });
   const { bpAba } = await chrome.storage.session.get("bpAba");
   await selecionar(ABAS.some(([id]) => id === bpAba) ? bpAba : "gestao");
 }

@@ -7,7 +7,7 @@
  * preenchidos na planilha); sem e-mail ou e-mail novo → cria. Linhas com
  * erro não são gravadas e aparecem na prévia.
  */
-import { carregar, store } from "./db.js";
+import { carregar, sinalizarMudanca, store } from "./db.js";
 import { gerarXlsx } from "./planilha.js";
 import { normalize, saveBlob, supabase } from "./toolskit.js";
 
@@ -141,6 +141,7 @@ export async function aplicar(plano, aoProgresso) {
     atualizados += lote.length;
     aoProgresso?.(criados + atualizados);
   }
+  sinalizarMudanca();
   await carregar();
   return { criados, atualizados };
 }

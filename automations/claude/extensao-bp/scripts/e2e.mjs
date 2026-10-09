@@ -388,10 +388,15 @@ PY`);
   const prev = await cfg.avaliar("[...document.querySelectorAll('.importador .kpi')].map(k=>k.querySelector('.kpi__rotulo').textContent+':'+k.querySelector('.kpi__valor').textContent).join(' ')");
   checar("Prévia separa novos, atualizados e erros", prev === "Novos:2 Atualizados:1 Sem mudança:0 Com erro:3", prev);
   await foto(cfg, "14-config-previa", { inteira: true });
+  await painel.avaliar("document.querySelector('#aba-gestao').click()");
+  await painel.esperarAte("document.querySelector('#area-gestao:not([hidden]) .kpi__valor')");
+  const hcAntes = await painel.avaliar("document.querySelector('#area-gestao .kpi__valor').textContent");
   await clicar(cfg, "Importar 3");
   checar("Importação conclui", await cfg.esperarAte("document.querySelector('.importador').innerText.includes('Importação concluída')"));
   const importados = (await rest("bp_colaboradores?email=in.(wagner@aurora.test,xenia@aurora.test,yara@aurora.test)&select=email,cargo,telefone&order=email")).dados;
   checar("Banco alimentado: novos e atualização por e-mail", importados.length === 3 && importados.find((x) => x.email === "yara@aurora.test")?.cargo === "Coordenadora de RH" && importados.find((x) => x.email === "wagner@aurora.test")?.telefone === "21987654321" && importados.find((x) => x.email === "xenia@aurora.test")?.telefone === "+351912345678", JSON.stringify(importados));
+  // Wagner e Xênia entram sem data de admissão: contam no headcount, e o painel atualiza sozinho.
+  checar("Painel atualiza sozinho após importar em Configurações (sem admissão conta no headcount)", await painel.esperarAte(`document.querySelector('#area-gestao .kpi__valor').textContent === String(${Number(hcAntes)} + 2)`, 15000), `antes ${hcAntes}, agora ${await painel.avaliar("document.querySelector('#area-gestao .kpi__valor').textContent")}`);
   checar("Lista atualiza com os importados", await cfg.esperarAte("document.querySelector('.tabela--colaboradores').innerText.includes('Wagner Pires')"));
   await foto(cfg, "15-config-colaboradores", { inteira: true });
   // Planilha no formato do Numbers/Google (XML com prefixo "x:" e caminhos absolutos).
