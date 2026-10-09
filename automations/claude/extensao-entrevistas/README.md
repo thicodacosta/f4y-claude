@@ -269,6 +269,7 @@ Contas no Supabase (`SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` em
 | Authentication → Emails → Templates → **Reset Password** | Corpo com a senha provisória: `Sua senha provisória do ToolsKit: {{ .Token }}` (sem link) |
 | Authentication → Emails → SMTP Settings | SMTP próprio (ex.: Resend): o envio padrão do Supabase permite poucos e-mails por hora |
 | Authentication → Users → **Add user → Create new user** | E-mail + senha inicial, com **Auto Confirm User** marcado |
+| SQL Editor | Liberar o produto da conta criada: `select public.conceder_produto('pessoa@empresa.com', 'recruiter');` (sem isso, o login responde "Sua conta não tem acesso ao Recruiter"). Assinaturas pelo Asaas liberam sozinhas (ver `../extensao-bp/README.md`) |
 
 **Limite de segurança:** o login controla quem usa a extensão, mas as chaves
 de IA ainda vão no pacote. A proteção completa é mover as chamadas de IA para
