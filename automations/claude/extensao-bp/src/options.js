@@ -26,6 +26,7 @@ if (empresaId) {
     aoMudar(secao.desenharLista);
     $("demo-area").replaceChildren(secaoDemo().raiz);
     if (location.hash === "#colaboradores") $("colaboradores").scrollIntoView();
+    if (location.hash === "#demo") setTimeout(() => $("demo").scrollIntoView({ block: "start" }), 200);
   } catch (e) {
     console.error(e);
     $("colaboradores-area").textContent = e.message ?? "Não foi possível carregar os colaboradores.";

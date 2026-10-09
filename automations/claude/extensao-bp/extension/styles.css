@@ -1026,7 +1026,7 @@ select:focus-visible {
 }
 .kpi {
   justify-content: flex-start;
-  min-height: 118px;
+  min-height: 92px;
   min-width: 0;
 }
 .kpi__rotulo,

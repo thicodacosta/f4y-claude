@@ -60,6 +60,7 @@ try {
   await painel.avaliar(`document.querySelector('#auth-email').value='demo@bp.test';document.querySelector('#auth-password').value='BpTeste2026';document.querySelector('.auth form').requestSubmit();`);
   await painel.esperarAte("document.querySelector('#area-gestao .kpi__valor')");
   checar("Painel com os 50 colaboradores", (await painel.avaliar("document.querySelector('#area-gestao .kpi__valor').textContent")) === "50");
+  checar("Painel sugere gerar o cenário", await painel.avaliar("!document.querySelector('#aviso-demo').hidden"));
 
   const cfg = await chrome.aba(chrome.url("options.html#demo"));
   await cfg.tamanho(1100, 1000, 1);
@@ -82,7 +83,7 @@ try {
   checar("Base ativa continua com as 50 pessoas", n.ativos === 50, String(n.ativos));
 
   // O painel atualiza sozinho e mostra o cenário em todas as funcionalidades.
-  checar("Painel atualiza sozinho com o cenário", await painel.esperarAte("!document.querySelector('#area-gestao .kpi__valor + *')?.textContent.includes('+0 / −0')", 20000));
+  checar("Painel atualiza sozinho com o cenário", await painel.esperarAte("!document.querySelector('#area-gestao .kpi__valor + *')?.textContent.includes('+0 / −0') && document.querySelector('#aviso-demo').hidden", 20000));
   await esperar(800);
   const textos = {};
   for (const aba of ["gestao", "onboarding", "produtividade", "cultura", "turnover", "pulso", "offboarding"]) {

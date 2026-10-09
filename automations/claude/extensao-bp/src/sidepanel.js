@@ -118,7 +118,12 @@ async function init() {
   }
   $("estado").hidden = true;
   montarAbas();
-  const avisoBase = () => ($("aviso-colaboradores").hidden = store.colaboradores.length > 0);
+  const avisoBase = () => {
+    const vazia = store.colaboradores.length === 0;
+    $("aviso-colaboradores").hidden = !vazia;
+    // Base cadastrada, mas sem nenhum dado das funcionalidades: sugere o cenário.
+    $("aviso-demo").hidden = vazia || store.avaliacoes.length > 0 || store.onboardings.length > 0 || store.desligamentos.length > 0 || store.pesquisas.length > 0;
+  };
   avisoBase();
   aoMudar(() => {
     avisoBase();
