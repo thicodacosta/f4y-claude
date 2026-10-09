@@ -89,6 +89,39 @@ só; a situação de cada assinatura fica em `assinaturas`. Teste:
 Para consultar: `select * from public.assinaturas;` e
 `select * from public.asaas_eventos order by recebido_em desc;`.
 
+## Checkout e cupons
+
+Página de assinatura única para todos os canais (site, extensões, campanhas):
+`https://thicodacosta.github.io/journeylab-pesquisa/assinar.html`
+(`public/assinar.html`). Parâmetros: `?plano=bp|recruiter&cupom=CODIGO`.
+
+- **Sem cupom:** a Edge Function `checkout` devolve o link de pagamento do
+  Asaas do plano; a liberação segue pelo `asaas-webhook` quando o pagamento é
+  confirmado.
+- **Com cupom gratuito válido:** libera o acesso na hora (conta nova recebe o
+  e-mail de senha provisória), sem cobrança e sem prazo; registra em
+  `cupom_usos` e em `assinaturas` (`origem = 'cupom'`).
+
+Os cupons ficam só no banco (`cupons`) e são validados só pela função
+`checkout`: o site e qualquer outra página chamam o mesmo endereço
+(`https://<ref>.supabase.co/functions/v1/checkout`, `GET ?plano=&cupom=` valida,
+`POST {plano, nome, email, cupom}` conclui), então o mesmo cupom vale igual em
+todo lugar. A liberação de acesso é a mesma do webhook
+(`supabase/functions/_shared/acesso.ts`).
+
+**CANDYFREE:** acesso gratuito e sem prazo ao Business Partner ou ao Recruiter,
+uma vez por pessoa (e-mail) em cada plano. Administração no SQL Editor:
+
+```sql
+update public.cupons set ativo = false where codigo = 'CANDYFREE';                 -- desativar
+update public.cupons set valido_ate = '2026-12-31' where codigo = 'CANDYFREE';     -- validade
+update public.cupons set limite_total = 100 where codigo = 'CANDYFREE';            -- limite de usos
+insert into public.cupons (codigo, descricao, produtos) values ('PARCEIRO', 'Parceiros', '{bp}');
+select * from public.cupom_usos order by criado_em desc;                           -- quem usou
+```
+
+Teste: `node scripts/e2e-checkout.mjs`.
+
 ## Configurações › Colaboradores
 
 A base de pessoas é alimentada nas **Configurações** (enquanto ela estiver

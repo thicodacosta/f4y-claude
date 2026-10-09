@@ -13,7 +13,7 @@
 //   ASAAS_PRODUTOS       opcional: {"<id do link de pagamento ou referência externa>": "bp" | "recruiter"}
 //   ASAAS_API_URL        opcional (padrão: produção https://api.asaas.com/v3)
 // SUPABASE_URL, SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY já existem no ambiente.
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { admin, liberar as liberarAcesso, retirar } from "../_shared/acesso.ts";
 
 const env = (k: string, padrao = "") => Deno.env.get(k) ?? padrao;
 const ASAAS_API = env("ASAAS_API_URL", "https://api.asaas.com/v3").replace(/\/$/, "");
@@ -25,9 +25,6 @@ const PRODUTOS: Record<string, string> = {
   ...JSON.parse(env("ASAAS_PRODUTOS", "{}")),
 };
 const VALIDOS = new Set(["bp", "recruiter"]);
-
-const admin = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false } });
-const publico = createClient(env("SUPABASE_URL"), env("SUPABASE_ANON_KEY"), { auth: { persistSession: false } });
 
 type Pagamento = { id: string; customer: string; subscription?: string | null; paymentLink?: string | null; externalReference?: string | null; dueDate?: string; paymentDate?: string | null; confirmedDate?: string | null };
 type Assinatura = { id: string; customer: string; paymentLink?: string | null; externalReference?: string | null; description?: string | null };
@@ -51,38 +48,7 @@ async function produtoDe(p: Partial<Pagamento>, s?: Partial<Assinatura> | null):
 }
 
 async function liberar(email: string, nome: string | null, produto: string, dados: Record<string, unknown>) {
-  const { data: id } = await admin.rpc("conta_por_email", { p_email: email });
-  let userId = id as string | null;
-  let novaConta = false;
-  if (!userId) {
-    const { data, error } = await admin.auth.admin.createUser({
-      email,
-      email_confirm: true,
-      user_metadata: { nome, senhaPropria: false },
-      app_metadata: { produtos: [produto] },
-    });
-    if (error) throw error;
-    userId = data.user.id;
-    novaConta = true;
-  } else {
-    const { error } = await admin.rpc("conceder_produto", { p_email: email, p_produto: produto });
-    if (error) throw error;
-  }
-  const { error } = await admin.from("assinaturas").upsert({ email, nome, user_id: userId, produto, status: "ativa", atrasada_desde: null, ...dados }, { onConflict: "email,produto" });
-  if (error) throw error;
-  // Conta nova: senha provisória por e-mail (template "Reset Password" do Supabase).
-  if (novaConta) {
-    const { error: e } = await publico.auth.resetPasswordForEmail(email);
-    if (e) console.warn("senha provisória não enviada", email, e.message);
-  }
-  return novaConta ? "conta criada e acesso liberado" : "acesso liberado";
-}
-
-async function retirar(email: string, produto: string, status: string) {
-  await admin.rpc("revogar_produto", { p_email: email, p_produto: produto });
-  const { error } = await admin.from("assinaturas").upsert({ email, produto, status }, { onConflict: "email,produto" });
-  if (error) throw error;
-  return `acesso retirado (${status})`;
+  return (await liberarAcesso(email, nome, produto, { origem: "asaas", ...dados })).resultado;
 }
 
 async function processar(ev: { event: string; payment?: Pagamento; subscription?: Assinatura }) {

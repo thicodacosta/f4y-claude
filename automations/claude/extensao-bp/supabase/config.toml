@@ -416,3 +416,7 @@ enabled = true
 [functions.asaas-webhook]
 # O Asaas não envia JWT do Supabase: a função confere o token próprio do webhook.
 verify_jwt = false
+
+[functions.checkout]
+# Página pública de assinatura: sem login (o cupom é validado no banco).
+verify_jwt = false

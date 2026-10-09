@@ -93,6 +93,8 @@ function buildPublicPage() {
     .replace("__SUPABASE_PUBLISHABLE_KEY__", env.SUPABASE_PUBLISHABLE_KEY ?? "");
   mkdirSync("public-dist", { recursive: true });
   writeFileSync("public-dist/index.html", html);
+  // Página de assinatura (checkout com cupom; chama a Edge Function checkout).
+  writeFileSync("public-dist/assinar.html", readFileSync("public/assinar.html", "utf8").replace("__SUPABASE_URL__", env.SUPABASE_URL ?? ""));
   cpSync(`${TOOLSKIT}/extension/icons/candydate-logo.png`, "public-dist/candydate-logo.png");
 }
 

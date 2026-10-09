@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Assinar · Candydate</title>
+    <meta name="description" content="Assine o Candydate Business Partner ou o Candydate Recruiter." />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@500;600;700&display=swap" />
+    <style>
+      /* Tokens: estrutura Candy Studio com o azul e os neutros Candydate. */
+      :root {
+        --primary: #28aaf0;
+        --cta: #0e7ab8;
+        --cta-hover: #0b6699;
+        --ink: #383a47;
+        --muted: #6b6e76;
+        --bg: #f6f8fa;
+        --surface: #ffffff;
+        --border: #e2e6eb;
+        --border-strong: #d5dae1;
+        --primary-ink: #166f9f;
+        --soft: #eaf6fe;
+        --ring: rgba(40, 170, 240, 0.28);
+        --danger: #d93a3f;
+        --success: #15a66b;
+        --mesh: radial-gradient(at 20% 0%, #dbeffd 0, transparent 50%), radial-gradient(at 80% 20%, #e6e8f6 0, transparent 50%);
+        color-scheme: light;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #f4f6f8;
+          --muted: #a1a6ae;
+          --bg: #0d1117;
+          --surface: #161b22;
+          --border: #262c36;
+          --border-strong: #343b47;
+          --primary-ink: #5cc0f5;
+          --soft: rgba(40, 170, 240, 0.14);
+          --ring: rgba(40, 170, 240, 0.32);
+          --danger: #ff7a7e;
+          --success: #3ccf8e;
+          --mesh: radial-gradient(at 20% 0%, rgba(40, 170, 240, 0.16) 0, transparent 50%), radial-gradient(at 80% 20%, rgba(88, 96, 169, 0.16) 0, transparent 50%);
+          color-scheme: dark;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--mesh), var(--bg);
+        background-repeat: no-repeat;
+        background-size: 100% 560px, auto;
+        color: var(--ink);
+        font: 400 15px/24px Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      header { padding: 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 85%, transparent); backdrop-filter: blur(12px); }
+      header .marca { max-width: 880px; margin: 0 auto; display: flex; align-items: center; }
+      header img { height: 28px; }
+      main { max-width: 880px; margin: 0 auto; padding: 40px 16px 64px; }
+      .eyebrow { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--primary-ink); }
+      h1 { margin: 0 0 8px; font: 600 34px/40px Geist, Inter, sans-serif; letter-spacing: -0.02em; }
+      .lead { margin: 0 0 28px; color: var(--muted); }
+      .planos { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 24px; }
+      .plano { position: relative; cursor: pointer; }
+      .plano input { position: absolute; opacity: 0; }
+      .plano .cartao {
+        display: block; height: 100%; padding: 20px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
+        box-shadow: 0 1px 2px rgba(56, 58, 71, 0.04); transition: border-color 120ms, box-shadow 120ms;
+      }
+      .plano input:checked + .cartao { border-color: var(--primary); box-shadow: 0 0 0 4px var(--ring); }
+      .plano input:focus-visible + .cartao { box-shadow: 0 0 0 4px var(--ring); }
+      .plano strong { display: block; font: 600 18px/24px Geist, Inter, sans-serif; }
+      .preco { margin: 6px 0 8px; font: 700 22px/28px Geist, Inter, sans-serif; color: var(--primary-ink); }
+      .preco.riscado { text-decoration: line-through; color: var(--muted); font-size: 16px; }
+      .plano p { margin: 0; color: var(--muted); font-size: 14px; }
+      .gratis { display: none; margin-top: 4px; font: 700 18px/24px Geist, Inter, sans-serif; color: var(--success); }
+      body.com-cupom .gratis { display: block; }
+      form { padding: 24px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+      .grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+      label { display: block; font-weight: 600; margin: 0 0 6px; }
+      .campo { margin-bottom: 14px; }
+      input[type="text"], input[type="email"] {
+        width: 100%; padding: 11px 14px; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--surface); color: var(--ink); font: inherit;
+      }
+      input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 4px var(--ring); }
+      .cupom { display: flex; gap: 8px; }
+      .cupom input { text-transform: uppercase; }
+      button { font: 600 15px/20px Inter, sans-serif; cursor: pointer; border-radius: 999px; transition: background-color 120ms, transform 120ms; }
+      .secundario { padding: 0 18px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); }
+      .secundario:hover { border-color: var(--primary); color: var(--primary-ink); }
+      .principal { width: 100%; min-height: 50px; border: 0; background: var(--cta); color: #fff; margin-top: 6px; }
+      .principal:hover { background: var(--cta-hover); transform: translateY(-1px); }
+      .principal:disabled { opacity: 0.6; cursor: wait; transform: none; }
+      button:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--ring); }
+      .msg { margin: 6px 0 0; font-size: 13.5px; }
+      .msg.ok { color: var(--success); }
+      .msg.erro { color: var(--danger); }
+      .nota { margin: 14px 0 0; color: var(--muted); font-size: 13px; }
+      .sucesso { padding: 32px 24px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+      .sucesso h2 { margin: 0 0 8px; font: 600 26px/32px Geist, Inter, sans-serif; }
+      .sucesso ol { padding-left: 20px; margin: 12px 0 0; }
+      .sucesso li + li { margin-top: 6px; }
+      .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    </style>
+  </head>
+  <body>
+    <header><div class="marca"><img src="candydate-logo.png" alt="Candydate" /></div></header>
+    <main id="conteudo">
+      <p class="eyebrow">Assinatura</p>
+      <h1>Escolha o seu plano</h1>
+      <p class="lead">Assinatura mensal, cancele quando quiser. Tem um cupom? Aplique abaixo.</p>
+
+      <form id="form" novalidate>
+        <fieldset class="planos" style="border: 0; padding: 0; margin: 0 0 24px">
+          <legend class="visually-hidden">Plano</legend>
+          <label class="plano">
+            <input type="radio" name="plano" value="bp" checked />
+            <span class="cartao">
+              <strong>Business Partner</strong>
+              <span class="preco" data-preco>R$ 129,90/mês</span>
+              <span class="gratis">Grátis com o cupom</span>
+              <p>Onboarding, Produtividade, Cultura, Turnover, Pulso, Offboarding, Gestão preditiva e Chat.</p>
+            </span>
+          </label>
+          <label class="plano">
+            <input type="radio" name="plano" value="recruiter" />
+            <span class="cartao">
+              <strong>Recruiter</strong>
+              <span class="preco" data-preco>R$ 99,90/mês</span>
+              <span class="gratis">Grátis com o cupom</span>
+              <p>Entrevistas, currículos, comparativo, pesquisa salarial, Shortlist no LinkedIn e Chat.</p>
+            </span>
+          </label>
+        </fieldset>
+
+        <div class="grade">
+          <div class="campo"><label for="nome">Nome completo</label><input type="text" id="nome" autocomplete="name" maxlength="160" required /></div>
+          <div class="campo"><label for="email">E-mail</label><input type="email" id="email" autocomplete="email" maxlength="254" required /></div>
+        </div>
+        <div class="campo">
+          <label for="cupom">Cupom <span style="font-weight: 400; color: var(--muted)">(opcional)</span></label>
+          <div class="cupom">
+            <input type="text" id="cupom" autocomplete="off" maxlength="40" placeholder="Ex.: CANDYFREE" />
+            <button type="button" id="aplicar" class="secundario">Aplicar</button>
+          </div>
+          <p id="cupom-msg" class="msg" role="status"></p>
+        </div>
+        <p id="erro" class="msg erro" role="alert"></p>
+        <button type="submit" id="enviar" class="principal">Continuar para o pagamento</button>
+        <p class="nota" id="nota">O pagamento é feito no ambiente seguro do Asaas (cartão de crédito). O acesso é liberado assim que o pagamento é confirmado.</p>
+      </form>
+    </main>
+    <script>
+      // Endereço do checkout (Edge Function), embutido pelo build.
+      const CHECKOUT = "__SUPABASE_URL__/functions/v1/checkout";
+      const $ = (id) => document.getElementById(id);
+      const params = new URLSearchParams(location.search);
+      let cupomValido = null;
+
+      const plano = () => document.querySelector('input[name="plano"]:checked').value;
+      if (["bp", "recruiter"].includes(params.get("plano"))) document.querySelector(`input[value="${params.get("plano")}"]`).checked = true;
+
+      function estadoCupom(ok, texto) {
+        cupomValido = ok ? $("cupom").value.trim().toUpperCase() : null;
+        document.body.classList.toggle("com-cupom", Boolean(ok));
+        document.querySelectorAll("[data-preco]").forEach((p) => p.classList.toggle("riscado", Boolean(ok)));
+        $("cupom-msg").className = `msg ${ok ? "ok" : texto ? "erro" : ""}`;
+        $("cupom-msg").textContent = texto ?? "";
+        $("enviar").textContent = ok ? "Liberar meu acesso" : "Continuar para o pagamento";
+        $("nota").textContent = ok
+          ? "Com o cupom, o acesso é liberado na hora, sem cobrança e sem cartão. Você recebe por e-mail um código para criar sua senha."
+          : "O pagamento é feito no ambiente seguro do Asaas (cartão de crédito). O acesso é liberado assim que o pagamento é confirmado.";
+      }
+
+      async function aplicar() {
+        const codigo = $("cupom").value.trim();
+        if (!codigo) return estadoCupom(false, null);
+        $("aplicar").disabled = true;
+        try {
+          const r = await fetch(`${CHECKOUT}?plano=${plano()}&cupom=${encodeURIComponent(codigo)}`);
+          const d = await r.json();
+          estadoCupom(d.ok, d.ok ? `Cupom ${d.cupom} aplicado: ${d.descricao}` : d.motivo);
+        } catch {
+          estadoCupom(false, "Não foi possível validar o cupom agora.");
+        } finally {
+          $("aplicar").disabled = false;
+        }
+      }
+
+      $("aplicar").addEventListener("click", aplicar);
+      $("cupom").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          aplicar();
+        }
+      });
+      $("cupom").addEventListener("input", () => cupomValido && estadoCupom(false, null));
+      // Trocar de plano revalida o cupom (ele pode não valer para o outro plano).
+      document.querySelectorAll('input[name="plano"]').forEach((r) => r.addEventListener("change", () => $("cupom").value.trim() && aplicar()));
+
+      $("form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        $("erro").textContent = "";
+        const email = $("email").value.trim();
+        if (!$("nome").value.trim()) return ($("erro").textContent = "Informe seu nome.");
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return ($("erro").textContent = "Informe um e-mail válido.");
+        if ($("cupom").value.trim() && !cupomValido) return ($("erro").textContent = "Clique em Aplicar para validar o cupom (ou apague o campo).");
+        $("enviar").disabled = true;
+        try {
+          const r = await fetch(CHECKOUT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plano: plano(), nome: $("nome").value.trim(), email, cupom: cupomValido }),
+          });
+          const d = await r.json();
+          if (!d.ok) throw new Error(d.motivo);
+          if (d.acao === "pagar") {
+            location.href = d.link;
+            return;
+          }
+          const sucesso = document.createElement("section");
+          sucesso.className = "sucesso";
+          sucesso.setAttribute("role", "status");
+          const h2 = Object.assign(document.createElement("h2"), { textContent: `Acesso ao ${d.plano} liberado` });
+          const p = Object.assign(document.createElement("p"), { textContent: d.novaConta ? `Enviamos para ${email} um código de acesso. Para começar:` : `A sua conta (${email}) já pode usar o ${d.plano}. Para começar:` });
+          const ol = document.createElement("ol");
+          const passos = d.novaConta
+            ? ["Instale a extensão Candydate no Chrome.", "Clique no ícone da extensão e informe o seu e-mail.", "No campo Senha, use o código recebido por e-mail e crie a sua senha."]
+            : ["Abra a extensão Candydate no Chrome.", "Entre com o seu e-mail e a sua senha de sempre."];
+          for (const t of passos) ol.append(Object.assign(document.createElement("li"), { textContent: t }));
+          sucesso.append(h2, p, ol);
+          $("conteudo").replaceChildren(sucesso);
+          window.scrollTo(0, 0);
+        } catch (err) {
+          $("erro").textContent = err.message || "Não foi possível concluir agora. Tente novamente.";
+          $("enviar").disabled = false;
+        }
+      });
+
+      if (params.get("cupom")) {
+        $("cupom").value = params.get("cupom");
+        aplicar();
+      }
+    </script>
+  </body>
+</html>
