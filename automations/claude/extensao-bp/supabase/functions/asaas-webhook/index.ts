@@ -18,8 +18,12 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const env = (k: string, padrao = "") => Deno.env.get(k) ?? padrao;
 const ASAAS_API = env("ASAAS_API_URL", "https://api.asaas.com/v3").replace(/\/$/, "");
 const TOKEN = env("ASAAS_WEBHOOK_TOKEN");
-// Link de pagamento do Plano Business Partner.
-const PRODUTOS: Record<string, string> = { bjiv8fc18w63r89y: "bp", ...JSON.parse(env("ASAAS_PRODUTOS", "{}")) };
+// Links de pagamento (assinaturas mensais) de cada produto.
+const PRODUTOS: Record<string, string> = {
+  bjiv8fc18w63r89y: "bp", // Plano Business Partner · R$ 129,90/mês
+  "5p8qk8zbmdkndtwy": "recruiter", // Plano Recruiter · R$ 99,90/mês
+  ...JSON.parse(env("ASAAS_PRODUTOS", "{}")),
+};
 const VALIDOS = new Set(["bp", "recruiter"]);
 
 const admin = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), { auth: { persistSession: false } });

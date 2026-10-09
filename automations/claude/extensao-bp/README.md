@@ -43,9 +43,15 @@ Conta nova sem nenhum produto não entra em nenhuma das extensões.
 
 ## Liberação automática pelo Asaas
 
-Quem assina o **Plano Business Partner** no Asaas (link
-`https://www.asaas.com/000/c/bjiv8fc18w63r89y`, assinatura mensal) recebe o
-acesso sozinho, pela Edge Function `supabase/functions/asaas-webhook`:
+Quem assina um plano no Asaas recebe o acesso sozinho, pela Edge Function
+`supabase/functions/asaas-webhook` (assinaturas mensais, renovadas a cada
+pagamento):
+
+| Plano | Link | Produto |
+|---|---|---|
+| Business Partner · R$ 129,90/mês | `https://www.asaas.com/000/c/bjiv8fc18w63r89y` | `bp` |
+| Recruiter · R$ 99,90/mês | `https://www.asaas.com/000/c/5p8qk8zbmdkndtwy` | `recruiter` |
+
 
 | Aviso do Asaas | O que acontece |
 |---|---|
@@ -54,9 +60,9 @@ acesso sozinho, pela Edge Function `supabase/functions/asaas-webhook`:
 | Mais de 5 dias em atraso | A rotina diária `expirar_assinaturas` (pg_cron, 06:15 UTC) retira o acesso; os dados ficam guardados |
 | `SUBSCRIPTION_DELETED` / `INACTIVATED`, `PAYMENT_REFUNDED`, chargeback | Retira o acesso na hora |
 
-O produto vem do **link de pagamento** (ou da referência externa): o link do
-Business Partner já está mapeado para `bp`. Outros produtos: segredo
-`ASAAS_PRODUTOS` = `{"<id do link>": "recruiter"}`. Pagamentos de outros links
+O produto vem do **link de pagamento** da assinatura (ou da referência
+externa); os dois links acima já estão mapeados. Novos links: segredo
+`ASAAS_PRODUTOS` = `{"<id do link>": "bp"}`. Pagamentos de outros links
 são ignorados. Cada aviso é registrado em `asaas_eventos` e processado uma vez
 só; a situação de cada assinatura fica em `assinaturas`. Teste:
 `node scripts/e2e-asaas.mjs` (Supabase local com edge-runtime e mailpit).

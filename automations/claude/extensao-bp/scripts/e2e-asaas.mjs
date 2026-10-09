@@ -30,8 +30,8 @@ const checar = (nome, ok, detalhe = "") => {
 const sql = (q) => execSync(`docker exec supabase_db_journeylab_bp psql -U postgres -Atc ${JSON.stringify(q)}`, { encoding: "utf8" }).trim();
 
 // API falsa do Asaas: clientes e assinaturas.
-const CLIENTES = { cus_1: { email: "Compradora.Nova@cliente.test", name: "Compradora Nova" }, cus_2: { email: "rh@bp.test", name: "Conta existente" }, cus_3: { email: "outro@cliente.test", name: "Outro produto" } };
-const ASSINATURAS = { sub_1: { id: "sub_1", customer: "cus_1", paymentLink: "bjiv8fc18w63r89y" }, sub_3: { id: "sub_3", customer: "cus_3", paymentLink: "link_de_outro_produto" } };
+const CLIENTES = { cus_1: { email: "Compradora.Nova@cliente.test", name: "Compradora Nova" }, cus_2: { email: "rh@bp.test", name: "Conta existente" }, cus_3: { email: "outro@cliente.test", name: "Outro produto" }, cus_4: { email: "recrutadora@cliente.test", name: "Recrutadora" } };
+const ASSINATURAS = { sub_1: { id: "sub_1", customer: "cus_1", paymentLink: "bjiv8fc18w63r89y" }, sub_3: { id: "sub_3", customer: "cus_3", paymentLink: "link_de_outro_produto" }, sub_4: { id: "sub_4", customer: "cus_4", paymentLink: "5p8qk8zbmdkndtwy" } };
 const asaas = createServer((req, res) => {
   if (req.headers.access_token !== "chave-asaas-teste") return res.writeHead(401).end();
   const [, , recurso, id] = req.url.split("/");
@@ -55,7 +55,7 @@ const situacao = (email) => sql(`select status from public.assinaturas where ema
 
 try {
   // Conta existente (como se já usasse o Recruiter).
-  sql(`delete from public.asaas_eventos; delete from public.assinaturas; delete from auth.users where email in ('compradora.nova@cliente.test','outro@cliente.test');`);
+  sql(`delete from public.asaas_eventos; delete from public.assinaturas; delete from auth.users where email in ('compradora.nova@cliente.test','outro@cliente.test','recrutadora@cliente.test');`);
   await fetch(`${API}/auth/v1/admin/users`, { method: "POST", headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" }, body: JSON.stringify({ email: "rh@bp.test", password: "BpTeste2026", email_confirm: true }) });
   sql(`update auth.users set raw_app_meta_data = raw_app_meta_data || '{"produtos":["recruiter"]}' where email='rh@bp.test'`);
   await fetch(`${MAILPIT}/api/v1/messages`, { method: "DELETE" }).catch(() => {});
@@ -114,6 +114,20 @@ try {
   // Pagamento de outro link (não é produto Candydate): ignorado, sem conta criada.
   r = await enviar({ id: "evt_7", event: "PAYMENT_CONFIRMED", payment: { id: "pay_7", customer: "cus_3", subscription: "sub_3" } });
   checar("Pagamento de outro link é ignorado", r.corpo.includes("ignorado") && sql(`select count(*) from auth.users where email='outro@cliente.test'`) === "0", r.corpo);
+
+  // Plano Recruiter: assinatura mensal com renovações (pagamentos da assinatura, sem o link no pagamento).
+  const pagRec = (id, evento, extra = {}) => ({ id: `evt_r${id}`, event: evento, payment: { id: `pay_r${id}`, customer: "cus_4", subscription: "sub_4", dueDate: "2026-10-09", confirmedDate: "2026-10-09", ...extra } });
+  r = await enviar(pagRec("1", "PAYMENT_CONFIRMED"));
+  checar("Plano Recruiter: 1º pagamento libera só o Recruiter", produtosDe("recrutadora@cliente.test") === '["recruiter"]', r.corpo);
+  r = await enviar(pagRec("2", "PAYMENT_CONFIRMED", { dueDate: "2026-11-09", confirmedDate: "2026-11-09" }));
+  checar("Plano Recruiter: renovação mensal mantém o acesso", produtosDe("recrutadora@cliente.test") === '["recruiter"]' && sql(`select status from public.assinaturas where email='recrutadora@cliente.test' and produto='recruiter'`) === "ativa", r.corpo);
+  r = await enviar(pagRec("3", "PAYMENT_OVERDUE", { dueDate: "2026-12-09", confirmedDate: null }));
+  sql(`update public.assinaturas set atrasada_desde = current_date - 6 where email='recrutadora@cliente.test'`);
+  sql(`select public.expirar_assinaturas(5)`);
+  checar("Plano Recruiter: atraso além da tolerância retira o acesso", produtosDe("recrutadora@cliente.test") === "[]");
+  r = await enviar(pagRec("4", "PAYMENT_RECEIVED", { dueDate: "2026-12-09" }));
+  r = await enviar({ id: "evt_r5", event: "SUBSCRIPTION_INACTIVATED", subscription: ASSINATURAS.sub_4 });
+  checar("Plano Recruiter: assinatura inativada retira o acesso", produtosDe("recrutadora@cliente.test") === "[]" && sql(`select status from public.assinaturas where email='recrutadora@cliente.test'`) === "cancelada", r.corpo);
 
   checar("Todos os avisos ficam registrados", Number(sql(`select count(*) from public.asaas_eventos`)) >= 7);
 } catch (e) {
