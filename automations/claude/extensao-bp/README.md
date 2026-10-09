@@ -41,6 +41,48 @@ select * from public.produtos_por_conta();                           -- quem tem
 
 Conta nova sem nenhum produto não entra em nenhuma das extensões.
 
+## Liberação automática pelo Asaas
+
+Quem assina o **Plano Business Partner** no Asaas (link
+`https://www.asaas.com/000/c/bjiv8fc18w63r89y`, assinatura mensal) recebe o
+acesso sozinho, pela Edge Function `supabase/functions/asaas-webhook`:
+
+| Aviso do Asaas | O que acontece |
+|---|---|
+| `PAYMENT_CONFIRMED` / `PAYMENT_RECEIVED` | Conta nova: cria a conta, libera o produto e envia o e-mail de **senha provisória** (o cliente entra na extensão com o código e cria a senha). Conta existente: só soma o produto |
+| `PAYMENT_OVERDUE` | Marca como atrasada; o acesso continua por 5 dias de tolerância |
+| Mais de 5 dias em atraso | A rotina diária `expirar_assinaturas` (pg_cron, 06:15 UTC) retira o acesso; os dados ficam guardados |
+| `SUBSCRIPTION_DELETED` / `INACTIVATED`, `PAYMENT_REFUNDED`, chargeback | Retira o acesso na hora |
+
+O produto vem do **link de pagamento** (ou da referência externa): o link do
+Business Partner já está mapeado para `bp`. Outros produtos: segredo
+`ASAAS_PRODUTOS` = `{"<id do link>": "recruiter"}`. Pagamentos de outros links
+são ignorados. Cada aviso é registrado em `asaas_eventos` e processado uma vez
+só; a situação de cada assinatura fica em `assinaturas`. Teste:
+`node scripts/e2e-asaas.mjs` (Supabase local com edge-runtime e mailpit).
+
+### Ativar (uma vez)
+
+1. **Banco:** rodar `supabase/migrations/20261009200000_asaas.sql` no SQL
+   Editor (cria as tabelas, a rotina diária e liga o pg_cron).
+2. **Função:** `supabase login`, depois
+   `supabase functions deploy asaas-webhook --project-ref <ref> --no-verify-jwt`.
+3. **Segredos** (Edge Functions › Secrets): `ASAAS_API_KEY` (Asaas ›
+   Integrações › Chave de API) e `ASAAS_WEBHOOK_TOKEN` (uma senha longa
+   inventada por você, a mesma do passo 4).
+4. **Asaas › Integrações › Webhooks › Adicionar:** URL
+   `https://<ref>.supabase.co/functions/v1/asaas-webhook`, token de
+   autenticação = `ASAAS_WEBHOOK_TOKEN`, versão da API v3, fila ativa, eventos
+   de **cobranças** (confirmada, recebida, vencida, estornada, chargeback) e de
+   **assinaturas** (removida, inativada).
+5. **E-mail:** em Authentication › Emails › Reset Password, texto que sirva
+   para boas-vindas e recuperação (ex.: "Seu código de acesso Candydate:
+   {{ .Token }}. Abra a extensão, informe seu e-mail e use o código no campo
+   Senha para criar a sua senha.").
+
+Para consultar: `select * from public.assinaturas;` e
+`select * from public.asaas_eventos order by recebido_em desc;`.
+
 ## Configurações › Colaboradores
 
 A base de pessoas é alimentada nas **Configurações** (enquanto ela estiver
