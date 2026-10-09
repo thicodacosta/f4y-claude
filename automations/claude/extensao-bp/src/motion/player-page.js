@@ -99,7 +99,7 @@ function listaCenas() {
 
 async function init() {
   await initTheme();
-  await requireAuth({ nomeProduto: "BP" });
+  await requireAuth({ nomeProduto: "BP", chave: "bp" });
   if (!id) return ($("estado").textContent = "Motion não encontrado.");
   try {
     doc = await carregarDocumento();

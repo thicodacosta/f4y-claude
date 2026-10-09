@@ -55,18 +55,20 @@ const servidor = createServer((req, res) => {
 const admin = (caminho, opcoes = {}) =>
   fetch(`${API}${caminho}`, { ...opcoes, headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json", ...(opcoes.headers ?? {}) } });
 
-async function conta(email) {
+async function conta(email, produtos = ["bp"]) {
   const lista = await (await admin("/auth/v1/admin/users?per_page=200")).json();
   const existente = lista.users?.find((u) => u.email === email);
   if (existente) {
     await admin(`/rest/v1/bp_empresas?criado_por=eq.${existente.id}`, { method: "DELETE" });
+    await admin(`/auth/v1/admin/users/${existente.id}`, { method: "PUT", body: JSON.stringify({ app_metadata: { produtos } }) });
     return existente.id;
   }
-  const u = await (await admin("/auth/v1/admin/users", { method: "POST", body: JSON.stringify({ email, password: "BpTeste2026", email_confirm: true, user_metadata: { senhaPropria: true } }) })).json();
+  const u = await (await admin("/auth/v1/admin/users", { method: "POST", body: JSON.stringify({ email, password: "BpTeste2026", email_confirm: true, user_metadata: { senhaPropria: true }, app_metadata: { produtos } }) })).json();
   return u.id;
 }
 await conta("rh@bp.test");
 await conta("outra@bp.test");
+await conta("so-recruiter@bp.test", ["recruiter"]);
 
 async function sessao(email) {
   const r = await (await fetch(`${API}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: PUB, "Content-Type": "application/json" }, body: JSON.stringify({ email, password: "BpTeste2026" }) })).json();
@@ -91,6 +93,14 @@ const naModal = (p, codigo) => p.avaliar(`(()=>{const m=document.querySelector('
 const preencher = (seletor, valor) => `{const e=m.querySelector(${JSON.stringify(seletor)});e.value=${JSON.stringify(valor)};e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));}`;
 
 try {
+  // 0. Conta só com o Recruiter não entra no BP (tela e banco).
+  await painel.esperarAte("document.querySelector('#auth-email')");
+  await painel.avaliar(`document.querySelector('#auth-email').value='so-recruiter@bp.test';document.querySelector('#auth-password').value='BpTeste2026';document.querySelector('.auth form').requestSubmit();`);
+  checar("Conta sem o produto BP é recusada no login", await painel.esperarAte("document.querySelector('.auth__error:not([hidden])')?.textContent.includes('não tem acesso ao BP')"), await painel.avaliar("document.querySelector('.auth__error')?.textContent"));
+  const soRecruiter = await sessao("so-recruiter@bp.test");
+  const garantir = await soRecruiter("rpc/bp_garantir_empresa", { method: "POST", body: JSON.stringify({ p_nome: "x" }) });
+  checar("Banco recusa o BP para conta sem o produto", garantir.status >= 400 && JSON.stringify(garantir.dados).includes("sem_acesso_bp"), String(garantir.status));
+
   // 1. Login
   await painel.esperarAte("document.querySelector('#auth-email')");
   await painel.avaliar(`document.querySelector('#auth-email').value='rh@bp.test';document.querySelector('#auth-password').value='BpTeste2026';document.querySelector('.auth form').requestSubmit();`);

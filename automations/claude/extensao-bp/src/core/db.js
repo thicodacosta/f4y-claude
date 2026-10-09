@@ -45,6 +45,7 @@ function erro(e, contexto) {
   const msg = `${e?.message ?? ""} ${e?.code ?? ""}`;
   if (/failed to fetch|network/i.test(msg)) return new FriendlyError("Sem conexão com o servidor. Verifique sua internet.");
   if (/jwt|session|auth/i.test(msg)) return new FriendlyError("Sua sessão expirou. Saia e entre de novo.");
+  if (/sem_acesso_bp/.test(msg)) return new FriendlyError("Sua conta não tem acesso ao BP. Fale com o administrador para liberar.");
   if (/bp_colaboradores_email_idx|duplicate key.*email/i.test(msg)) return new FriendlyError("Já existe um colaborador com este e-mail.");
   if (/relation .*bp_.* does not exist|bp_garantir_empresa/i.test(msg)) {
     return new FriendlyError("O banco do BP ainda não foi instalado neste projeto Supabase. Veja o README (migração em supabase/migrations).");

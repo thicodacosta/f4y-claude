@@ -21,6 +21,26 @@ Studio** (`design-system/candy-studio/`) com o logo Candydate
 O menu tem 8 funcionalidades em 2 linhas de 4. Em **toda** funcionalidade (e na
 ficha de cada pessoa) há **Baixar PDF** e **Gerar Motion**.
 
+## Acesso por produto (Recruiter e BP)
+
+As contas são as mesmas nas duas extensões (Supabase Auth), mas cada uma só
+abre para quem tem o produto liberado em `app_metadata.produtos` (`recruiter`,
+`bp` ou os dois). O usuário não consegue alterar essa lista. O login confere o
+produto com os dados atuais do servidor e recusa quem não tem acesso; no BP,
+o banco também bloqueia os dados (`bp_tem_acesso()` nas políticas). Migração:
+`extensao-bp/supabase/migrations/20261009180000_acesso_por_produto.sql`.
+
+No SQL Editor do Supabase, depois de criar a conta em Authentication › Users:
+
+```sql
+select public.conceder_produto('pessoa@empresa.com', 'bp');         -- libera o BP
+select public.conceder_produto('pessoa@empresa.com', 'recruiter');  -- libera o Recruiter
+select public.revogar_produto('pessoa@empresa.com', 'recruiter');   -- retira
+select * from public.produtos_por_conta();                           -- quem tem o quê
+```
+
+Conta nova sem nenhum produto não entra em nenhuma das extensões.
+
 ## Configurações › Colaboradores
 
 A base de pessoas é alimentada nas **Configurações** (enquanto ela estiver

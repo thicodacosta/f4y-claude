@@ -8,7 +8,7 @@ import { $ } from "./core/ui.js";
 import { corDoLogo } from "./core/marca.js";
 
 await initTheme();
-const user = await requireAuth({ nomeProduto: "BP" });
+const user = await requireAuth({ nomeProduto: "BP", chave: "bp" });
 $("conta-email").textContent = user ? `Conectado como ${user.email}` : "Sem login configurado neste pacote.";
 $("conta-sair").addEventListener("click", logout);
 

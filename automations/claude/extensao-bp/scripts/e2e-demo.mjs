@@ -34,8 +34,10 @@ execSync(`node build.mjs --env ${join(tmp, "teste.env")}`, { cwd: RAIZ, stdio: "
 const admin = (c, o = {}) => fetch(`${API}${c}`, { ...o, headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json", ...(o.headers ?? {}) } });
 const lista = await (await admin("/auth/v1/admin/users?per_page=200")).json();
 let u = lista.users?.find((x) => x.email === "demo@bp.test");
-if (u) await admin(`/rest/v1/bp_empresas?criado_por=eq.${u.id}`, { method: "DELETE" });
-else u = await (await admin("/auth/v1/admin/users", { method: "POST", body: JSON.stringify({ email: "demo@bp.test", password: "BpTeste2026", email_confirm: true, user_metadata: { senhaPropria: true } }) })).json();
+if (u) {
+  await admin(`/rest/v1/bp_empresas?criado_por=eq.${u.id}`, { method: "DELETE" });
+  await admin(`/auth/v1/admin/users/${u.id}`, { method: "PUT", body: JSON.stringify({ app_metadata: { produtos: ["bp"] } }) });
+} else u = await (await admin("/auth/v1/admin/users", { method: "POST", body: JSON.stringify({ email: "demo@bp.test", password: "BpTeste2026", email_confirm: true, user_metadata: { senhaPropria: true }, app_metadata: { produtos: ["bp"] } }) })).json();
 const tok = (await (await fetch(`${API}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: PUB, "Content-Type": "application/json" }, body: JSON.stringify({ email: "demo@bp.test", password: "BpTeste2026" }) })).json()).access_token;
 const rest = (c, o = {}) => fetch(`${API}/rest/v1/${c}`, { ...o, headers: { apikey: PUB, Authorization: `Bearer ${tok}`, "Content-Type": "application/json", Prefer: "return=representation,count=exact", ...(o.headers ?? {}) } }).then(async (x) => ({ status: x.status, dados: await x.json().catch(() => null), total: Number(x.headers.get("content-range")?.split("/")[1] ?? NaN) }));
 const contar = async (tabela, filtro = "") => (await rest(`${tabela}?select=id${filtro}`, { headers: { Range: "0-0" } })).total;

@@ -9,6 +9,11 @@
  *   usuário cria uma nova senha.
  *
  * `user_metadata.senhaPropria` marca quem já criou a própria senha.
+ *
+ * Acesso por produto: as contas são as mesmas nas extensões Candydate, mas
+ * cada uma só abre para quem tem o produto em `app_metadata.produtos`
+ * ("recruiter", "bp"). Só o administrador altera essa lista (ver
+ * extensao-bp/supabase/migrations/20261009180000_acesso_por_produto.sql).
  */
 import { authConfigured, currentUser, setRemember, signOut, supabase } from "./client.js";
 
@@ -34,6 +39,24 @@ const hasOwnPassword = (user) => user?.user_metadata?.senhaPropria === true;
 // Nome do produto nas mensagens da tela (a mesma tela serve a outras extensões
 // Candydate, ex.: BP).
 let produto = "Recruiter";
+// Chave do produto em app_metadata.produtos.
+let chaveProduto = "recruiter";
+
+const temProduto = (user) => Array.isArray(user?.app_metadata?.produtos) && user.app_metadata.produtos.includes(chaveProduto);
+const semAcesso = () => `Sua conta não tem acesso ao ${produto}. Fale com o administrador para liberar.`;
+
+/** Usuário com os dados atuais do servidor (a sessão guardada pode estar antiga). */
+async function usuarioAtual(fallback) {
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data?.user) return fallback;
+    // Acesso liberado depois do login: renova a sessão para o banco enxergar.
+    if (temProduto(data.user) && !temProduto(fallback)) await supabase.auth.refreshSession();
+    return data.user;
+  } catch {
+    return fallback; // sem conexão: vale a sessão guardada
+  }
+}
 
 /** Mensagens claras para os erros do Supabase Auth. */
 function friendly(error) {
@@ -75,13 +98,23 @@ function buildScreen() {
  * Bloqueia a página até haver sessão válida com senha própria. Devolve o
  * usuário. `onLogin` é chamado quando o acesso é liberado nesta tela.
  */
-export async function requireAuth({ onLogin, nomeProduto } = {}) {
+export async function requireAuth({ onLogin, nomeProduto, chave } = {}) {
   if (nomeProduto) produto = nomeProduto;
+  if (chave) chaveProduto = chave;
   if (!authConfigured) return null; // pacote de desenvolvimento sem login configurado
-  const existing = await currentUser();
-  if (existing && hasOwnPassword(existing)) {
-    watchSignOut();
-    return existing;
+  let existing = await currentUser();
+  let aviso = null;
+  if (existing) {
+    const atual = await usuarioAtual(existing);
+    if (!temProduto(atual)) {
+      // Sessão de outra extensão Candydate (ou acesso revogado): sai e explica.
+      await signOut();
+      existing = null;
+      aviso = semAcesso();
+    } else if (hasOwnPassword(atual)) {
+      watchSignOut();
+      return atual;
+    }
   }
 
   document.documentElement.classList.add("is-locked");
@@ -89,7 +122,7 @@ export async function requireAuth({ onLogin, nomeProduto } = {}) {
   document.body.append(ui.screen);
 
   // Sessão aberta sem senha própria (ex.: fechou o painel antes de criá-la).
-  const user = await new Promise((resolve) => runFlow(ui, resolve, existing));
+  const user = await new Promise((resolve) => runFlow(ui, resolve, existing, aviso));
   ui.screen.remove();
   document.documentElement.classList.remove("is-locked");
   watchSignOut();
@@ -109,7 +142,7 @@ export async function logout() {
   location.reload();
 }
 
-function runFlow(ui, done, pendingUser) {
+function runFlow(ui, done, pendingUser, aviso) {
   let email = pendingUser?.email ?? "";
 
   const setError = (message) => {
@@ -171,6 +204,10 @@ function runFlow(ui, done, pendingUser) {
       try {
         await setRemember(remember.checked);
         const { user, provisional } = await signIn(password);
+        if (!temProduto(user)) {
+          await signOut();
+          return setError(semAcesso());
+        }
         if (provisional) {
           // Até criar a nova senha, a conta volta a exigir a troca.
           await supabase.auth.updateUser({ data: { senhaPropria: false } });
@@ -274,4 +311,5 @@ function runFlow(ui, done, pendingUser) {
 
   if (pendingUser) showCreatePassword({ reason: "first" });
   else showLogin();
+  if (aviso) setError(aviso);
 }

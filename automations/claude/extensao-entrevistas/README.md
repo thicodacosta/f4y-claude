@@ -236,6 +236,11 @@ Conversa com IA no estilo Claude/ChatGPT (`src/chat/`):
 
 ## Acesso (login)
 
+**Acesso por produto:** a conta precisa ter `recruiter` em
+`app_metadata.produtos` (o BP usa `bp`). Liberar e revogar pelo SQL Editor:
+`select public.conceder_produto('email', 'recruiter');` — ver
+`../extensao-bp/README.md` › "Acesso por produto".
+
 Nada do ToolsKit abre sem login (`src/auth/`), no painel, nas Configurações e
 na aba de permissão do microfone:
 

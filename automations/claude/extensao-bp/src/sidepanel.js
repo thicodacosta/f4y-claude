@@ -99,7 +99,7 @@ function montarAbas() {
 
 async function init() {
   await initTheme();
-  const user = await requireAuth({ nomeProduto: "BP" });
+  const user = await requireAuth({ nomeProduto: "BP", chave: "bp" });
   $("sair").hidden = !user;
   $("sair").addEventListener("click", logout);
   initHeader();
