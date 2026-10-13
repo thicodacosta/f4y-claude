@@ -328,9 +328,10 @@ preserva a transcrição para tentar de novo.
   nome "Candydate · ToolsKit" vêm do manifest; cores e tipografia seguem o
   design system Candy Studio (ver Interface). Arquivos em
   `design-system/assets/candydate-*` (originais, wordmark limpo e ícones).
-- **Logo no topo do painel:** é o logo da empresa do usuário, escolhido em
-  Configurações (Currículos padronizados), o mesmo usado nos currículos. Sem
-  logo, aparece o nome da empresa; sem nada configurado, o logo Candydate.
+- **Logo no topo das telas:** sempre o Candydate (fixo no HTML, em claro e
+  escuro, também no login). O logo da empresa do usuário (Configurações ›
+  Currículos padronizados) vai nos currículos, PDFs e Motion; sem ele, esses
+  documentos saem com o logo Candydate. Teste: `../extensao-bp/scripts/e2e-logo.mjs`.
 - **Primeiro acesso:** na instalação, Configurações abre em modo de
   boas-vindas ("Configure sua empresa"). Enquanto a identidade não é salva, o
   painel mostra um aviso e abre Configurações uma vez por sessão. Ao salvar,

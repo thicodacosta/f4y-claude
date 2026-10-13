@@ -113,7 +113,7 @@ async function init() {
   // Logo da empresa (ou, sem ele, o Candydate) e cores da marca: a cor
   // escolhida em Configurações ou, sem ela, a predominante do logo.
   const logoSrc = branding.logoDataUrl || LOGO_PADRAO;
-  const logo = await carregarImagem(logoSrc);
+  const logo = (await carregarImagem(logoSrc)) ?? (await carregarImagem(LOGO_PADRAO));
   const corMarca = branding.cor || (await corDoLogo(logoSrc)) || COR_PADRAO;
   const tema = paletaDe(corMarca);
   await document.fonts.load('700 40px "Geist"').catch(() => {});

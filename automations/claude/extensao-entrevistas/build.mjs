@@ -18,7 +18,9 @@ function readEnv(path) {
       .map((line) => [line.slice(0, line.indexOf("=")).trim(), line.slice(line.indexOf("=") + 1).trim()]),
   );
 }
-const env = readEnv(".env.local");
+// `--env <arquivo>` troca o .env.local (ex.: Supabase local para testes).
+const envFlag = process.argv.indexOf("--env");
+const env = readEnv(envFlag > 0 ? process.argv[envFlag + 1] : ".env.local");
 
 const options = {
   entryPoints: {

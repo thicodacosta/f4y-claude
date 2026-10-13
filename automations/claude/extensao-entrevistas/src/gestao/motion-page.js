@@ -30,7 +30,8 @@ if (!doc?.roteiro) {
 } else {
   const { roteiro } = doc;
   const branding = (await chrome.storage.local.get("branding")).branding ?? {};
-  const logo = await carregarImagem(branding.logoDataUrl);
+  // Logo da empresa ou, sem ele, o Candydate (como no BP).
+  const logo = (await carregarImagem(branding.logoDataUrl)) ?? (await carregarImagem("icons/candydate-logo.png"));
   await document.fonts.load('700 40px "Geist"').catch(() => {});
   await document.fonts.load('600 40px "Inter"').catch(() => {});
 

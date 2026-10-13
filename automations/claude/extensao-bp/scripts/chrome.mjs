@@ -85,6 +85,10 @@ export async function abrirChrome({ extensao, headless = true, downloads }) {
         }
         return false;
       },
+      /** Tema do sistema emulado: "dark" ou "light". */
+      async tema(esquema) {
+        await s("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: esquema }] });
+      },
       async tamanho(width, height, scale = 2) {
         await s("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: scale, mobile: false });
       },

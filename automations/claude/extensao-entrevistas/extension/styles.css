@@ -186,6 +186,12 @@ code {
   }
 }
 
+/* Marca Candydate: sem cantos arredondados (não corta o "C" nem o "e"). */
+.topbar__logo--marca {
+  border-radius: 0;
+  max-width: 150px;
+}
+
 .topbar__brand {
   font: 600 16px/24px var(--font-display);
   letter-spacing: -0.02em;
@@ -2074,14 +2080,12 @@ html.is-locked body > :not(.auth) {
   box-shadow: var(--shadow-hover);
 }
 
+/* Marca Candydate: funciona em fundo claro e escuro, sem moldura. */
 .auth__logo {
   display: block;
   height: 34px;
   width: auto;
   margin: 0 0 18px;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  background: #fff;
 }
 
 .auth__eyebrow {
