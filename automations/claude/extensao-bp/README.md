@@ -39,7 +39,46 @@ select public.revogar_produto('pessoa@empresa.com', 'recruiter');   -- retira
 select * from public.produtos_por_conta();                           -- quem tem o quê
 ```
 
-Conta nova sem nenhum produto não entra em nenhuma das extensões.
+Conta sem o produto não entra: a tela de acesso pede o cadastro para o teste
+gratuito ou a assinatura (ver "Teste gratuito").
+
+## Teste gratuito
+
+Nas duas extensões, sem código: **3 dias ou 100 mil tokens de IA**, o que vier
+primeiro. Começa pela própria extensão (criar conta → completar cadastro) ou
+pela página de assinatura ("Testar grátis por 3 dias"). Cadastro: nome
+completo, e-mail, CPF (validado) e telefone com DDD.
+
+- **Uma vez por pessoa em cada produto:** o mesmo e-mail **ou** o mesmo CPF
+  não repete o teste (restrições únicas em `testes`). O teste do Recruiter não
+  impede o do BP, e vice-versa.
+- **Consumo:** cada chamada de IA informa os tokens à Edge Function `plano`
+  (que soma em `testes.tokens_usados` e em `uso_ia`, por conta e dia). O
+  percentual mostrado é o maior entre tokens e tempo.
+- **Fim:** ao atingir o limite ou o prazo, o teste é encerrado, o produto é
+  retirado e a extensão mostra "Seu teste gratuito terminou" com o botão para
+  a página de compra. Uma rotina de hora em hora (`expirar_testes`) encerra
+  também quem não abriu mais a extensão.
+- **Assinar durante ou depois do teste** (ou usar cupom) converte o teste; os
+  dados continuam.
+- **Assinatura paga:** o checkout cria o cliente e a assinatura mensal no
+  Asaas pela API, já com nome, e-mail, CPF e telefone, e abre a fatura para
+  pagar no cartão. Se a API falhar, usa o link de pagamento fixo.
+
+Migração: `supabase/migrations/20261010100000_teste_gratuito.sql` (tabelas
+`clientes`, `testes`, `uso_ia`, `lembretes_email`). Funções: `plano` (situação
+e consumo, com a sessão do usuário), `checkout` (teste, cupom e assinatura),
+`lembrar-email` ("Esqueci o e-mail"). Acompanhar no SQL Editor:
+
+```sql
+select email, produto, status, motivo_fim, tokens_usados, fim from public.testes order by inicio desc;
+select * from public.clientes order by criado_em desc;
+select * from public.uso_ia order by dia desc, tokens desc;
+```
+
+Limite conhecido: o consumo é informado pela extensão (as chamadas de IA saem
+do navegador). O prazo e o saldo ficam no servidor, mas a proteção completa é
+um proxy de IA numa Edge Function.
 
 ## Liberação automática pelo Asaas
 
@@ -313,6 +352,7 @@ O build usa as chaves de IA e o Supabase do `.env.local` da ToolsKit; um
 ```bash
 supabase start -x realtime,imgproxy,edge-runtime,logflare,vector,supavisor,studio,postgres-meta,storage-api,mailpit
 node scripts/e2e.mjs            # --fotos <pasta> salva capturas de tela
+node scripts/e2e-teste.mjs      # teste gratuito, criar conta, esqueci o e-mail (com edge-runtime e mailpit)
 ```
 
 O teste gera um pacote apontando para o Supabase local (com chaves de IA

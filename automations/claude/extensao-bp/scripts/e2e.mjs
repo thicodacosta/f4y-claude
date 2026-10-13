@@ -96,7 +96,8 @@ try {
   // 0. Conta só com o Recruiter não entra no BP (tela e banco).
   await painel.esperarAte("document.querySelector('#auth-email')");
   await painel.avaliar(`document.querySelector('#auth-email').value='so-recruiter@bp.test';document.querySelector('#auth-password').value='BpTeste2026';document.querySelector('.auth form').requestSubmit();`);
-  checar("Conta sem o produto BP é recusada no login", await painel.esperarAte("document.querySelector('.auth__error:not([hidden])')?.textContent.includes('não tem acesso ao BP')"), await painel.avaliar("document.querySelector('.auth__error')?.textContent"));
+  checar("Conta sem o produto BP não entra: vai para o cadastro do teste", await painel.esperarAte("document.querySelector('.auth__title')?.textContent.includes('Complete o seu cadastro')", 30000), await painel.avaliar("document.querySelector('.auth__title')?.textContent"));
+  await clicar(painel, "Sair");
   const soRecruiter = await sessao("so-recruiter@bp.test");
   const garantir = await soRecruiter("rpc/bp_garantir_empresa", { method: "POST", body: JSON.stringify({ p_nome: "x" }) });
   checar("Banco recusa o BP para conta sem o produto", garantir.status >= 400 && JSON.stringify(garantir.dados).includes("sem_acesso_bp"), String(garantir.status));

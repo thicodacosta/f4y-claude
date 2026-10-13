@@ -2,7 +2,7 @@
  * Página do Motion (motion.html?id=<documento>): toca a apresentação, troca
  * o formato, permite ajustar os textos de cada cena e exporta o vídeo.
  */
-import { initTheme, requireAuth, saveBlob, supabase } from "../core/toolskit.js";
+import { initTheme, iniciarPlano, requireAuth, saveBlob, supabase } from "../core/toolskit.js";
 import { h, $ } from "../core/ui.js";
 import { FORMATOS, MotionPlayer } from "./engine.js";
 import { OPCOES } from "./roteiro.js";
@@ -99,7 +99,7 @@ function listaCenas() {
 
 async function init() {
   await initTheme();
-  await requireAuth({ nomeProduto: "BP", chave: "bp" });
+  if (await requireAuth({ nomeProduto: "BP", chave: "bp" })) iniciarPlano({ chave: "bp", nomeProduto: "BP" }).catch(() => {});
   if (!id) return ($("estado").textContent = "Motion não encontrado.");
   try {
     doc = await carregarDocumento();

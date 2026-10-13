@@ -4,6 +4,7 @@
  * Modelos abertos rodando no hardware da Groq, com respostas em segundos.
  */
 import { FriendlyError } from "./errors.js";
+import { antesDaIa, estimarTokens, registrarTokens } from "./uso.js";
 
 const ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 export const GROQ_MODEL = "openai/gpt-oss-120b";
@@ -30,6 +31,7 @@ const sleep = (ms, signal) =>
  * Devolve a resposta HTTP já validada (status 2xx).
  */
 async function request({ apiKey, body, signal, model = GROQ_MODEL }) {
+  await antesDaIa();
   for (let attempt = 1; ; attempt++) {
     let res;
     try {
@@ -91,7 +93,9 @@ async function request({ apiKey, body, signal, model = GROQ_MODEL }) {
 }
 
 async function chat(options) {
-  return (await request(options)).json();
+  const data = await (await request(options)).json();
+  registrarTokens(data.usage?.total_tokens ?? estimarTokens(JSON.stringify(options.body?.messages ?? "")) + estimarTokens(data.choices?.[0]?.message?.content));
+  return data;
 }
 
 /** Remove as marcações de citação da busca da Groq (ex.: "【1†L24-L35】"). */
@@ -124,6 +128,7 @@ export async function groqChatStream({ apiKey, model = GROQ_MODEL, messages, web
   const decoder = new TextDecoder();
   let buffer = "";
   let full = "";
+  let tokensStream = 0;
   try {
     for (;;) {
       const { value, done } = await reader.read();
@@ -135,7 +140,10 @@ export async function groqChatStream({ apiKey, model = GROQ_MODEL, messages, web
         if (!line.startsWith("data: ")) continue;
         const data = line.slice(6).trim();
         if (data === "[DONE]") continue;
-        const choice = JSON.parse(data).choices?.[0]?.delta ?? {};
+        const evento = JSON.parse(data);
+        const uso = evento.x_groq?.usage ?? evento.usage;
+        if (uso?.total_tokens) tokensStream = uso.total_tokens;
+        const choice = evento.choices?.[0]?.delta ?? {};
         for (const tool of choice.executed_tools ?? []) {
           for (const r of tool.search_results?.results ?? []) if (r.url) sources.set(r.url, r.title ?? r.url);
         }
@@ -149,6 +157,7 @@ export async function groqChatStream({ apiKey, model = GROQ_MODEL, messages, web
     if (signal?.aborted) throw new FriendlyError("Resposta interrompida.");
     throw new FriendlyError("A conexão com a Groq caiu no meio da resposta. Tente novamente.");
   }
+  registrarTokens(tokensStream || estimarTokens(JSON.stringify(messages)) + estimarTokens(full));
   return { text: stripCitations(full).trim(), sources: [...sources].map(([url, title]) => ({ url, title })) };
 }
 

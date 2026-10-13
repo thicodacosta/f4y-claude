@@ -30,6 +30,16 @@ const checar = (nome, ok, detalhe = "") => {
   if (!ok) falhas++;
 };
 const sql = (q) => execSync(`docker exec supabase_db_journeylab_bp psql -U postgres -Atc ${JSON.stringify(q)}`, { encoding: "utf8" }).trim();
+// CPF válido gerado a partir de 9 dígitos.
+export function cpf(base) {
+  const d = String(base).padStart(9, "0").slice(0, 9).split("").map(Number);
+  for (const n of [9, 10]) {
+    const soma = d.slice(0, n).reduce((s, x, i) => s + x * (n + 1 - i), 0);
+    d.push(((soma * 10) % 11) % 10);
+  }
+  return d.join("");
+}
+const DADOS = (n) => ({ cpf: cpf(100000000 + n), telefone: `1198765${String(n).padStart(4, "0")}` });
 const produtosDe = (email) => sql(`select coalesce(raw_app_meta_data->>'produtos','') from auth.users where lower(email)=lower('${email}')`);
 
 // Página de assinatura apontando para o Supabase local.
@@ -48,7 +58,7 @@ const chrome = await abrirChrome({ extensao: join(RAIZ, "extension") });
 const NOVO = "cupom.novo@cliente.test";
 
 try {
-  sql(`delete from public.cupom_usos; delete from public.assinaturas; delete from auth.users where email like '%@cliente.test'; update public.cupons set ativo = true, limite_total = 100, valido_ate = '2026-12-31' where codigo = 'CANDYFREE';`);
+  sql(`delete from public.cupom_usos; delete from public.assinaturas; delete from public.testes; delete from public.clientes; delete from auth.users where email like '%@cliente.test'; update public.cupons set ativo = true, limite_total = 100, valido_ate = '2026-12-31' where codigo = 'CANDYFREE';`);
   await fetch(`${MAILPIT}/api/v1/messages`, { method: "DELETE" }).catch(() => {});
   let pronta = false;
   for (let i = 0; i < 60 && !pronta; i++) {
@@ -62,8 +72,8 @@ try {
   checar("CANDYFREE é válido (maiúsculas ou minúsculas)", r.ok && r.cupom === "CANDYFREE", JSON.stringify(r));
   r = await (await fetch(`${CHECKOUT}?plano=recruiter&cupom=NAOEXISTE`)).json();
   checar("Cupom inexistente é recusado", !r.ok && /inválido/.test(r.motivo), r.motivo);
-  r = await (await fetch(CHECKOUT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plano: "recruiter", nome: "Sem cupom", email: "sem.cupom@cliente.test" }) })).json();
-  checar("Sem cupom: manda para o link de pagamento do Asaas", r.acao === "pagar" && r.link.endsWith("5p8qk8zbmdkndtwy"), r.link);
+  r = await (await fetch(CHECKOUT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plano: "recruiter", nome: "Sem cupom", email: "sem.cupom@cliente.test", ...DADOS(1) }) })).json();
+  checar("Sem cupom: manda para o pagamento no Asaas", r.acao === "pagar" && /^https:\/\//.test(r.link), r.link);
   checar("Sem cupom: nada é liberado antes do pagamento", produtosDe("sem.cupom@cliente.test") === "");
 
   // Página: cupom pela URL, liberação na hora.
@@ -72,7 +82,7 @@ try {
   checar("Página aplica o cupom da URL", await p.esperarAte("document.querySelector('#cupom-msg').textContent.includes('aplicado')"), await p.avaliar("document.querySelector('#cupom-msg').textContent"));
   checar("Preço riscado e botão de liberar", await p.avaliar("document.querySelector('[data-preco]').classList.contains('riscado') && document.querySelector('#enviar').textContent==='Liberar meu acesso'"));
   if (FOTOS) await p.foto(join(FOTOS, "assinar-cupom.png"), { inteira: true });
-  await p.avaliar(`document.querySelector('#nome').value='Cliente Cupom';document.querySelector('#email').value='${NOVO}';document.querySelector('#form').requestSubmit()`);
+  await p.avaliar(`document.querySelector('#nome').value='Cliente Cupom';document.querySelector('#email').value='${NOVO}';document.querySelector('#cpf').value='${DADOS(2).cpf}';document.querySelector('#telefone').value='${DADOS(2).telefone}';document.querySelector('#form').requestSubmit()`);
   checar("Página mostra o acesso liberado", await p.esperarAte("document.querySelector('.sucesso h2')?.textContent.includes('Business Partner')", 30000), await p.avaliar("document.querySelector('.sucesso, #erro')?.textContent.slice(0,120)"));
   if (FOTOS) await p.foto(join(FOTOS, "assinar-liberado.png"));
   checar("Conta criada com o BP", produtosDe(NOVO) === '["bp"]', produtosDe(NOVO));
@@ -87,22 +97,22 @@ try {
 
   // Regras de uso.
   const post = (corpo) => fetch(CHECKOUT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) }).then((x) => x.json());
-  r = await post({ plano: "bp", nome: "Cliente Cupom", email: NOVO, cupom: "CANDYFREE" });
+  r = await post({ plano: "bp", nome: "Cliente Cupom", email: NOVO, cupom: "CANDYFREE", ...DADOS(2) });
   checar("Quem já tem o produto é avisado", !r.ok && /já tem acesso/.test(r.motivo), r.motivo);
-  r = await post({ plano: "recruiter", nome: "Cliente Cupom", email: NOVO, cupom: "CANDYFREE" });
+  r = await post({ plano: "recruiter", nome: "Cliente Cupom", email: NOVO, cupom: "CANDYFREE", ...DADOS(2) });
   checar("O mesmo e-mail pode usar no outro plano", r.ok && produtosDe(NOVO) === '["bp", "recruiter"]', produtosDe(NOVO));
   sql(`select public.revogar_produto('${NOVO}', 'bp')`);
-  r = await post({ plano: "bp", nome: "Cliente Cupom", email: NOVO.toUpperCase(), cupom: "candyfree" });
+  r = await post({ plano: "bp", nome: "Cliente Cupom", email: NOVO.toUpperCase(), cupom: "candyfree", ...DADOS(2) });
   checar("Uma vez por pessoa em cada plano (mesmo com o acesso retirado)", !r.ok && /já usou/.test(r.motivo), r.motivo);
   sql(`update public.cupons set ativo = false where codigo = 'CANDYFREE'`);
-  r = await post({ plano: "bp", nome: "Outra", email: "outra.pessoa@cliente.test", cupom: "CANDYFREE" });
+  r = await post({ plano: "bp", nome: "Outra Pessoa", email: "outra.pessoa@cliente.test", cupom: "CANDYFREE", ...DADOS(3) });
   checar("Cupom desativado deixa de valer", !r.ok && produtosDe("outra.pessoa@cliente.test") === "", r.motivo);
   sql(`update public.cupons set ativo = true where codigo = 'CANDYFREE'`);
 
   // Limite por conexão: 3 usos do mesmo cupom pelo mesmo IP em 24 h (os testes já usaram 2).
-  r = await post({ plano: "bp", nome: "Terceira", email: "terceira@cliente.test", cupom: "CANDYFREE" });
+  r = await post({ plano: "bp", nome: "Terceira Pessoa", email: "terceira@cliente.test", cupom: "CANDYFREE", ...DADOS(4) });
   checar("3º uso pela mesma conexão é aceito", r.ok, r.motivo ?? "");
-  r = await post({ plano: "bp", nome: "Quarta", email: "quarta@cliente.test", cupom: "CANDYFREE" });
+  r = await post({ plano: "bp", nome: "Quarta Pessoa", email: "quarta@cliente.test", cupom: "CANDYFREE", ...DADOS(5) });
   checar("4º uso pela mesma conexão em 24 h é recusado", !r.ok && /Limite de usos/.test(r.motivo) && produtosDe("quarta@cliente.test") === "", r.motivo);
   // Limite total e validade do cupom.
   sql(`update public.cupons set limite_total = 3 where codigo = 'CANDYFREE'`);

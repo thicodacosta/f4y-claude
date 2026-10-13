@@ -3,7 +3,7 @@ import { urlPublicaEmbutida } from "./core/config.js";
 import { aoMudar, carregar, iniciarEmpresa, renomearEmpresa } from "./core/db.js";
 import { secaoColaboradores } from "./modulos/colaboradores-config.js";
 import { secaoDemo } from "./modulos/demo-config.js";
-import { hasEmbeddedKeys, initTheme, logout, requireAuth } from "./core/toolskit.js";
+import { cartaoPlano, hasEmbeddedKeys, initTheme, iniciarPlano, logout, requireAuth } from "./core/toolskit.js";
 import { $ } from "./core/ui.js";
 import { corDoLogo } from "./core/marca.js";
 
@@ -11,6 +11,13 @@ await initTheme();
 const user = await requireAuth({ nomeProduto: "BP", chave: "bp" });
 $("conta-email").textContent = user ? `Conectado como ${user.email}` : "Sem login configurado neste pacote.";
 $("conta-sair").addEventListener("click", logout);
+
+// ─── Plano e assinatura ────────────────────────────────────────────────────
+
+if (user) {
+  iniciarPlano({ chave: "bp", nomeProduto: "BP", ui: false }).catch(() => {});
+  cartaoPlano($("plano-area"), { chave: "bp", nomeProduto: "BP" });
+} else $("plano").hidden = true;
 
 // ─── Identidade ────────────────────────────────────────────────────────────
 

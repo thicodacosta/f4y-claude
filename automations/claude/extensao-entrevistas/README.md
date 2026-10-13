@@ -241,19 +241,33 @@ Conversa com IA no estilo Claude/ChatGPT (`src/chat/`):
 `select public.conceder_produto('email', 'recruiter');` — ver
 `../extensao-bp/README.md` › "Acesso por produto".
 
-Nada do ToolsKit abre sem login (`src/auth/`), no painel, nas Configurações e
-na aba de permissão do microfone:
+Nada do Recruiter abre sem login (`src/auth/gate.js`, a mesma tela do BP), no
+painel, nas Configurações e na aba de permissão do microfone:
 
-1. **E-mail e senha**: o administrador cria a conta e envia a senha inicial
-   ao usuário por mensagem;
-2. **Primeiro login**: antes de qualquer outra tela, o usuário cria a própria
-   senha (mín. 8 caracteres, letras e números). Quem já criou fica marcado em
-   `user_metadata.senhaPropria`;
-3. **Manter conectado** (padrão ligado): a sessão sobrevive ao fechar o
-   Chrome; desligado, dura até o Chrome ser fechado;
+1. **Criar conta** na própria extensão, sem confirmação por e-mail: com
+   **Google** ou **LinkedIn**, ou com nome, e-mail e senha digitada duas vezes
+   (mín. 8 caracteres, letras e números);
+2. **Completar o cadastro** (nome completo, CPF e telefone) para começar o
+   **teste gratuito**: 3 dias ou 100 mil tokens de IA, o que vier primeiro, uma
+   vez por e-mail e por CPF em cada produto. Ou "Prefiro assinar agora";
+3. **Teste terminado** ou assinatura inativa: tela "Assine para continuar",
+   com o botão para a página de compra (o e-mail já vai preenchido) e "Já
+   assinei · verificar";
 4. **Esqueci a senha**: chega por e-mail uma **senha provisória** (o código de
-   recuperação do Supabase, `{{ .Token }}`). O usuário a digita no campo Senha
-   do login e em seguida cria uma nova senha.
+   recuperação do Supabase, `{{ .Token }}`), digitada no campo Senha; em
+   seguida a pessoa cria uma nova senha. Contas criadas pelo checkout (cupom,
+   teste pela página, pagamento) recebem esse código ao serem criadas;
+5. **Esqueci o e-mail**: pelo CPF, mostra o e-mail da conta parcialmente
+   oculto (Edge Function `lembrar-email`, 5 consultas por hora por conexão);
+6. **Manter conectado** (padrão ligado).
+
+Durante o teste, o painel mostra a **barra de consumo** ("Teste gratuito · 42%
+usado · 2 dias restantes" + Assinar), e Configurações → **Plano e assinatura**
+mostra plano, consumo, prazo e o botão de assinar. Ao terminar, a extensão
+para e mostra a tela de assinatura (`src/auth/plano.js`). O consumo de cada
+chamada de IA é somado no servidor (`src/uso.js` nas chamadas de
+`claude.js`, `groq.js` e `transcribe.js`; a gravação informa pelo service
+worker). Regras, banco e funções: `../extensao-bp/README.md` › "Teste gratuito".
 
 No **primeiro login de cada usuário**, as Configurações abrem em modo de
 boas-vindas (identidade da empresa e integração com o LinkedIn). "Sair" fica
@@ -264,12 +278,14 @@ Contas no Supabase (`SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` em
 
 | Onde | O quê |
 |---|---|
-| Authentication → Sign In / Providers | Desligar **Allow new users to sign up** (só o admin cria contas) |
-| Authentication → Sign In / Providers → **Email** | **Minimum password length** = 8 (igual à regra da extensão) |
-| Authentication → Emails → Templates → **Reset Password** | Corpo com a senha provisória: `Sua senha provisória do ToolsKit: {{ .Token }}` (sem link) |
+| Authentication → Sign In / Providers | Ligar **Allow new users to sign up**; em **Email**, desligar **Confirm email** e **Minimum password length** = 8 |
+| Authentication → Sign In / Providers → **Google** | Ligar, com o Client ID e o Client Secret do Google Cloud (OAuth, tipo "Aplicativo da Web"; URI de redirecionamento autorizado: `https://grrewxwrldsxsouqrjqp.supabase.co/auth/v1/callback`) |
+| Authentication → Sign In / Providers → **LinkedIn (OIDC)** | Ligar, com o Client ID e o Client Secret do app do LinkedIn Developers (produto "Sign In with LinkedIn using OpenID Connect"; mesma URL de callback) |
+| Authentication → URL Configuration → **Redirect URLs** | `https://*.chromiumapp.org/**` (o retorno do login social para as extensões) |
+| Authentication → Emails → Templates → **Reset Password** | Corpo com a senha provisória: `Seu código de acesso Candydate: {{ .Token }}` (sem link) |
 | Authentication → Emails → SMTP Settings | SMTP próprio (ex.: Resend): o envio padrão do Supabase permite poucos e-mails por hora |
-| Authentication → Users → **Add user → Create new user** | E-mail + senha inicial, com **Auto Confirm User** marcado |
-| SQL Editor | Liberar o produto da conta criada: `select public.conceder_produto('pessoa@empresa.com', 'recruiter');` (sem isso, o login responde "Sua conta não tem acesso ao Recruiter"). Assinaturas pelo Asaas liberam sozinhas (ver `../extensao-bp/README.md`) |
+
+Liberar manualmente, sem teste nem assinatura: `select public.conceder_produto('pessoa@empresa.com', 'recruiter');`.
 
 **Limite de segurança:** o login controla quem usa a extensão, mas as chaves
 de IA ainda vão no pacote. A proteção completa é mover as chamadas de IA para

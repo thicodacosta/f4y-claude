@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { FriendlyError } from "./errors.js";
+import { antesDaIa, registrarTokens, tokensAnthropic } from "./uso.js";
 
 export const MODEL = "claude-opus-5";
 // Pausas do laço de ferramentas do servidor (busca web) a retomar antes de
@@ -31,6 +32,7 @@ export async function requestStructured({ apiKey, system, content, format, effor
   // A chave é a do próprio usuário, guardada só no navegador dele
   // (chrome.storage.local). O SDK exige a confirmação explícita para rodar
   // fora de um servidor.
+  await antesDaIa();
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
 
   let message;
@@ -51,6 +53,7 @@ export async function requestStructured({ apiKey, system, content, format, effor
       { signal },
     );
     message = await stream.finalMessage();
+      registrarTokens(tokensAnthropic(message.usage));
   } catch (error) {
     throw toClaudeError(error);
   }
@@ -78,6 +81,7 @@ export async function requestStructured({ apiKey, system, content, format, effor
  * Devolve { text, sources }.
  */
 export async function claudeChatStream({ apiKey, system, messages, webSearch = false, signal, onText }) {
+  await antesDaIa();
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
   const conversation = [...messages];
   const texts = [];
@@ -103,6 +107,7 @@ export async function claudeChatStream({ apiKey, system, messages, webSearch = f
       );
       if (onText) stream.on("text", onText);
       message = await stream.finalMessage();
+      registrarTokens(tokensAnthropic(message.usage));
     } catch (error) {
       throw toClaudeError(error);
     }
@@ -130,6 +135,7 @@ export async function claudeChatStream({ apiKey, system, messages, webSearch = f
  * busca web, por isso o resultado chega como argumento de uma ferramenta.
  */
 export async function requestToolResult({ apiKey, system, content, tools, resultTool, effort = "high", onProgress, signal }) {
+  await antesDaIa();
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
   const messages = [{ role: "user", content }];
   const allTools = [...tools, { ...resultTool, strict: true, eager_input_streaming: true }];
@@ -158,6 +164,7 @@ export async function requestToolResult({ apiKey, system, content, tools, result
         });
       }
       message = await stream.finalMessage();
+      registrarTokens(tokensAnthropic(message.usage));
     } catch (error) {
       throw toClaudeError(error);
     }

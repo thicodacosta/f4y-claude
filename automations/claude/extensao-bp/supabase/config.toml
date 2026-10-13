@@ -420,3 +420,10 @@ verify_jwt = false
 [functions.checkout]
 # Página pública de assinatura: sem login (o cupom é validado no banco).
 verify_jwt = false
+
+[functions.plano]
+# Valida a sessão dentro da função (token do usuário no Authorization).
+verify_jwt = false
+
+[functions.lembrar-email]
+verify_jwt = false

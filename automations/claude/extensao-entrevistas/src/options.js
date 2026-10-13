@@ -1,4 +1,5 @@
 import { logout, requireAuth } from "./auth/gate.js";
+import { cartaoPlano, iniciarPlano } from "./auth/plano.js";
 import { isOnboarded, markOnboarded } from "./auth/onboarding.js";
 import { initHeader } from "./header.js";
 import { normalizeLayout } from "./cv/layout.js";
@@ -17,6 +18,9 @@ if (user) {
   $("account-section").hidden = false;
   $("account-email").textContent = user.email;
   $("account-logout").addEventListener("click", logout);
+  $("plano-section").hidden = false;
+  iniciarPlano({ ui: false }).catch(() => {});
+  cartaoPlano($("plano-area"));
 }
 
 // Pacote com chaves embutidas: a equipe não tem nada a configurar.

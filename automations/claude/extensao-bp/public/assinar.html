@@ -93,7 +93,13 @@
       .secundario:hover { border-color: var(--primary); color: var(--primary-ink); }
       .principal { width: 100%; min-height: 50px; border: 0; background: var(--cta); color: #fff; margin-top: 6px; }
       .principal:hover { background: var(--cta-hover); transform: translateY(-1px); }
-      .principal:disabled { opacity: 0.6; cursor: wait; transform: none; }
+      .principal:disabled, .teste:disabled { opacity: 0.6; cursor: wait; transform: none; }
+      .botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .teste { min-height: 50px; margin-top: 6px; border: 1px solid var(--primary); background: var(--soft); color: var(--primary-ink); }
+      .teste:hover { background: var(--surface); }
+      body.com-cupom .teste { display: none; }
+      body.com-cupom .botoes { grid-template-columns: 1fr; }
+      @media (max-width: 560px) { .botoes { grid-template-columns: 1fr; } }
       button:focus-visible { outline: none; box-shadow: 0 0 0 4px var(--ring); }
       .msg { margin: 6px 0 0; font-size: 13.5px; }
       .msg.ok { color: var(--success); }
@@ -111,7 +117,7 @@
     <main id="conteudo">
       <p class="eyebrow">Assinatura</p>
       <h1>Escolha o seu plano</h1>
-      <p class="lead">Assinatura mensal, cancele quando quiser. Tem um cupom? Aplique abaixo.</p>
+      <p class="lead">Teste grátis por 3 dias (até 100 mil tokens de IA), sem cartão. Depois, assinatura mensal: cancele quando quiser.</p>
 
       <form id="form" novalidate>
         <fieldset class="planos" style="border: 0; padding: 0; margin: 0 0 24px">
@@ -139,6 +145,8 @@
         <div class="grade">
           <div class="campo"><label for="nome">Nome completo</label><input type="text" id="nome" autocomplete="name" maxlength="160" required /></div>
           <div class="campo"><label for="email">E-mail</label><input type="email" id="email" autocomplete="email" maxlength="254" required /></div>
+          <div class="campo"><label for="cpf">CPF</label><input type="text" id="cpf" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00" required /></div>
+          <div class="campo"><label for="telefone">Telefone (com DDD)</label><input type="text" id="telefone" inputmode="tel" autocomplete="tel" maxlength="16" placeholder="(11) 98765-4321" required /></div>
         </div>
         <div class="campo">
           <label for="cupom">Cupom <span style="font-weight: 400; color: var(--muted)">(opcional)</span></label>
@@ -149,8 +157,11 @@
           <p id="cupom-msg" class="msg" role="status"></p>
         </div>
         <p id="erro" class="msg erro" role="alert"></p>
-        <button type="submit" id="enviar" class="principal">Continuar para o pagamento</button>
-        <p class="nota" id="nota">O pagamento é feito no ambiente seguro do Asaas (cartão de crédito). O acesso é liberado assim que o pagamento é confirmado.</p>
+        <div class="botoes">
+          <button type="submit" id="enviar" class="principal" value="assinar">Assinar agora</button>
+          <button type="submit" id="testar" class="teste" value="teste">Testar grátis por 3 dias</button>
+        </div>
+        <p class="nota" id="nota">Assinatura: pagamento no ambiente seguro do Asaas (cartão de crédito), com os seus dados já preenchidos; o acesso é liberado assim que o pagamento é confirmado. Teste grátis: uma vez por pessoa (e-mail e CPF) em cada plano.</p>
       </form>
     </main>
     <script>
@@ -163,16 +174,41 @@
       const plano = () => document.querySelector('input[name="plano"]:checked').value;
       if (["bp", "recruiter"].includes(params.get("plano"))) document.querySelector(`input[value="${params.get("plano")}"]`).checked = true;
 
+      // E-mail vindo da extensão (no #fragmento, que não vai para o servidor).
+      const fragmento = new URLSearchParams(location.hash.slice(1));
+      if (fragmento.get("email")) $("email").value = fragmento.get("email");
+
+      const digitos = (v) => v.replace(/\D/g, "");
+      $("cpf").addEventListener("input", (e) => {
+        const d = digitos(e.target.value).slice(0, 11);
+        e.target.value = d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+      });
+      $("telefone").addEventListener("input", (e) => {
+        const d = digitos(e.target.value).slice(0, 11);
+        e.target.value = d.length > 10 ? d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3") : d.replace(/(\d{2})(\d{0,4})(\d{0,4})/, (m, a, b, c) => (b ? `(${a}) ${b}${c ? `-${c}` : ""}` : a));
+      });
+      function cpfOk(v) {
+        const d = digitos(v);
+        if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+        const dv = (n) => {
+          let soma = 0;
+          for (let i = 0; i < n; i++) soma += Number(d[i]) * (n + 1 - i);
+          const r = (soma * 10) % 11;
+          return r === 10 ? 0 : r;
+        };
+        return dv(9) === Number(d[9]) && dv(10) === Number(d[10]);
+      }
+
       function estadoCupom(ok, texto) {
         cupomValido = ok ? $("cupom").value.trim().toUpperCase() : null;
         document.body.classList.toggle("com-cupom", Boolean(ok));
         document.querySelectorAll("[data-preco]").forEach((p) => p.classList.toggle("riscado", Boolean(ok)));
         $("cupom-msg").className = `msg ${ok ? "ok" : texto ? "erro" : ""}`;
         $("cupom-msg").textContent = texto ?? "";
-        $("enviar").textContent = ok ? "Liberar meu acesso" : "Continuar para o pagamento";
+        $("enviar").textContent = ok ? "Liberar meu acesso" : "Assinar agora";
         $("nota").textContent = ok
-          ? "Com o cupom, o acesso é liberado na hora, sem cobrança e sem cartão. Você recebe por e-mail um código para criar sua senha."
-          : "O pagamento é feito no ambiente seguro do Asaas (cartão de crédito). O acesso é liberado assim que o pagamento é confirmado.";
+          ? "Com o cupom, o acesso é liberado na hora, sem cobrança e sem cartão. Quem ainda não tem conta recebe por e-mail um código para criar a senha."
+          : "Assinatura: pagamento no ambiente seguro do Asaas (cartão de crédito), com os seus dados já preenchidos; o acesso é liberado assim que o pagamento é confirmado. Teste grátis: uma vez por pessoa (e-mail e CPF) em cada plano.";
       }
 
       async function aplicar() {
@@ -203,17 +239,24 @@
 
       $("form").addEventListener("submit", async (e) => {
         e.preventDefault();
+        const acao = e.submitter?.value === "teste" ? "teste" : "assinar";
         $("erro").textContent = "";
         const email = $("email").value.trim();
-        if (!$("nome").value.trim()) return ($("erro").textContent = "Informe seu nome.");
+        const nome = $("nome").value.trim().replace(/\s+/g, " ");
+        if (nome.split(" ").length < 2) return ($("erro").textContent = "Informe o nome completo.");
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return ($("erro").textContent = "Informe um e-mail válido.");
-        if ($("cupom").value.trim() && !cupomValido) return ($("erro").textContent = "Clique em Aplicar para validar o cupom (ou apague o campo).");
-        $("enviar").disabled = true;
+        if (!cpfOk($("cpf").value)) return ($("erro").textContent = "Informe um CPF válido.");
+        if (![10, 11].includes(digitos($("telefone").value).length)) return ($("erro").textContent = "Informe um telefone com DDD.");
+        if (acao === "assinar" && $("cupom").value.trim() && !cupomValido) return ($("erro").textContent = "Clique em Aplicar para validar o cupom (ou apague o campo).");
+        const botao = acao === "teste" ? $("testar") : $("enviar");
+        const textoBotao = botao.textContent;
+        $("enviar").disabled = $("testar").disabled = true;
+        botao.textContent = acao === "teste" ? "Liberando o teste…" : cupomValido ? "Liberando…" : "Preparando o pagamento…";
         try {
           const r = await fetch(CHECKOUT, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ plano: plano(), nome: $("nome").value.trim(), email, cupom: cupomValido }),
+            body: JSON.stringify({ acao, plano: plano(), nome, email, cpf: digitos($("cpf").value), telefone: digitos($("telefone").value), cupom: acao === "assinar" ? cupomValido : null }),
           });
           const d = await r.json();
           if (!d.ok) throw new Error(d.motivo);
@@ -221,11 +264,13 @@
             location.href = d.link;
             return;
           }
+          const teste = d.acao === "teste";
           const sucesso = document.createElement("section");
           sucesso.className = "sucesso";
           sucesso.setAttribute("role", "status");
-          const h2 = Object.assign(document.createElement("h2"), { textContent: `Acesso ao ${d.plano} liberado` });
-          const p = Object.assign(document.createElement("p"), { textContent: d.novaConta ? `Enviamos para ${email} um código de acesso. Para começar:` : `A sua conta (${email}) já pode usar o ${d.plano}. Para começar:` });
+          const h2 = Object.assign(document.createElement("h2"), { textContent: teste ? `Teste grátis do ${d.plano} liberado` : `Acesso ao ${d.plano} liberado` });
+          const intro = teste ? `Você tem 3 dias ou ${d.teste.tokens.toLocaleString("pt-BR")} tokens de IA, o que acabar primeiro. ` : "";
+          const p = Object.assign(document.createElement("p"), { textContent: intro + (d.novaConta ? `Enviamos para ${email} um código de acesso. Para começar:` : `A sua conta (${email}) já pode usar o ${d.plano}. Para começar:`) });
           const ol = document.createElement("ol");
           const passos = d.novaConta
             ? ["Instale a extensão Candydate no Chrome.", "Clique no ícone da extensão e informe o seu e-mail.", "No campo Senha, use o código recebido por e-mail e crie a sua senha."]
@@ -236,7 +281,8 @@
           window.scrollTo(0, 0);
         } catch (err) {
           $("erro").textContent = err.message || "Não foi possível concluir agora. Tente novamente.";
-          $("enviar").disabled = false;
+          $("enviar").disabled = $("testar").disabled = false;
+          botao.textContent = textoBotao;
         }
       });
 

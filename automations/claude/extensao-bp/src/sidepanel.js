@@ -5,7 +5,7 @@
  * a base muda (aoMudar) e ao ser aberta.
  */
 import { aoMudar, carregar, iniciarEmpresa, store } from "./core/db.js";
-import { initHeader, initTheme, logout, requireAuth, FriendlyError, authConfigured } from "./core/toolskit.js";
+import { initHeader, initTheme, iniciarPlano, logout, requireAuth, FriendlyError, authConfigured } from "./core/toolskit.js";
 import { $, h } from "./core/ui.js";
 import { criarAvaliacao } from "./modulos/avaliacao.js";
 import { criarChat } from "./modulos/chat.js";
@@ -107,6 +107,8 @@ async function init() {
     $("estado").textContent = "Este pacote foi gerado sem o Supabase configurado (SUPABASE_URL). Veja o README.";
     return;
   }
+  // Teste gratuito: barra de consumo e bloqueio ao terminar.
+  if (user) iniciarPlano({ chave: "bp", nomeProduto: "BP" }).catch((e) => console.warn("plano", e));
   try {
     const { branding } = await chrome.storage.local.get("branding");
     await iniciarEmpresa(branding?.empresa);

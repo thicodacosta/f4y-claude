@@ -1,6 +1,7 @@
 /**
- * Cliente das contas de acesso (Supabase Auth). As contas são criadas só pelo
- * administrador; o cadastro público fica desligado no projeto.
+ * Cliente das contas de acesso (Supabase Auth). A pessoa cria a conta na
+ * própria extensão (e-mail e senha, Google ou LinkedIn); o produto é liberado
+ * pelo servidor (teste gratuito, assinatura ou cupom).
  *
  * "Manter conectado": a sessão fica em chrome.storage.local (sobrevive ao
  * fechar o Chrome); sem a opção, em chrome.storage.session (apagada ao fechar).
@@ -10,6 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 const URL = __SUPABASE_URL__;
 const KEY = __SUPABASE_PUBLISHABLE_KEY__;
 export const authConfigured = Boolean(URL && KEY);
+export const SUPABASE_URL = URL;
 
 const REMEMBER = "authManterConectado";
 
@@ -40,7 +42,7 @@ const storage = {
 
 export const supabase = authConfigured
   ? createClient(URL, KEY, {
-      auth: { storage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+      auth: { storage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, flowType: "pkce" },
     })
   : null;
 

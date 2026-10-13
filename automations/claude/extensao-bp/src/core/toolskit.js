@@ -4,6 +4,7 @@
  */
 export { authConfigured, supabase, currentUser } from "../../../extensao-entrevistas/src/auth/client.js";
 export { logout, requireAuth } from "../../../extensao-entrevistas/src/auth/gate.js";
+export { cartaoPlano, iniciarPlano } from "../../../extensao-entrevistas/src/auth/plano.js";
 export { initTheme, effectiveTheme } from "../../../extensao-entrevistas/src/theme.js";
 export { initHeader } from "../../../extensao-entrevistas/src/header.js";
 export { loadKeys, hasEmbeddedKeys } from "../../../extensao-entrevistas/src/keys.js";

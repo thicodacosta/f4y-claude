@@ -9,7 +9,9 @@
  */
 
 import { registrar } from "./atividades.js";
+import { iniciarPlano } from "./auth/plano.js";
 import { loadKeys } from "./keys.js";
+import { antesDaIa, registrarTokens } from "./uso.js";
 
 const OFFSCREEN_URL = "offscreen.html";
 
@@ -162,8 +164,22 @@ async function start({ tabId, meta, force = false }) {
   });
 }
 
+// Medidor do teste gratuito para o offscreen document (que não acessa a
+// sessão): ele pergunta aqui antes de usar a IA e informa o consumo depois.
+let plano = null;
+const planoPronto = () => (plano ??= iniciarPlano({ ui: false }).catch(() => (plano = null)));
+
 async function handle(message) {
   switch (message.type) {
+    // Vindas do offscreen document (teste gratuito)
+    case "PLANO_ANTES":
+      await planoPronto();
+      await antesDaIa();
+      return;
+    case "USO":
+      await planoPronto();
+      registrarTokens(message.tokens);
+      return;
     // Vindas do painel
     case "START":
       await start(message);

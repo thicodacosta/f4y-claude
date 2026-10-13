@@ -14,6 +14,8 @@ import { analyzeInterview, AnalysisError } from "./analyze.js";
 import { createSegmentRecorder, getMicStream } from "./audio.js";
 import { transcribeChunk, TranscriptionAuthError } from "./transcribe.js";
 import { buildTranscript } from "./transcript.js";
+import { definirMedidor } from "./uso.js";
+import { FriendlyError } from "./errors.js";
 
 // Blocos maiores dão mais contexto à Whisper e consomem menos requisições
 // da cota da Groq; o custo é só o atraso do último bloco ao finalizar.
@@ -38,6 +40,15 @@ let rec = null;
 function toBackground(message) {
   return chrome.runtime.sendMessage({ target: "background", ...message }).catch(() => {});
 }
+
+// Teste gratuito: o service worker confere o plano e soma o consumo.
+definirMedidor({
+  async antes() {
+    const r = await chrome.runtime.sendMessage({ target: "background", type: "PLANO_ANTES" }).catch(() => null);
+    if (r && !r.ok) throw new FriendlyError(r.error);
+  },
+  depois: (tokens) => toBackground({ type: "USO", tokens }),
+});
 
 function createClock() {
   const startedAt = performance.now();

@@ -11,6 +11,7 @@ import { loadKeys as resolveKeys } from "./keys.js";
 import { initHeader } from "./header.js";
 import { initTheme } from "./theme.js";
 import { logout, requireAuth } from "./auth/gate.js";
+import { iniciarPlano } from "./auth/plano.js";
 import { isOnboarded } from "./auth/onboarding.js";
 import { translateRecord } from "./translate.js";
 import { renderAnalysis, toMarkdown } from "./render.js";
@@ -648,6 +649,8 @@ async function init() {
   await initTheme();
   // Nada do Recruiter abre sem login (senha; no 1º acesso, criação da senha própria).
   user = await requireAuth();
+  // Teste gratuito: barra de consumo e bloqueio ao terminar.
+  if (user) iniciarPlano().catch((e) => console.warn("plano", e));
   $("logout-btn").hidden = !user;
   $("logout-btn").addEventListener("click", logout);
   initHeader();

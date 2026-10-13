@@ -2155,6 +2155,45 @@ html.is-locked body > :not(.auth) {
   font-size: 13px;
 }
 
+.auth__sociais {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.auth__social {
+  width: 100%;
+}
+
+.auth__ou {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.auth__ou::before,
+.auth__ou::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+
+.auth__rodape {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.auth a.btn {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+}
+
 /* Marca Candydate: botões em pílula e realces em azul, como no site. */
 .btn {
   border-radius: 999px;

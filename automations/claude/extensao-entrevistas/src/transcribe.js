@@ -4,6 +4,8 @@
  * oferece transcrição de áudio, por isso esta etapa usa outro serviço.
  */
 
+import { antesDaIa, estimarTokens, registrarTokens } from "./uso.js";
+
 const ENDPOINT = "https://api.groq.com/openai/v1/audio/transcriptions";
 const MODEL = "whisper-large-v3-turbo";
 const MAX_ATTEMPTS = 5;
@@ -56,6 +58,7 @@ const sleep = (ms, signal) =>
  * Refaz a chamada em limite de taxa, instabilidade ou falha de rede.
  */
 export async function transcribeChunk(apiKey, wav, { signal } = {}) {
+  await antesDaIa();
   for (let attempt = 1; ; attempt++) {
     const form = new FormData();
     form.append("file", wav, "trecho.wav");
@@ -81,6 +84,8 @@ export async function transcribeChunk(apiKey, wav, { signal } = {}) {
     if (res.ok) {
       const data = await res.json();
       const segments = data.segments ?? (data.text ? [{ start: 0, text: data.text }] : []);
+      // A transcrição não informa tokens: estima pelo texto e soma o áudio (~20 tokens/s).
+      registrarTokens(estimarTokens(data.text) + Math.round((data.duration ?? 0) * 20));
       return segments.filter(isRealSpeech).map((s) => ({ start: s.start ?? 0, text: s.text.trim() }));
     }
 
