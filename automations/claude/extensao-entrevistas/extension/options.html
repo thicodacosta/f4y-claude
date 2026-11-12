@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Configurações · JourneyLab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700&display=swap"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="theme-init.js"></script>
+  </head>
+  <body class="page">
+    <header class="topbar">
+      <img id="header-logo" alt="" class="topbar__logo" hidden />
+      <span id="header-name" class="topbar__brand" hidden></span>
+    </header>
+
+    <main>
+      <p class="eyebrow">JourneyLab · Ferramentas de RH</p>
+      <h1 id="page-title" class="title">Configurações</h1>
+      <div id="welcome" class="note welcome" hidden>
+        <p class="note__title">Boas-vindas!</p>
+        <p>Configure a identidade da sua empresa uma única vez. O logo escolhido aparece no topo do painel e em todos os currículos gerados. Você pode voltar aqui quando quiser, em "Configurações".</p>
+      </div>
+      <div id="welcome-done" class="note welcome" role="status" hidden>
+        <p class="note__title">Tudo pronto.</p>
+        <p>Clique no ícone da extensão, na barra do Chrome, para abrir o painel.</p>
+      </div>
+
+      <section id="keys-section" class="group" aria-labelledby="keys-title">
+        <h2 id="keys-title" class="subtitle">Chaves de API</h2>
+        <p class="hint keys-intro">
+            As chaves ficam salvas apenas neste navegador e só são enviadas aos respectivos serviços. Use chaves
+            dedicadas, com limite de gasto definido no painel de cada serviço.
+          </p>
+          <form id="form" novalidate>
+            <div class="field">
+              <label for="apiKey">Anthropic (Claude)</label>
+              <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" aria-describedby="apiKey-hint" />
+              <p id="apiKey-hint" class="hint">console.anthropic.com → API Keys. Usada no registro de entrevistas e no construtor de currículos.</p>
+            </div>
+            <div class="field">
+              <label for="groqKey">Groq (Whisper): transcreve o áudio da gravação</label>
+              <input id="groqKey" type="password" autocomplete="off" spellcheck="false" placeholder="gsk_…" aria-describedby="groqKey-hint" />
+              <p id="groqKey-hint" class="hint">console.groq.com → API Keys. Usada na gravação de entrevistas, no comparativo e na pesquisa salarial.</p>
+            </div>
+            <p id="status" class="hint" role="status"></p>
+            <div class="actions">
+              <button type="submit" class="btn btn--primary">Salvar</button>
+              <button type="button" id="clear-btn" class="btn btn--ghost">Remover chaves</button>
+            </div>
+          </form>
+      </section>
+
+      <section class="group" aria-labelledby="branding-title">
+        <h2 id="branding-title" class="subtitle">Currículos padronizados</h2>
+        <p class="hint branding-intro">Configure uma vez: todos os currículos gerados sairão com esta identidade.</p>
+        <form id="branding-form" novalidate>
+          <div class="field">
+            <span class="label">Logo da empresa</span>
+            <div class="logo-picker">
+              <div id="logo-preview" class="logo-preview" aria-live="polite">
+                <span class="hint">Nenhum logo</span>
+              </div>
+              <div class="logo-picker__actions">
+                <button type="button" id="logo-btn" class="btn btn--ghost">Escolher imagem</button>
+                <button type="button" id="logo-remove-btn" class="btn-link" hidden>Remover logo</button>
+                <input id="logo-file" type="file" accept="image/png,image/jpeg" hidden />
+              </div>
+            </div>
+            <p class="hint">PNG ou JPG de até 1 MB. Prefira fundo transparente e formato horizontal.</p>
+          </div>
+          <div class="field">
+            <label for="empresa">Nome da empresa</label>
+            <input id="empresa" type="text" autocomplete="organization" placeholder="Ex.: Sua Consultoria" aria-describedby="empresa-hint" />
+            <p id="empresa-hint" class="hint">Aparece no rodapé: "Apresentado por …" e no nome dos arquivos.</p>
+          </div>
+          <div class="field">
+            <label for="cor">Cor de destaque</label>
+            <div class="color-row">
+              <input id="cor" type="color" value="#082043" />
+              <span id="cor-value" class="hint"></span>
+            </div>
+            <p class="hint">Usada no nome do cargo, títulos de seção e linha do cabeçalho. Prefira um tom escuro, legível sobre branco.</p>
+          </div>
+          <label class="consent">
+            <input type="checkbox" id="ocultarContatos" checked />
+            <span>Ocultar e-mail, telefone e LinkedIn do candidato (recomendado para envio a clientes)</span>
+          </label>
+          <p id="branding-status" class="hint" role="status"></p>
+          <div class="actions">
+            <button type="submit" class="btn btn--primary">Salvar identidade</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="group" aria-labelledby="linkedin-title">
+        <h2 id="linkedin-title" class="subtitle">Integração com o LinkedIn</h2>
+        <p class="hint branding-intro">Usada pela Shortlist, que se conecta aos candidatos aderentes em nome da recrutadora, usando a sessão do LinkedIn aberta neste Chrome.</p>
+        <div class="linkedin-status">
+          <p id="li-status" class="hint" role="status">Não conectado.</p>
+          <button type="button" id="li-connect" class="btn btn--ghost">Conectar ao LinkedIn</button>
+        </div>
+        <form id="li-form" novalidate>
+          <div class="field">
+            <label for="li-assinatura">Assinatura da nota</label>
+            <input id="li-assinatura" type="text" autocomplete="name" placeholder="Ex.: Thiago" />
+          </div>
+          <label class="consent">
+            <input type="checkbox" id="li-incluir-nota" />
+            <span>Incluir nota no convite</span>
+          </label>
+          <label class="consent">
+            <input type="checkbox" id="li-personalizar" />
+            <span>Personalizar a nota para cada candidato com IA (cita a experiência da pessoa, até 200 caracteres). Desmarcado, usa o modelo abaixo trocando só o nome.</span>
+          </label>
+          <div class="field">
+            <label for="li-modelo">Modelo da nota (usado quando a personalização com IA está desligada)</label>
+            <textarea id="li-modelo" rows="4" maxlength="300" aria-describedby="li-modelo-hint"></textarea>
+            <p id="li-modelo-hint" class="hint">
+              <span id="li-modelo-count">0</span>/300 · Campos: {nome}, {perfil}, {local} e {assinatura}, preenchidos a partir da JD e do perfil. Contas gratuitas do LinkedIn aceitam 200 caracteres e poucas notas por mês.
+            </p>
+          </div>
+          <div class="field">
+            <label for="li-aderencia">Aderência mínima para conectar</label>
+            <select id="li-aderencia">
+              <option value="60">60%</option>
+              <option value="70">70%</option>
+              <option value="80">80%</option>
+              <option value="90">90%</option>
+            </select>
+          </div>
+          <label class="consent">
+            <input type="checkbox" id="li-sem-nota" />
+            <span>Se o LinkedIn não permitir nota, enviar o convite sem nota</span>
+          </label>
+          <p id="li-form-status" class="hint" role="status"></p>
+          <div class="actions">
+            <button type="submit" class="btn btn--primary">Salvar LinkedIn</button>
+            <button type="button" id="li-reset" class="btn btn--ghost">Restaurar nota padrão</button>
+          </div>
+          <p class="hint">Automatizar ações vai contra os termos de uso do LinkedIn e pode levar à restrição da conta. A Shortlist limita cada execução a 5 convites, com pausas entre eles; use com moderação.</p>
+        </form>
+      </section>
+
+      <section class="group" aria-labelledby="appearance-title">
+        <h2 id="appearance-title" class="subtitle">Aparência</h2>
+        <fieldset class="segmented segmented--3">
+          <legend class="visually-hidden">Tema</legend>
+          <label class="segmented__option"><input type="radio" name="tema" value="auto" /><span>Automático</span></label>
+          <label class="segmented__option"><input type="radio" name="tema" value="light" /><span>Claro</span></label>
+          <label class="segmented__option"><input type="radio" name="tema" value="dark" /><span>Escuro</span></label>
+        </fieldset>
+        <p class="hint">"Automático" acompanha o tema do sistema. Também dá para alternar pelo botão no topo do painel.</p>
+      </section>
+
+      <section class="group" aria-labelledby="privacy-title">
+        <h2 id="privacy-title" class="subtitle">Privacidade</h2>
+        <ul class="list">
+          <li>Na gravação, o áudio fica em memória só até ser transcrito pela Groq, em trechos de 20 segundos, e nunca é salvo.</li>
+          <li>A transcrição é enviada à Anthropic para gerar o registro.</li>
+          <li>O rascunho e o último registro ficam guardados só nesta sessão do navegador e são apagados quando o Chrome é fechado.</li>
+          <li>Currículos enviados ao construtor são lidos pela Anthropic para padronização. Os arquivos originais não são guardados.</li>
+          <li>Nada é salvo em servidores da JourneyLab.</li>
+        </ul>
+      </section>
+    </main>
+
+    <script type="module" src="dist/options.js"></script>
+  </body>
+</html>

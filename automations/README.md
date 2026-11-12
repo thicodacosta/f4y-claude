@@ -29,7 +29,7 @@ está de fato implementado naquela pasta (scripts, `.env.example`).
 | `make/` | Não implementado | — |
 | `apollo/` | Não implementado | — |
 | `zoho/` | Não implementado | — |
-| `claude/` | Escopo não definido | — |
+| `claude/` | Implementado (extensão Chrome de registro de entrevistas) | `recrutamento` |
 
 Para qualquer pasta "Não implementado": não inventar fluxo, credencial ou
 integração. Ao ser construída, o procedimento nasce em uma skill nova ou numa

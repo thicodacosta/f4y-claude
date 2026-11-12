@@ -20,39 +20,61 @@ function inicioDoAno(d = new Date()) {
   return new Date(d.getFullYear(), 0, 1);
 }
 
-/** Receita — soma de Faturamento.valor. "Mês"/"YTD" usam Faturamento.criadoEm
- * (o momento do fechamento, mesma âncora que modules/financeiro/queries.ts
- * já usa) — não é caixa recebido, é negócio fechado/contratado. "Recebida"
- * filtra status=pago por dataEfetiva à parte, essa sim é caixa de verdade. */
+/** Receita — soma de Vaga.valor nas etapas de Ganho (Fechada R&S + Fechada
+ * Alocação, ambas isGanho=true), por Vaga.fechadoEm — a mesma fonte que já
+ * alimenta o Pipeline de Vagas ("Fechadas em X/2026"), pra Receita nunca
+ * divergir do que está fechado lá (regra do pedido: YTD deve ser a soma de
+ * R&S e Alocação). Faturamento continua sendo o ledger fiscal (NFs,
+ * emitida/não emitida, pago/pendente) — pode ter lançamento sem vaga
+ * (histórico solto) ou vaga sem lançamento ainda, então não é mais a fonte
+ * de "quanto fechamos". "Recebida" é exceção: cash de verdade (status=pago
+ * + dataEfetiva) não tem equivalente em Vaga, continua vindo de Faturamento. */
 export async function getReceitaConsolidada() {
   await requirePapel(PAPEIS_GESTAO);
   const desdeMes = inicioDoMes();
   const desdeAno = inicioDoAno();
 
-  const [mesAtual, ytd, recebidaMes, geral] = await Promise.all([
-    prisma.faturamento.aggregate({ where: { criadoEm: { gte: desdeMes } }, _sum: { valor: true }, _count: true }),
-    prisma.faturamento.aggregate({ where: { criadoEm: { gte: desdeAno } }, _sum: { valor: true } }),
+  const [vagasFechadas, recebidaMes] = await Promise.all([
+    prisma.vaga.findMany({
+      where: { etapa: { isGanho: true }, fechadoEm: { not: null } },
+      select: { valor: true, fechadoEm: true },
+    }),
     prisma.faturamento.aggregate({
       where: { status: "pago", dataEfetiva: { gte: desdeMes } },
       _sum: { valor: true },
     }),
-    prisma.faturamento.aggregate({ _sum: { valor: true }, _count: true }),
   ]);
 
+  let receitaMes = 0;
+  let negociosFechadosMes = 0;
+  let receitaYtd = 0;
+  let receitaContratadaTotal = 0;
+
+  for (const v of vagasFechadas) {
+    const valor = v.valor ? Number(v.valor) : 0;
+    receitaContratadaTotal += valor;
+    if (v.fechadoEm! >= desdeAno) receitaYtd += valor;
+    if (v.fechadoEm! >= desdeMes) {
+      receitaMes += valor;
+      negociosFechadosMes += 1;
+    }
+  }
+
   return {
-    receitaMes: Number(mesAtual._sum.valor ?? 0),
-    negociosFechadosMes: mesAtual._count,
-    receitaYtd: Number(ytd._sum.valor ?? 0),
+    receitaMes,
+    negociosFechadosMes,
+    receitaYtd,
     receitaRecebidaMes: Number(recebidaMes._sum.valor ?? 0),
-    receitaContratadaTotal: Number(geral._sum.valor ?? 0),
-    negociosFechadosTotal: geral._count,
+    receitaContratadaTotal,
+    negociosFechadosTotal: vagasFechadas.length,
   };
 }
 
-/** Série mensal consolidada (CRM + ATS, via Faturamento — que já cobre as
- * duas origens) — usa RevenueLineChart existente. Diferente de
+/** Série mensal consolidada — mesma fonte de getReceitaConsolidada (Vaga nas
+ * etapas de Ganho, por fechadoEm), pra "Receita — últimos 6 meses" nunca
+ * divergir do card de Receita do mês/YTD logo acima. Diferente de
  * modules/dashboard/queries.ts#getReceitaMensal (que só olha Oportunidade
- * Ganha, sem Vaga) — essa versão é a "verdade" cross-vertical. */
+ * Ganha, sem Vaga). */
 export async function getReceitaMensalConsolidada(meses = 6) {
   await requirePapel(PAPEIS_GESTAO);
 
@@ -61,9 +83,9 @@ export async function getReceitaMensalConsolidada(meses = 6) {
   desde.setDate(1);
   desde.setHours(0, 0, 0, 0);
 
-  const faturamentos = await prisma.faturamento.findMany({
-    where: { criadoEm: { gte: desde } },
-    select: { valor: true, criadoEm: true },
+  const vagasFechadas = await prisma.vaga.findMany({
+    where: { etapa: { isGanho: true }, fechadoEm: { gte: desde } },
+    select: { valor: true, fechadoEm: true },
   });
 
   const buckets = new Map<string, number>();
@@ -71,9 +93,10 @@ export async function getReceitaMensalConsolidada(meses = 6) {
     const d = new Date(desde.getFullYear(), desde.getMonth() + i, 1);
     buckets.set(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`, 0);
   }
-  for (const f of faturamentos) {
-    const key = `${f.criadoEm.getFullYear()}-${String(f.criadoEm.getMonth() + 1).padStart(2, "0")}`;
-    if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + Number(f.valor));
+  for (const v of vagasFechadas) {
+    if (!v.fechadoEm) continue;
+    const key = `${v.fechadoEm.getFullYear()}-${String(v.fechadoEm.getMonth() + 1).padStart(2, "0")}`;
+    if (buckets.has(key)) buckets.set(key, (buckets.get(key) ?? 0) + (v.valor ? Number(v.valor) : 0));
   }
 
   return [...buckets.entries()].map(([mes, valor]) => ({ mes, valor }));
@@ -159,33 +182,39 @@ export async function getCapacidadeAlocacao() {
   };
 }
 
-/** Concentração de receita — top N clientes por Faturamento.valor. Base
- * direta da regra 21 do pedido (dependência excessiva de cliente). */
+/** Concentração de receita — top N clientes por Vaga.valor nas etapas de
+ * Ganho (mesma fonte de getReceitaConsolidada) — sem isso, vaga removida do
+ * Pipeline de Vagas mas ainda com lançamento solto em Faturamento (ex.:
+ * histórico sem card) inflava o cliente aqui mesmo sumindo do resto da
+ * página. Base direta da regra 21 do pedido (dependência excessiva de
+ * cliente). */
 export async function getConcentracaoReceita(topN = 5) {
   await requirePapel(PAPEIS_GESTAO);
 
-  const porEmpresa = await prisma.faturamento.groupBy({
+  const porEmpresa = await prisma.vaga.groupBy({
     by: ["empresaId"],
+    where: { etapa: { isGanho: true } },
     _sum: { valor: true },
     orderBy: { _sum: { valor: "desc" } },
   });
   if (porEmpresa.length === 0) return null;
 
   const total = porEmpresa.reduce((acc, e) => acc + Number(e._sum.valor ?? 0), 0);
-  const top = porEmpresa.slice(0, topN);
+  const somaTop = porEmpresa.slice(0, topN).reduce((acc, e) => acc + Number(e._sum.valor ?? 0), 0);
   const empresas = await prisma.empresa.findMany({
-    where: { id: { in: top.map((e) => e.empresaId) } },
+    where: { id: { in: porEmpresa.map((e) => e.empresaId) } },
     select: { id: true, nome: true },
   });
   const nomePorId = new Map(empresas.map((e) => [e.id, e.nome]));
-  const somaTop = top.reduce((acc, e) => acc + Number(e._sum.valor ?? 0), 0);
 
   return {
     total,
     topN,
     somaTop,
     percentual: total > 0 ? (somaTop / total) * 100 : 0,
-    clientes: top.map((e) => ({ nome: nomePorId.get(e.empresaId) ?? "—", valor: Number(e._sum.valor ?? 0) })),
+    /** Todos os clientes, não só o topN — a UI mostra os top N por padrão e
+     * expande pro resto sob demanda (ver components/intelligence/bar-list-expansivel.tsx). */
+    clientes: porEmpresa.map((e) => ({ nome: nomePorId.get(e.empresaId) ?? "—", valor: Number(e._sum.valor ?? 0) })),
   };
 }
 
@@ -205,34 +234,36 @@ export async function getConcentracaoVagasFechadas(topN = 5) {
   if (porEmpresa.length === 0) return null;
 
   const total = porEmpresa.reduce((acc, e) => acc + e._count, 0);
-  const top = porEmpresa.slice(0, topN);
+  const somaTop = porEmpresa.slice(0, topN).reduce((acc, e) => acc + e._count, 0);
   const empresas = await prisma.empresa.findMany({
-    where: { id: { in: top.map((e) => e.empresaId) } },
+    where: { id: { in: porEmpresa.map((e) => e.empresaId) } },
     select: { id: true, nome: true },
   });
   const nomePorId = new Map(empresas.map((e) => [e.id, e.nome]));
-  const somaTop = top.reduce((acc, e) => acc + e._count, 0);
 
   return {
     total,
     topN,
     somaTop,
     percentual: total > 0 ? (somaTop / total) * 100 : 0,
-    clientes: top.map((e) => ({ nome: nomePorId.get(e.empresaId) ?? "—", quantidade: e._count })),
+    /** Todos os clientes, não só o topN — a UI mostra os top N por padrão e
+     * expande pro resto sob demanda (ver components/intelligence/bar-list-expansivel.tsx). */
+    clientes: porEmpresa.map((e) => ({ nome: nomePorId.get(e.empresaId) ?? "—", quantidade: e._count })),
   };
 }
 
 /** Receita por vertical de negócio (Alocação / Recrutamento & Seleção /
  * Executive Search) — as 3 verticais reais da Find4You, derivadas de
- * Vaga/Oportunidade.vertical + .executiveSearch (mesma regra de categoria
- * usada em nova-vaga-dialog.tsx e no relatório de pipeline de vagas). Junta
- * Faturamento (polimórfico) de volta em Vaga/Oportunidade pra classificar. */
+ * Vaga.vertical + .executiveSearch (mesma regra de categoria usada em
+ * nova-vaga-dialog.tsx e no relatório de pipeline de vagas). Mesma fonte de
+ * getReceitaConsolidada (Vaga nas etapas de Ganho) — sem isso, a soma das 3
+ * verticais aqui divergia do card de Receita do mês/YTD logo acima. */
 export async function getReceitaPorVerticalNegocio(periodo?: { desde: Date; ate: Date }) {
-  const classificados = await classificarFaturamentosPorCategoria(periodo);
+  const classificados = await classificarVagasFechadasPorCategoria(periodo);
   if (!classificados) return null;
 
   const totais: Record<CategoriaVertical, number> = { alocacao: 0, recrutamento: 0, executive_search: 0 };
-  for (const f of classificados) totais[f.categoria] += f.valor;
+  for (const v of classificados) totais[v.categoria] += v.valor;
   return totais;
 }
 
@@ -241,48 +272,33 @@ export type CategoriaVertical = "alocacao" | "recrutamento" | "executive_search"
 /** Regra de categoria de negócio — mesma usada em nova-vaga-dialog.tsx e no
  * relatório de pipeline de vagas. Exportada porque o Forecast Engine
  * (modules/intelligence/forecast.ts) precisa classificar pipeline em aberto
- * (Oportunidade/Vaga) pela mesma regra, não só Faturamento já fechado. */
+ * (Oportunidade/Vaga) pela mesma regra, não só vagas já fechadas. */
 export function categoriaDeVerticalNegocio(vertical: string, executiveSearch: boolean): CategoriaVertical {
   if (executiveSearch) return "executive_search";
   return vertical === "alocacao_tech" ? "alocacao" : "recrutamento";
 }
 
-/** Junta Faturamento (polimórfico) de volta em Vaga/Oportunidade pra
- * classificar por categoria — compartilhado por getReceitaPorVerticalNegocio,
- * getTicketMedioPorVertical e getReceitaMensalPorCategoria, pra não
- * reimplementar a mesma junção várias vezes (regra 34 do pedido: uma
- * métrica, um lugar só que sabe calculá-la). */
-async function classificarFaturamentosPorCategoria(periodo?: { desde: Date; ate: Date }) {
+/** Vagas fechadas (etapa isGanho — Fechada R&S + Fechada Alocação) por
+ * categoria de negócio — compartilhado por getReceitaPorVerticalNegocio e
+ * getTicketMedioPorVertical, pra não reimplementar a mesma classificação
+ * várias vezes (regra 34 do pedido: uma métrica, um lugar só que sabe
+ * calculá-la). */
+async function classificarVagasFechadasPorCategoria(periodo?: { desde: Date; ate: Date }) {
   await requirePapel(PAPEIS_GESTAO);
 
-  const faturamentos = await prisma.faturamento.findMany({
-    where: periodo ? { criadoEm: { gte: periodo.desde, lt: periodo.ate } } : undefined,
-    select: { valor: true, origemTipo: true, origemId: true, criadoEm: true },
+  const vagas = await prisma.vaga.findMany({
+    where: {
+      etapa: { isGanho: true },
+      fechadoEm: periodo ? { gte: periodo.desde, lt: periodo.ate } : { not: null },
+    },
+    select: { valor: true, vertical: true, executiveSearch: true },
   });
-  if (faturamentos.length === 0) return null;
+  if (vagas.length === 0) return null;
 
-  const idsVaga = faturamentos.filter((f) => f.origemTipo === "vaga").map((f) => f.origemId);
-  const idsOportunidade = faturamentos.filter((f) => f.origemTipo === "oportunidade").map((f) => f.origemId);
-
-  const [vagas, oportunidades] = await Promise.all([
-    idsVaga.length
-      ? prisma.vaga.findMany({ where: { id: { in: idsVaga } }, select: { id: true, vertical: true, executiveSearch: true } })
-      : [],
-    idsOportunidade.length
-      ? prisma.oportunidade.findMany({
-          where: { id: { in: idsOportunidade } },
-          select: { id: true, vertical: true, executiveSearch: true },
-        })
-      : [],
-  ]);
-
-  const categoriaPorId = new Map<string, CategoriaVertical>();
-  for (const v of vagas) categoriaPorId.set(v.id, categoriaDeVerticalNegocio(v.vertical, v.executiveSearch));
-  for (const o of oportunidades) categoriaPorId.set(o.id, categoriaDeVerticalNegocio(o.vertical, o.executiveSearch));
-
-  return faturamentos
-    .map((f) => ({ valor: Number(f.valor), categoria: categoriaPorId.get(f.origemId), criadoEm: f.criadoEm }))
-    .filter((f): f is { valor: number; categoria: CategoriaVertical; criadoEm: Date } => !!f.categoria);
+  return vagas.map((v) => ({
+    valor: v.valor ? Number(v.valor) : 0,
+    categoria: categoriaDeVerticalNegocio(v.vertical, v.executiveSearch),
+  }));
 }
 
 /** Ticket médio por vertical = receita da categoria / número de fechamentos
@@ -290,7 +306,7 @@ async function classificarFaturamentosPorCategoria(periodo?: { desde: Date; ate:
  * vagas/mandatos preciso"). Categoria sem nenhum fechamento retorna
  * ticketMedio null (não divide por zero, não inventa um número). */
 export async function getTicketMedioPorVertical() {
-  const classificados = await classificarFaturamentosPorCategoria();
+  const classificados = await classificarVagasFechadasPorCategoria();
   if (!classificados) return null;
 
   const acumulado: Record<CategoriaVertical, { receita: number; contagem: number }> = {
@@ -298,9 +314,9 @@ export async function getTicketMedioPorVertical() {
     recrutamento: { receita: 0, contagem: 0 },
     executive_search: { receita: 0, contagem: 0 },
   };
-  for (const f of classificados) {
-    acumulado[f.categoria].receita += f.valor;
-    acumulado[f.categoria].contagem += 1;
+  for (const v of classificados) {
+    acumulado[v.categoria].receita += v.valor;
+    acumulado[v.categoria].contagem += 1;
   }
 
   const resultado = {} as Record<CategoriaVertical, { receita: number; contagem: number; ticketMedio: number | null }>;
@@ -391,6 +407,31 @@ export async function getPipelineTotalPorCategoria() {
   return totais;
 }
 
+const PONDERADO_PERCENT = 0.2;
+
+/** Pipeline ponderado — 20% do pipeline total (Comercial + Vagas), distribuído
+ * entre Recrutamento & Seleção e Alocação proporcionalmente ao volume de
+ * pipeline aberto de cada unidade (Executive Search não tem card dedicado,
+ * mas conta no total). Única fonte pros cards de Pipeline ponderado em
+ * /intelligence E pro "Forecast do mês" do Gap-to-Goal — evita ter dois
+ * números de "pipeline ponderado" diferentes pra R&S/Alocação na mesma
+ * página (ver pedido de alinhamento com Gap-to-Goal). */
+export async function getPipelinePonderadoPorCategoria() {
+  const [pipeline, pipelinePorCategoria] = await Promise.all([
+    getPipelineConsolidado(),
+    getPipelineTotalPorCategoria(),
+  ]);
+
+  const total = pipeline.pipelineTotal * PONDERADO_PERCENT;
+  const baseRSAlocacao = pipelinePorCategoria.recrutamento + pipelinePorCategoria.alocacao;
+
+  return {
+    total,
+    recrutamento: baseRSAlocacao > 0 ? total * (pipelinePorCategoria.recrutamento / baseRSAlocacao) : 0,
+    alocacao: baseRSAlocacao > 0 ? total * (pipelinePorCategoria.alocacao / baseRSAlocacao) : 0,
+  };
+}
+
 /** Total de vagas por categoria de negócio (todos os status) — base do
  * card de "vagas por unidade de negócio" em /intelligence, que troca entre
  * Recrutamento & Seleção e Alocação. */
@@ -401,6 +442,26 @@ export async function getTotalVagasPorCategoria() {
 
   const totais: Record<CategoriaVertical, number> = { alocacao: 0, recrutamento: 0, executive_search: 0 };
   for (const v of vagas) totais[categoriaDeVerticalNegocio(v.vertical, v.executiveSearch)] += 1;
+
+  return totais;
+}
+
+/** Valor total (R$) de vagas perdidas/canceladas por categoria de negócio —
+ * base do card "Vagas $$$ (valor)" em /intelligence: quanto se perdeu em
+ * valor de mandato por cancelamento, separado por unidade de negócio (mesmo
+ * padrão de toggle do card "Vagas", que conta quantidade em vez de valor). */
+export async function getValorVagasPerdidasPorCategoria() {
+  await requirePapel(PAPEIS_GESTAO);
+
+  const vagasPerdidas = await prisma.vaga.findMany({
+    where: { status: "perdida" },
+    select: { valor: true, vertical: true, executiveSearch: true },
+  });
+
+  const totais: Record<CategoriaVertical, number> = { alocacao: 0, recrutamento: 0, executive_search: 0 };
+  for (const v of vagasPerdidas) {
+    totais[categoriaDeVerticalNegocio(v.vertical, v.executiveSearch)] += v.valor ? Number(v.valor) : 0;
+  }
 
   return totais;
 }

@@ -1,16 +1,18 @@
-import { Wallet, TrendingUp, Target, Briefcase, AlertTriangle, Sparkles, Coins } from "lucide-react";
+import { Wallet, TrendingUp, Target, Briefcase, AlertTriangle, Sparkles, Coins, Ban, Flag } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { BarList } from "@/components/dashboard/bar-list";
 import { RevenueLineChart } from "@/components/dashboard/revenue-line-chart";
 import { ForecastView } from "@/components/intelligence/forecast-view";
-import { CategoriaToggleCard } from "@/components/intelligence/categoria-toggle-card";
+import { ToggleCard } from "@/components/intelligence/toggle-card";
+import { BarListExpansivel } from "@/components/intelligence/bar-list-expansivel";
 import {
   getReceitaConsolidada,
   getReceitaMensalConsolidada,
   calcularCrescimentoMoM,
   getPipelineConsolidado,
-  getPipelineTotalPorCategoria,
+  getPipelinePonderadoPorCategoria,
   getTotalVagasPorCategoria,
+  getValorVagasPerdidasPorCategoria,
   getMediaPorVagaRecrutamento,
   getCapacidadeAlocacao,
   getConcentracaoReceita,
@@ -19,7 +21,7 @@ import {
 } from "@/modules/intelligence/metrics";
 import { getAlertasInteligentes } from "@/modules/intelligence/alerts";
 import { gerarInsightsCeo } from "@/modules/intelligence/insights";
-import { getForecastMultiplasJanelas, getGapToGoal } from "@/modules/intelligence/forecast";
+import { getForecastMultiplasJanelas, getGapToGoal, getMetaAnoEMes } from "@/modules/intelligence/forecast";
 import { categoriaMetaValues } from "@/modules/metas/schemas";
 import { getFunilComercial } from "@/modules/dashboard/queries";
 import { getFunilVagasComValor } from "@/modules/ats/queries";
@@ -38,8 +40,9 @@ export default async function IntelligencePage() {
     receita,
     receitaMensal,
     pipeline,
-    pipelinePorCategoria,
+    pipelinePonderadoPorCategoria,
     vagasPorCategoria,
+    valorVagasPerdidasPorCategoria,
     mediaPorVaga,
     capacidade,
     concentracao,
@@ -50,12 +53,14 @@ export default async function IntelligencePage() {
     alertas,
     janelasForecast,
     gapsForecast,
+    metaAnoEMes,
   ] = await Promise.all([
     getReceitaConsolidada(),
     getReceitaMensalConsolidada(6),
     getPipelineConsolidado(),
-    getPipelineTotalPorCategoria(),
+    getPipelinePonderadoPorCategoria(),
     getTotalVagasPorCategoria(),
+    getValorVagasPerdidasPorCategoria(),
     getMediaPorVagaRecrutamento(),
     getCapacidadeAlocacao(),
     getConcentracaoReceita(5),
@@ -66,8 +71,8 @@ export default async function IntelligencePage() {
     getAlertasInteligentes(),
     getForecastMultiplasJanelas(),
     Promise.all(categoriaMetaValues.map((categoria) => getGapToGoal(categoria))),
+    getMetaAnoEMes(),
   ]);
-  const PONDERADO_PERCENT = 0.2;
   const gapsValidos = gapsForecast.filter((g): g is NonNullable<typeof g> => g != null);
 
   const crescimentoMoM = calcularCrescimentoMoM(receitaMensal);
@@ -90,35 +95,98 @@ export default async function IntelligencePage() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          label="Receita do mês"
-          value={currency.format(receita.receitaMes)}
-          hint={
-            crescimentoMoM != null
-              ? `${crescimentoMoM >= 0 ? "+" : ""}${crescimentoMoM.toFixed(0)}% vs. mês anterior`
-              : `${receita.negociosFechadosMes} fechamento(s)`
-          }
-          icon={Wallet}
+        <ToggleCard
+          labelPrefix="Meta"
+          icon={<Flag className="size-3.5" />}
+          opcoes={[
+            {
+              chave: "mes",
+              label: "Mês",
+              valor: metaAnoEMes.metaMes,
+              hint: "meta da empresa no mês atual",
+              realizado: receita.receitaMes,
+            },
+            {
+              chave: "ano",
+              label: "Ano",
+              valor: metaAnoEMes.metaAno,
+              hint: `soma das metas mensais de ${metaAnoEMes.ano}`,
+              realizado: receita.receitaYtd,
+            },
+          ]}
+          format="moeda"
+          ariaLabel="Trocar período da meta"
         />
-        <KpiCard label="Receita YTD" value={currency.format(receita.receitaYtd)} icon={Wallet} />
+        <ToggleCard
+          labelPrefix="Receita"
+          icon={<Wallet className="size-3.5" />}
+          opcoes={[
+            {
+              chave: "mes",
+              label: "Mês",
+              valor: receita.receitaMes,
+              hint:
+                crescimentoMoM != null
+                  ? `${crescimentoMoM >= 0 ? "+" : ""}${crescimentoMoM.toFixed(0)}% vs. mês anterior`
+                  : `${receita.negociosFechadosMes} fechamento(s)`,
+            },
+            { chave: "ytd", label: "YTD", valor: receita.receitaYtd, hint: "acumulado no ano" },
+          ]}
+          format="moeda"
+          ariaLabel="Trocar período da receita"
+        />
         <KpiCard label="Pipeline total" value={currency.format(pipeline.pipelineTotal)} icon={TrendingUp} />
-        <CategoriaToggleCard
+        <ToggleCard
           labelPrefix="Pipeline ponderado"
           icon={<Target className="size-3.5" />}
-          values={{
-            alocacao: pipelinePorCategoria.alocacao * PONDERADO_PERCENT,
-            recrutamento: pipelinePorCategoria.recrutamento * PONDERADO_PERCENT,
-          }}
+          opcoes={[
+            {
+              chave: "recrutamento",
+              label: "Recrutamento & Seleção",
+              valor: pipelinePonderadoPorCategoria.recrutamento,
+              hint: "20% do pipeline total, distribuído por volume",
+            },
+            {
+              chave: "alocacao",
+              label: "Alocação",
+              valor: pipelinePonderadoPorCategoria.alocacao,
+              hint: "20% do pipeline total, distribuído por volume",
+            },
+          ]}
           format="moeda"
-          hint="20% do pipeline aberto"
-          tooltip="Estimativa fixa: 20% do valor total do pipeline em aberto (CRM + Vagas) da unidade de negócio selecionada."
+          tooltip="20% do pipeline total da empresa (todas as verticais), distribuído entre Recrutamento & Seleção e Alocação proporcionalmente ao volume de pipeline aberto de cada uma. A soma das duas bate com o card Total."
+          ariaLabel="Trocar unidade de negócio"
         />
-        <CategoriaToggleCard
+        <KpiCard
+          label="Pipeline ponderado — Total"
+          value={currency.format(pipelinePonderadoPorCategoria.total)}
+          hint="20% do pipeline total (todas as verticais)"
+          icon={Target}
+        />
+        <ToggleCard
           labelPrefix="Vagas"
           icon={<Briefcase className="size-3.5" />}
-          values={vagasPorCategoria}
+          opcoes={[
+            { chave: "recrutamento", label: "Recrutamento & Seleção", valor: vagasPorCategoria.recrutamento, hint: "vagas no total" },
+            { chave: "alocacao", label: "Alocação", valor: vagasPorCategoria.alocacao, hint: "vagas no total" },
+          ]}
           format="numero"
-          hint="vagas no total"
+          ariaLabel="Trocar unidade de negócio"
+        />
+        <ToggleCard
+          labelPrefix="Vagas $$$ (valor)"
+          icon={<Ban className="size-3.5" />}
+          opcoes={[
+            {
+              chave: "recrutamento",
+              label: "Recrutamento & Seleção",
+              valor: valorVagasPerdidasPorCategoria.recrutamento,
+              hint: "valor de vagas canceladas",
+            },
+            { chave: "alocacao", label: "Alocação", valor: valorVagasPerdidasPorCategoria.alocacao, hint: "valor de vagas canceladas" },
+          ]}
+          format="moeda"
+          ariaLabel="Trocar unidade de negócio"
         />
         <KpiCard
           label="Média por vaga (R&S)"
@@ -222,9 +290,12 @@ export default async function IntelligencePage() {
               <p className="text-sm text-muted-foreground">
                 Os {concentracao.topN} maiores clientes representam <strong className="text-foreground">{percent(concentracao.percentual)}</strong> da receita faturada.
               </p>
-              <BarList
-                items={concentracao.clientes.map((c, i) => ({ id: `${i}-${c.nome}`, label: c.nome, value: c.valor }))}
-                formatValue={(v) => currency.format(v)}
+              <BarListExpansivel
+                itemsTop={concentracao.clientes
+                  .slice(0, concentracao.topN)
+                  .map((c, i) => ({ id: `${i}-${c.nome}`, label: c.nome, value: c.valor }))}
+                itemsTodos={concentracao.clientes.map((c, i) => ({ id: `${i}-${c.nome}`, label: c.nome, value: c.valor }))}
+                format="moeda"
               />
             </>
           )}
@@ -248,9 +319,12 @@ export default async function IntelligencePage() {
                 Os {concentracaoVagas.topN} maiores clientes representam{" "}
                 <strong className="text-foreground">{percent(concentracaoVagas.percentual)}</strong> das vagas fechadas.
               </p>
-              <BarList
-                items={concentracaoVagas.clientes.map((c, i) => ({ id: `${i}-${c.nome}`, label: c.nome, value: c.quantidade }))}
-                formatValue={(v) => `${v} vaga${v === 1 ? "" : "s"}`}
+              <BarListExpansivel
+                itemsTop={concentracaoVagas.clientes
+                  .slice(0, concentracaoVagas.topN)
+                  .map((c, i) => ({ id: `${i}-${c.nome}`, label: c.nome, value: c.quantidade }))}
+                itemsTodos={concentracaoVagas.clientes.map((c, i) => ({ id: `${i}-${c.nome}`, label: c.nome, value: c.quantidade }))}
+                format="vaga"
               />
             </>
           )}

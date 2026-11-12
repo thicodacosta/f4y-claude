@@ -7,6 +7,7 @@ import {
   getReceitaMensalConsolidada,
   getReceitaConsolidada,
   getReceitaPorVerticalNegocio,
+  getPipelinePonderadoPorCategoria,
   categoriaDeVerticalNegocio,
 } from "@/modules/intelligence/metrics";
 import type { categoriaMetaValues } from "@/modules/metas/schemas";
@@ -110,17 +111,49 @@ export async function getGapToGoal(categoria: (typeof categoriaMetaValues)[numbe
   const diasRestantes = Math.max(0, Math.ceil((fimDoMes.getTime() - hoje.getTime()) / 86_400_000));
   const inicioDoMes = new Date(ano, mes - 1, 1);
 
-  const [realizado, pipelineVagas] = await Promise.all([
+  const [realizado, forecastPipeline] = await Promise.all([
     getRealizadoMesDaCategoria(categoria, inicioDoMes, fimDoMes),
-    getPipelineVagasEntrevistaForecast(categoria),
+    getForecastPipelinePonderado(categoria),
   ]);
 
   const gap = Math.max(0, valorAlvo - realizado);
-  const forecastTotal = realizado + pipelineVagas.ponderado;
+  const forecastTotal = realizado + forecastPipeline;
   const gapProjetado = Math.max(0, valorAlvo - forecastTotal);
   const probabilidadeAtingir = valorAlvo > 0 ? Math.min(100, Math.round((forecastTotal / valorAlvo) * 100)) : null;
 
   return { categoria, valorAlvo, realizado, gap, forecastTotal, gapProjetado, probabilidadeAtingir, diasRestantes };
+}
+
+/** Meta do mês atual vs. meta do ano (soma dos meses cadastrados) — base do
+ * card "Meta" em /intelligence. Não existe meta anual de verdade no sistema
+ * (MetaOrganizacional é sempre por categoria+ano+mês, ver schema) — o total
+ * do ano é derivado aplicando a mesma regra de getValorAlvoDaCategoria
+ * (soma as metas de categoria quando não há uma meta "todas" explícita)
+ * mês a mês, e somando os 12 meses. Meses sem nenhuma meta cadastrada
+ * contam como zero, não interrompem a soma. */
+export async function getMetaAnoEMes() {
+  await requirePapel(PAPEIS_GESTAO);
+
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mesAtual = hoje.getMonth() + 1;
+
+  const metasDoAno = await prisma.metaOrganizacional.findMany({ where: { ano } });
+
+  let metaAno = 0;
+  let metaMes = 0;
+  for (let mes = 1; mes <= 12; mes++) {
+    const metaTodas = metasDoAno.find((m) => m.mes === mes && m.categoria === "todas");
+    const valorDoMes = metaTodas
+      ? Number(metaTodas.valorAlvo)
+      : metasDoAno
+          .filter((m) => m.mes === mes && m.categoria !== "todas")
+          .reduce((acc, m) => acc + Number(m.valorAlvo), 0);
+    metaAno += valorDoMes;
+    if (mes === mesAtual) metaMes = valorDoMes;
+  }
+
+  return { metaMes, metaAno, ano };
 }
 
 async function getValorAlvoDaCategoria(categoria: CategoriaMeta, ano: number, mes: number) {
@@ -133,11 +166,26 @@ async function getValorAlvoDaCategoria(categoria: CategoriaMeta, ano: number, me
   return outras.reduce((acc, m) => acc + Number(m.valorAlvo), 0);
 }
 
-/** Forecast do Gap-to-Goal — soma o valor das Vagas em aberto nos estágios
- * "Entrevista Cliente" e "Forecast" do Pipeline de Vagas, ponderado pela
- * probabilidade padrão de cada etapa (65%/85%, ver seed). Reflete
- * diretamente o Kanban do ATS em vez de uma janela de dias com data de
- * fechamento prevista (que a maioria das vagas não preenche). */
+/** Forecast do Gap-to-Goal — Empresa/R&S/Alocação usam o mesmo "Pipeline
+ * ponderado" (20% do pipeline total, distribuído por volume) mostrado nos
+ * cards de /intelligence, pra nunca ter dois números de pipeline ponderado
+ * diferentes na mesma página. Executive Search não tem card de Pipeline
+ * ponderado dedicado — mantém a fórmula antiga (Vagas em Entrevista
+ * Cliente/Forecast, ponderadas pela probabilidade da etapa). */
+async function getForecastPipelinePonderado(categoria: CategoriaMeta): Promise<number> {
+  if (categoria === "executive_search") {
+    const { ponderado } = await getPipelineVagasEntrevistaForecast(categoria);
+    return ponderado;
+  }
+  const pipelinePonderado = await getPipelinePonderadoPorCategoria();
+  return categoria === "todas" ? pipelinePonderado.total : pipelinePonderado[categoria];
+}
+
+/** Vagas em aberto nos estágios "Entrevista Cliente" e "Forecast" do
+ * Pipeline de Vagas, ponderadas pela probabilidade padrão de cada etapa
+ * (65%/85%, ver seed) — usado só pra Executive Search (ver
+ * getForecastPipelinePonderado acima), que não tem card de Pipeline
+ * ponderado dedicado em /intelligence. */
 async function getPipelineVagasEntrevistaForecast(categoria: CategoriaMeta) {
   const vagas = await prisma.vaga.findMany({
     where: {
