@@ -24,7 +24,7 @@ src/
   screens/     Início, Nova partida, Placar, Telão, Histórico, Resumo, Configurações
   components/  UI reutilizável (botões, diálogo, painel do time, card de exportação)
   lib/         roteador por hash, sons WebAudio, fullscreen, wake lock, exportação
-  pwa/         ponto único de registro do service worker (desligado na v1)
+  pwa/         registro do service worker e aviso de atualização
 ```
 
 ## Decisões principais

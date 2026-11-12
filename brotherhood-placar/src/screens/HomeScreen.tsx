@@ -1,16 +1,29 @@
-import { ChevronRight, Play, ScrollText, Settings, Tv } from 'lucide-react';
-import { BrandMark, LinkButton, SetStrip, StatusPill, TeamLogo } from '../components/ui';
+import { ChevronRight, Play, RefreshCw, ScrollText, Settings, Tv } from 'lucide-react';
+import { BrandMark, Button, LinkButton, SetStrip, StatusPill, TeamLogo } from '../components/ui';
 import { formatDate } from '../lib/browser';
 import { href } from '../lib/router';
+import { installUpdate, useUpdateReady } from '../pwa/registerServiceWorker';
 import { useHistory, useMatch } from '../state/store';
 
 export function HomeScreen() {
   const match = useMatch();
   const history = useHistory();
+  const updateReady = useUpdateReady();
   const live = match && match.status !== 'finished' ? match : null;
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 py-6 sm:px-6">
+    <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
+      {updateReady && (
+        <div role="status" className="mb-4 flex items-center gap-3 rounded-2xl border border-gold/40 bg-panel px-4 py-3">
+          <RefreshCw size={18} className="shrink-0 text-gold" />
+          <p className="flex-1 text-sm">
+            Nova versão disponível.{live && ' A partida em andamento fica salva.'}
+          </p>
+          <Button size="sm" variant="primary" onClick={installUpdate}>
+            Atualizar
+          </Button>
+        </div>
+      )}
       <header className="flex items-center justify-between">
         <BrandMark size={40} />
         <nav className="flex gap-1" aria-label="Atalhos">

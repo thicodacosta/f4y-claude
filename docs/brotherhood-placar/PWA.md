@@ -1,6 +1,6 @@
 # Brotherhood Placar — plano da etapa PWA
 
-Status: **arquitetura pronta, service worker ainda desligado** (v1.0, nov/2026).
+Status: **PWA ativo** (v1.1, nov/2026): instalável e funcionando offline. Falta só publicar em um endereço https.
 
 ## O que já está pronto
 
@@ -14,24 +14,17 @@ Status: **arquitetura pronta, service worker ainda desligado** (v1.0, nov/2026).
 | Meta tags mobile | ✅ `theme-color`, `apple-mobile-web-app-*`, `viewport-fit=cover` + safe-area no placar |
 | Assets offline-friendly | ✅ fontes empacotadas (`@fontsource`), sons sintetizados (WebAudio), sem CDN |
 | Roteamento compatível com SW | ✅ rotas por hash: o SW só precisa servir `index.html` |
-| Ponto de registro do SW | ✅ `src/pwa/registerServiceWorker.ts` (flag `ENABLED = false`) |
+| Service worker | ✅ `vite-plugin-pwa` (Workbox) faz precache de todo o app; `src/pwa/registerServiceWorker.ts` |
+| Atualização segura | ✅ versão nova só é aplicada quando o usuário toca em "Atualizar" na tela inicial |
+| Ícone maskable | ✅ `icon-maskable-512.png` com margem segura |
 | Tela acesa durante o jogo | ✅ Wake Lock API no placar e no Telão |
 
-## Passos para ativar
+## Como instalar
 
-1. `npm i -D vite-plugin-pwa` e adicionar o plugin no `vite.config.ts` com
-   `registerType: 'prompt'`, `manifest: false` (usar o arquivo existente) e
-   `workbox.globPatterns: ['**/*.{js,css,html,woff2,png,jpg,webmanifest}']`.
-2. Trocar o registro manual pelo `virtual:pwa-register` dentro de
-   `registerServiceWorker.ts` e definir `ENABLED = true`.
-3. Estratégia de atualização: **nunca recarregar sozinho durante uma partida**.
-   Mostrar um aviso "Nova versão disponível" e só aplicar quando
-   `store.getState().match?.status` for `finished`, `not_started` ou nulo.
-4. Gerar ícone maskable dedicado (logo com 20% de margem segura) em vez de
-   reaproveitar o 512.
-5. Testar: Lighthouse PWA, instalação no Android (Chrome) e no iOS
-   (Safari → Compartilhar → Adicionar à Tela de Início), modo avião durante uma
-   partida, e recarregamento com o SW ativo.
+1. Publicar o build (`npm run build` → pasta `dist/`) em qualquer hospedagem estática com https (Vercel, Netlify, Cloudflare Pages). Não precisa de regra de rota: a navegação é por hash.
+2. **iPhone:** abrir o endereço no Safari → Compartilhar → **Adicionar à Tela de Início**.
+3. **Android:** abrir no Chrome → menu ⋮ → **Instalar app**.
+4. Abrir uma vez com internet; daí em diante funciona sem rede.
 
 ## Pontos de atenção
 
